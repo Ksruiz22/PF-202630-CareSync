@@ -280,7 +280,7 @@ El siguiente paso consiste en validar el alcance y avanzar hacia el levantamient
 | **TypeScript** | Lenguaje principal |
 | **Supabase** | Backend, autenticación y servicios |
 | **PostgreSQL** | Base de datos |
-| **OpenAI API** | Capacidades de inteligencia artificial |
+| **Anthropic API** | Capacidades de inteligencia artificial |
 | **Agents SDK / Responses API** | Implementación de agentes |
 | **Figma** | Diseño UI/UX |
 | **GitHub** | Control de versiones y colaboración |
