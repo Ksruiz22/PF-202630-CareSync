@@ -50,6 +50,59 @@ No hay claves ajenas: ROBLE no las expone en `createTable`. La integridad la
 sostiene el código, y eso está asumido —ver
 [`arquitectura.md`](arquitectura.md#no-hay-claves-ajenas).
 
+Los tipos que se le pasan a `createTable` son los nombres de ROBLE, no los alias
+de SQL: `int4` y no `integer`, `bool` y no `boolean`. La lista está en
+[`/docs/database/types`](https://roble.test-openlab.uninorte.edu.co/docs/database/types)
+y centralizada en la constante `T` de `app/esquema/bootstrap_roble.mjs`.
+
+## Permisos de tabla en la consola de ROBLE
+
+**Crear las tablas no basta, y este es el paso que se olvida.** Lo dice la
+documentación de ROBLE en
+[`/docs/roles`](https://roble.test-openlab.uninorte.edu.co/docs/roles): al crear el
+proyecto se genera un rol `user` con permisos de leer y actualizar **las tablas que
+existían en ese momento**, los permisos sólo se pueden crear sobre tablas que ya
+existen, y las tablas nuevas hay que darlas de alta a mano. Nuestras trece nacen
+sin ningún permiso.
+
+El síntoma de que falta esto no es un 403 limpio: es un **500 de ROBLE** que la
+aplicación traduce a un 502 y que se lee igual que «no me puedo conectar».
+
+En la consola: *Base de datos → Permisos* por cada tabla, y *Autenticación →
+Roles* para asignarlos al rol que tienen las cuentas. Lo que necesita CareSync,
+sacado de las llamadas que hay en el código:
+
+| Tabla | read | insert | update | delete |
+|---|:--:|:--:|:--:|:--:|
+| `perfiles` | ✔ | ✔ | ✔ | |
+| `casos` | ✔ | ✔ | ✔ | |
+| `conversaciones` | ✔ | ✔ | | |
+| `profesionales` | ✔ | ✔ | | |
+| `horarios` | ✔ | ✔ | | |
+| `cupos` | ✔ | ✔ | ✔ | |
+| `citas` | ✔ | ✔ | ✔ | |
+| `planes` | ✔ | ✔ | | |
+| `indicaciones` | ✔ | ✔ | ✔ | |
+| `adherencia` | ✔ | ✔ | | |
+| `evolucion` | ✔ | ✔ | | |
+| `eventos` | ✔ | ✔ | | |
+| `recordatorios` | ✔ | ✔ | ✔ | |
+
+**Ninguna tabla necesita `delete`**, y conviene dejarlo así: nada del sistema borra
+filas clínicas, así que un permiso de borrado sólo añadiría una forma de perder
+datos que no están en ningún otro sitio. Un cupo que se libera se marca `libre`,
+no se borra.
+
+Dos cosas que la documentación deja claras y que ahorran una tarde:
+
+- El rol nuevo **toma efecto en el siguiente inicio de sesión**. Si se cambia y no
+  parece cambiar nada, hay que salir y volver a entrar.
+- El rol de ROBLE **no es** el rol de CareSync. `register` guarda
+  `extra: { role: 'paciente' }`, pero eso es metadato de la cuenta: quien decide
+  qué ve cada quien es la fila de `perfiles` (ver más abajo), y quien decide si la
+  consulta a la tabla se permite es el rol de ROBLE. Son dos capas distintas y
+  hacen falta las dos.
+
 ## Roles
 
 Cinco: `paciente`, `profesional`, `admin_cmu`, `admin_cae`, `servicio`. Los dos

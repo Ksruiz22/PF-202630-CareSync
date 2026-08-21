@@ -40,10 +40,17 @@ const AQUI = dirname(fileURLToPath(import.meta.url));
  * El error que devuelve ROBLE se imprime con el nombre de la tabla y la columna,
  * para que se sepa exactamente qué ajustar.
  */
+//
+// Los nombres son los que publica ROBLE en su documentación de tipos, no los
+// alias de SQL: `int4` y no `integer`, `bool` y no `boolean`. PostgreSQL acepta
+// las dos formas, pero quien valida aquí es la API de ROBLE y su lista es la de
+// la izquierda de https://roble.test-openlab.uninorte.edu.co/docs/database/types
+// (`int2 int4 int8 float4 float8 numeric json jsonb text varchar uuid date time
+// timestamp timestamptz bool geography`).
 const T = {
   texto: 'text',
-  entero: 'integer',
-  logico: 'boolean',
+  entero: 'int4',
+  logico: 'bool',
   momento: 'timestamp',
   json: 'jsonb',
 };
