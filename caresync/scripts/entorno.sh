@@ -61,6 +61,12 @@ elif [ -z "${CI:-}" ]; then
 fi
 unset _ca
 
+# Terraform no consulta si hay una versión más nueva de sí mismo. La versión la
+# fija el flujo (1.5.7) y no la elige quien ejecuta, así que el aviso no sirve de
+# nada; lo que sí hace es una llamada de red en cada invocación y una segunda línea
+# de salida imprevisible, que es lo que rompió el despliegue una vez.
+export CHECKPOINT_DISABLE=1
+
 # Terraform escribe su caché de proveedores aquí para no volver a bajar 600 MB
 # en cada clon del repositorio.
 export TF_PLUGIN_CACHE_DIR="${TF_PLUGIN_CACHE_DIR:-$HOME/.terraform.d/plugin-cache}"

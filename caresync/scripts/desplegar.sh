@@ -29,7 +29,13 @@ echo "==> Comprobando herramientas"
 for herramienta in terraform aws python3; do
   command -v "${herramienta}" >/dev/null || { echo "Falta ${herramienta}" >&2; exit 1; }
 done
-terraform version | head -1
+# Sin tubería a `head`, a propósito. `terraform version` imprime a veces una
+# segunda línea —el aviso de que hay una versión más nueva, que consulta por red—
+# y si llega después de que `head` haya cerrado la tubería, terraform muere con
+# SIGPIPE; con `pipefail` eso aborta el script con 141 y sin más explicación que
+# la versión ya impresa. Pasó en CI de forma intermitente. Se corta en bash.
+version_terraform="$(terraform version)"
+echo "${version_terraform%%$'\n'*}"
 
 echo "==> Comprobando la cuenta"
 # Que las credenciales apunten a la cuenta que se espera. Aplicar esta
