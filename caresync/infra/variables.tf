@@ -123,7 +123,21 @@ variable "memoria_orquestador" {
 }
 
 variable "timeout_orquestador" {
-  description = "Segundos. El bucle de herramientas puede dar varias vueltas."
+  description = <<-TXT
+    Segundos. El bucle de herramientas puede dar varias vueltas, pero el techo no lo
+    pone la Lambda: lo pone el HTTP API, que no espera más de 30 s por una
+    integración. Este mismo valor va a los dos sitios (la función y la integración)
+    a propósito, para que la Lambda no siga trabajando y gastando tokens de Bedrock
+    después de que quien preguntó ya haya recibido un 504.
+  TXT
   type        = number
-  default     = 60
+  default     = 30
+
+  validation {
+    # Con 60 el apply llegaba hasta la integración del API y moría allí con
+    # «BadRequestException: Timeout should be between 50 ms and 30000 ms», dejando la
+    # infraestructura a medias. Mejor que no llegue a empezar.
+    condition     = var.timeout_orquestador > 0 && var.timeout_orquestador <= 30
+    error_message = "Entre 1 y 30 segundos: un HTTP API no admite una integración más lenta. Para pasar de ahí hay que volver la llamada asíncrona (202 y consulta posterior), que es un cambio de diseño y no un valor."
+  }
 }
