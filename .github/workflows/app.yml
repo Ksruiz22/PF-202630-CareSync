@@ -73,8 +73,10 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           # El mismo rol que aplica. Publicar escribe en Amplify, así que el rol de
-          # sólo lectura no sirve.
-          role-to-assume: ${{ vars.AWS_ROL_APPLY }}
+          # sólo lectura no sirve. El ARN va literal: no es un secreto y así el
+          # despliegue no depende de variables de repositorio, que exigen admin. El
+          # por qué está en infra.yml.
+          role-to-assume: arn:aws:iam::539091491293:role/caresync-ci-apply
           role-session-name: caresync-app-${{ github.run_id }}
           aws-region: us-east-1
 

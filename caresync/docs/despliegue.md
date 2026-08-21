@@ -47,19 +47,33 @@ cd infra/arranque
 terraform init && terraform apply -var-file=arranque.tfvars
 ```
 
-### 2. Una vez: configurar el repositorio en GitHub
+### 2. Comprobar que los ARN coinciden
 
-En *Settings → Secrets and variables → Actions → Variables* (variables, no secretos:
-un ARN de rol no es secreto y verlo en el log ayuda a diagnosticar):
+No hay nada que configurar en *Settings*: **desplegar no requiere ser admin del
+repositorio**, y eso es deliberado. Los ARN de los dos roles están escritos
+literalmente en los workflows, así que basta comparar:
 
-| Variable | Valor |
-|---|---|
-| `AWS_ROL_PLAN` | salida `rol_plan` del arranque |
-| `AWS_ROL_APPLY` | salida `rol_apply` del arranque |
+```bash
+terraform -chdir=infra/arranque output rol_plan rol_apply
+grep -rn role-to-assume ../.github/workflows/
+```
 
-En *Settings → Environments*, crear `aws-dev`. Si se le añaden revisores, cada
-despliegue espera una aprobación humana; si se deja sin ellos, aplica solo. Las dos
-formas funcionan sin tocar IAM: la política de confianza acepta los dos `sub`.
+Dos decisiones detrás de esto, por si algún día se quieren revertir:
+
+- **Los ARN van en el YAML, no en `vars.*`.** Un ARN de rol no es un secreto —lo que
+  protege la cuenta es la política de confianza, que sólo acepta un `sub` de este
+  repositorio—, y las variables se administran en *Settings*, que exige admin.
+  Escribirlos en el archivo deja el despliegue en manos de cualquiera con permiso de
+  escritura, y cambiar de rol o de cuenta queda registrado en un commit.
+- **El trabajo de despliegue no declara `environment:`.** Sería la puerta de
+  aprobación humana, pero en un repositorio privado de plan gratuito los environments
+  y sus reglas de protección no están disponibles. La política de confianza acepta el
+  `sub` con environment y sin él, así que añadirlo el día que el repositorio sea
+  público o de pago es una línea en `infra.yml` y ningún cambio en IAM.
+
+Lo que sigue conteniendo el despliegue es el `sub` del token: sólo `main` de este
+repositorio puede asumir el rol de escritura. Lo que se pierde con esto es la
+aprobación previa — entrar en `main` aplica.
 
 ### 3. Empujar a `main`
 

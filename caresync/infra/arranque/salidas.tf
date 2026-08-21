@@ -1,10 +1,10 @@
 output "rol_plan" {
-  description = "Rol que asumen los pull requests. Va en el flujo de CI como AWS_ROL_PLAN."
+  description = "Rol que asumen los pull requests. Debe coincidir con el `role-to-assume` del trabajo `plan` en .github/workflows/infra.yml."
   value       = aws_iam_role.plan.arn
 }
 
 output "rol_apply" {
-  description = "Rol que asume el despliegue desde main. Va en el flujo de CI como AWS_ROL_APPLY."
+  description = "Rol que asume el despliegue desde main. Debe coincidir con el `role-to-assume` de los trabajos `aplicar` y `publicar`."
   value       = aws_iam_role.apply.arn
 }
 
@@ -21,9 +21,9 @@ output "tabla_bloqueo" {
 output "siguiente_paso" {
   description = "Qué hacer con estas salidas."
   value = [
-    "Guardar los ARN de los roles como variables del repositorio (Settings > Secrets and variables > Actions > Variables): AWS_ROL_PLAN y AWS_ROL_APPLY.",
-    "Crear el environment «${var.entorno_github}» en GitHub y, si se quiere aprobación manual, añadirle revisores.",
+    "Comprobar que estos dos ARN son los que están escritos en .github/workflows/infra.yml y app.yml. Van literales en el YAML, no en variables del repositorio: administrarlas exige permiso de admin y un ARN de rol no es un secreto.",
     "Cargar las credenciales de ROBLE en Parameter Store a mano (ver infra/ssm.tf). No las pone ni este módulo ni CI.",
     "Empujar a ${var.rama_despliegue}: el flujo .github/workflows/infra.yml aplica el resto.",
+    "Opcional, y sólo si el repositorio deja de ser privado de plan gratuito: crear el environment «${var.entorno_github}» con revisores y declararlo en el trabajo de despliegue. La política de confianza ya lo acepta.",
   ]
 }

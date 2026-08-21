@@ -7,7 +7,6 @@ Lo que hay que crear antes de que GitHub Actions pueda crear el resto. Se aplica
 ```bash
 source scripts/entorno.sh
 cd infra/arranque
-cp arranque.tfvars.ejemplo arranque.tfvars   # y escribe el repositorio real
 terraform init
 terraform apply -var-file=arranque.tfvars
 ```
@@ -40,18 +39,23 @@ acceso público, ciclo de vida) se importan con el nombre del bucket como id.
 
 `terraform output siguiente_paso` lo dice, pero en resumen:
 
-1. `AWS_ROL_PLAN` y `AWS_ROL_APPLY` como **variables** del repositorio (no como
-   secretos: un ARN de rol no es secreto y verlo en el log ayuda a diagnosticar).
-2. El environment `aws-dev` en GitHub, con revisores si se quiere que un humano
-   apruebe cada despliegue.
-3. Las credenciales de ROBLE en Parameter Store, a mano. Ver `infra/ssm.tf`.
+1. Comprobar que `rol_plan` y `rol_apply` coinciden con los ARN escritos en
+   `.github/workflows/infra.yml` y `app.yml`. Van literales en el YAML y no en
+   variables del repositorio: un ARN de rol no es un secreto, y administrar
+   variables exige permiso de admin sobre el repositorio, que quien despliega no
+   necesariamente tiene.
+2. Las credenciales de ROBLE en Parameter Store, a mano. Ver `infra/ssm.tf`.
+
+El environment `aws-dev` no hace falta. La política de confianza lo acepta, pero en
+un repositorio privado de plan gratuito los environments y sus reglas de protección
+no están disponibles, así que el trabajo de despliegue no lo declara.
 
 ## Los dos roles
 
 | Rol | Lo asume | Puede |
 |---|---|---|
 | `caresync-ci-plan` | pull requests del repositorio autorizado | leer la cuenta y bloquear el estado |
-| `caresync-ci-apply` | `main` / environment `aws-dev` | todo menos IAM, más IAM sobre `caresync-*` |
+| `caresync-ci-apply` | `main`, con environment `aws-dev` o sin él | todo menos IAM, más IAM sobre `caresync-*` |
 
 Son dos porque un pull request ejecuta código que todavía no ha revisado nadie.
 El rol de los pull requests no crea, borra ni modifica nada.

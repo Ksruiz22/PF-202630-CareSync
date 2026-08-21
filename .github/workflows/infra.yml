@@ -6,8 +6,14 @@
 # camino: se revisa el plan en el pull request y se aplica al entrar en main.
 #
 # Las credenciales llegan por OIDC. No hay ninguna clave de AWS guardada en el
-# repositorio; los dos roles los crea caresync/infra/arranque/ y sus ARN están en
-# las variables del repositorio.
+# repositorio; los dos roles los crea caresync/infra/arranque/.
+#
+# Los ARN van escritos literalmente y no en `vars.*` a propósito. Un ARN de rol no
+# es un secreto —lo que protege la cuenta es la política de confianza del rol, que
+# sólo acepta un `sub` de este repositorio—, y las variables del repositorio se
+# administran en Settings, que exige permiso de admin. Escribirlos aquí deja el
+# despliegue en manos de cualquiera con permiso de escritura y, de paso, hace que
+# cambiar de rol o de cuenta quede registrado en un commit.
 #
 # Este archivo está en la raíz del repositorio porque GitHub sólo ejecuta lo que
 # encuentra en `.github/workflows/` de la raíz, pero el proyecto vive en
@@ -76,7 +82,7 @@ jobs:
         with:
           # Rol de sólo lectura: un pull request trae código que todavía no ha
           # revisado nadie y aquí se ejecutan scripts del propio pull request.
-          role-to-assume: ${{ vars.AWS_ROL_PLAN }}
+          role-to-assume: arn:aws:iam::539091491293:role/caresync-ci-plan
           role-session-name: caresync-plan-${{ github.run_id }}
           aws-region: us-east-1
 
@@ -102,10 +108,15 @@ jobs:
     name: aplicar
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    # El environment es la puerta: es donde se configuran los revisores que tienen
-    # que aprobar para que este trabajo arranque. También cambia el `sub` del token
-    # de OIDC, y por eso figura en la política de confianza del rol (infra/arranque).
-    environment: aws-dev
+    # Sin `environment:`. Sería la puerta donde se configuran los revisores que
+    # aprueban un despliegue, pero en un repositorio privado de plan gratuito los
+    # environments y sus reglas de protección no están disponibles, y crearlos exige
+    # admin. La política de confianza del rol acepta los dos `sub` que puede emitir
+    # GitHub —con environment y sin él—, así que quitarlo no toca IAM.
+    #
+    # Lo que sigue conteniendo el despliegue es ese `sub`: sólo `main` de este
+    # repositorio puede asumir el rol de escritura. Lo que se pierde es la
+    # aprobación humana previa; entrar en `main` aplica.
     defaults:
       run:
         working-directory: caresync
@@ -123,7 +134,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROL_APPLY }}
+          role-to-assume: arn:aws:iam::539091491293:role/caresync-ci-apply
           role-session-name: caresync-apply-${{ github.run_id }}
           aws-region: us-east-1
 
