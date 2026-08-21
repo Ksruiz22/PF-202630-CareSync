@@ -60,6 +60,29 @@ no están disponibles, así que el trabajo de despliegue no lo declara.
 Son dos porque un pull request ejecuta código que todavía no ha revisado nadie.
 El rol de los pull requests no crea, borra ni modifica nada.
 
+### El `sub` del token lleva ids, no sólo nombres
+
+GitHub emite hoy el `sub` en su forma inmutable, con el id detrás de cada nombre:
+
+```
+repo:Ksruiz22@98917570/PF-202630-CareSync@1321788798:pull_request
+```
+
+De ahí que `arranque.tfvars` tenga `propietario_id` y `repositorio_id` además del
+nombre, y que la confianza liste las dos formas. Con `StringEquals` el nombre a
+secas no encaja, y el síntoma no es un error al aplicar: es un despliegue que falla
+con `Not authorized to perform sts:AssumeRoleWithWebIdentity` desde el repositorio
+correcto. Si algún día vuelve a aparecer ese error, lo que dice qué `sub` llegó de
+verdad es CloudTrail, no el log de Actions:
+
+```bash
+aws cloudtrail lookup-events --max-results 1 \
+  --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRoleWithWebIdentity
+```
+
+El `userName` del evento es el `sub` recibido. Al cambiar de repositorio hay que
+mover el nombre y los dos ids a la vez.
+
 La contrapartida honesta del rol de plan está anotada en `ci.tf`: para refrescar
 los parámetros `SecureString` necesita `kms:Decrypt`, así que puede leer la
 contraseña de servicio de ROBLE. Lo que lo contiene es que sólo lo asume un

@@ -26,6 +26,43 @@ variable "repositorio" {
   }
 }
 
+# Los identificadores numéricos, y son obligatorios por una razón concreta.
+#
+# GitHub ya no emite el `sub` del token en la forma clásica
+# `repo:propietario/nombre:pull_request`, sino en la forma «inmutable», con el id
+# de cada cosa pegado detrás de su nombre:
+#
+#   repo:Ksruiz22@98917570/PF-202630-CareSync@1321788798:pull_request
+#
+# Con `StringEquals` una forma no encaja en la otra, así que sin estos dos números
+# la política de confianza se aplica sin error y todo intento de asumir el rol
+# falla con «Not authorized to perform sts:AssumeRoleWithWebIdentity». Se obtienen
+# así:
+#
+#   gh api repos/<propietario>/<nombre> --jq '{propietario: .owner.id, repo: .id}'
+#
+# La forma con ids es además más fuerte que la clásica: sobrevive a un renombrado
+# y no la hereda un repositorio nuevo que reutilice el nombre.
+variable "propietario_id" {
+  description = "Id numérico del propietario del repositorio en GitHub."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.propietario_id))
+    error_message = "Se espera el id numérico: gh api repos/<propietario>/<nombre> --jq .owner.id"
+  }
+}
+
+variable "repositorio_id" {
+  description = "Id numérico del repositorio en GitHub."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.repositorio_id))
+    error_message = "Se espera el id numérico: gh api repos/<propietario>/<nombre> --jq .id"
+  }
+}
+
 variable "rama_despliegue" {
   description = "Rama desde la que se permite aplicar."
   type        = string

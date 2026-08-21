@@ -32,6 +32,20 @@ data "aws_iam_openid_connect_provider" "github" {
 locals {
   oidc_arn = var.crear_proveedor_oidc ? aws_iam_openid_connect_provider.github[0].arn : data.aws_iam_openid_connect_provider.github[0].arn
   clave    = "arn:aws:s3:::${local.bucket}/*"
+
+  propietario = split("/", var.repositorio)[0]
+  nombre_repo = split("/", var.repositorio)[1]
+
+  # Las dos formas en que GitHub puede escribir el origen dentro del `sub` del
+  # token. La clásica lleva sólo nombres; la inmutable, que es la que GitHub emite
+  # hoy, lleva el id detrás de cada nombre. Están las dos porque `StringEquals` no
+  # hace que una encaje en la otra y porque no queremos que una migración del lado
+  # de GitHub rompa el despliegue. Ninguna de las dos ensancha nada: las dos
+  # nombran este repositorio y nada más.
+  sujetos = [
+    "repo:${var.repositorio}",
+    "repo:${local.propietario}@${var.propietario_id}/${local.nombre_repo}@${var.repositorio_id}",
+  ]
 }
 
 # --- confianza ---------------------------------------------------------------
@@ -56,11 +70,12 @@ data "aws_iam_policy_document" "confianza_plan" {
 
     # Sólo desde un pull request de este repositorio. `StringEquals` y no
     # `StringLike`: un comodín mal puesto aquí (repo:mi-org/*) abre la cuenta a
-    # cualquier repositorio de la organización.
+    # cualquier repositorio de la organización. De ahí que las dos formas del
+    # `sub` estén escritas enteras en vez de resueltas con `repo:...@*`.
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.repositorio}:pull_request"]
+      values   = [for s in local.sujetos : "${s}:pull_request"]
     }
   }
 }
@@ -81,17 +96,20 @@ data "aws_iam_policy_document" "confianza_apply" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Dos valores porque GitHub cambia el `sub` según cómo se declare el trabajo:
-    # con `environment:` en el flujo llega la primera forma, sin él la segunda.
-    # Están las dos para que activar o quitar la aprobación manual en GitHub no
-    # exija volver a tocar IAM.
+    # Cuatro valores: dos formas de nombrar el repositorio (ver local.sujetos) por
+    # dos finales, porque GitHub cambia el `sub` según cómo se declare el trabajo.
+    # Con `environment:` en el flujo llega el primero, sin él el segundo; están los
+    # dos para que activar o quitar la aprobación manual en GitHub no exija volver
+    # a tocar IAM.
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.repositorio}:environment:${var.entorno_github}",
-        "repo:${var.repositorio}:ref:refs/heads/${var.rama_despliegue}",
-      ]
+      values = flatten([
+        for s in local.sujetos : [
+          "${s}:environment:${var.entorno_github}",
+          "${s}:ref:refs/heads/${var.rama_despliegue}",
+        ]
+      ])
     }
   }
 }
