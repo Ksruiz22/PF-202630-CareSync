@@ -1,0 +1,689 @@
+/*
+ * Estilos de CareSync.
+ *
+ * CSS a mano y sin framework. Son cuatro pantallas y un chat: Tailwind o una
+ * librería de componentes habrían pesado más que todo lo que hay aquí, y en una
+ * PWA que se va a abrir desde el celular en el campus, el peso se nota.
+ *
+ * Dos cosas están pensadas y no salieron así por defecto:
+ *
+ * - **El nivel 1 es el único color agresivo de la interfaz.** Si todo grita, nada
+ *   grita. Los demás estados usan grises y azules apagados para que el rojo de una
+ *   emergencia se encuentre sin leer.
+ * - **Todo escala con `rem` y respeta el tamaño de letra del sistema.** Parte de
+ *   quien usa esto lo hace con el texto agrandado.
+ */
+
+:root {
+  --tinta: #12212e;
+  --tinta-suave: #5a6b7a;
+  --papel: #f4f7f9;
+  --papel-alto: #ffffff;
+  --borde: #dde5ea;
+  --azul: #12609a;
+  --azul-claro: #e6f0f8;
+  --verde: #1c7a54;
+  --verde-claro: #e4f4ec;
+  --ambar: #8a5a00;
+  --ambar-claro: #fdf1dc;
+  --rojo: #a51f1f;
+  --rojo-claro: #fbe8e8;
+  --radio: 10px;
+  --sombra: 0 1px 2px rgba(18, 33, 46, 0.06), 0 4px 12px rgba(18, 33, 46, 0.04);
+  --ancho: 1180px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tinta: #e8eef3;
+    --tinta-suave: #9fb0bd;
+    --papel: #101a22;
+    --papel-alto: #17232d;
+    --borde: #27363f;
+    --azul: #6cb2e8;
+    --azul-claro: #1a2b3a;
+    --verde: #6cc79b;
+    --verde-claro: #162b23;
+    --ambar: #e0b45f;
+    --ambar-claro: #2c2415;
+    --rojo: #f08a8a;
+    --rojo-claro: #33191a;
+    --sombra: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--papel);
+  color: var(--tinta);
+  font: 1rem/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+h3 {
+  font-size: 0.9rem;
+  margin: 1rem 0 0.4rem;
+  color: var(--tinta-suave);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+p {
+  margin: 0 0 0.6rem;
+}
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Sólo para lectores de pantalla. */
+.lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ controles */
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid var(--borde);
+  background: var(--papel-alto);
+  color: var(--tinta);
+  padding: 0.5rem 0.9rem;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--azul);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--azul);
+  outline-offset: 1px;
+}
+
+button.principal {
+  background: var(--azul);
+  border-color: var(--azul);
+  color: #fff;
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  button.principal {
+    color: #0b1219;
+  }
+}
+
+button.secundario {
+  background: transparent;
+}
+
+button.enlace {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--azul);
+  text-decoration: underline;
+  font-size: 0.85rem;
+}
+
+button.fino {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--tinta);
+  background: var(--papel-alto);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  width: 100%;
+}
+
+textarea {
+  resize: vertical;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--tinta-suave);
+}
+
+label input,
+label textarea {
+  margin-top: 0.3rem;
+  font-weight: 400;
+  color: var(--tinta);
+}
+
+/* --------------------------------------------------------------------- acceso */
+
+.arranque,
+.acceso {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.acceso .marca {
+  text-align: center;
+}
+
+.acceso .marca p {
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+}
+
+.acceso form {
+  width: 100%;
+  max-width: 22rem;
+  background: var(--papel-alto);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 1.2rem;
+}
+
+.pestanas {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.1rem;
+}
+
+.pestanas button {
+  flex: 1;
+  background: transparent;
+  border-color: transparent;
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+}
+
+.pestanas button[aria-selected='true'] {
+  background: var(--azul-claro);
+  border-color: var(--azul);
+  color: var(--azul);
+  font-weight: 600;
+}
+
+.acceso .principal {
+  width: 100%;
+  margin-top: 0.2rem;
+}
+
+.acceso > .descargo {
+  max-width: 22rem;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- estructura */
+
+.panel {
+  max-width: var(--ancho);
+  margin: 0 auto;
+  padding: 1.2rem;
+}
+
+.cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.cabecera p {
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+  margin: 0.2rem 0 0;
+}
+
+.columnas {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.profesional .columnas {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+}
+
+@media (max-width: 900px) {
+  .columnas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.lateral,
+.lista,
+.detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.tarjeta {
+  background: var(--papel-alto);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  padding: 1rem;
+}
+
+.tarjeta > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.7rem;
+}
+
+.contador {
+  background: var(--rojo-claro);
+  color: var(--rojo);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+/* ---------------------------------------------------------------- conversación */
+
+.conversacion {
+  display: flex;
+  flex-direction: column;
+  background: var(--papel-alto);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  overflow: hidden;
+}
+
+.hilo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1rem;
+  /* Alto fijo y no `flex: 1`: el chat vive dentro de una rejilla y sin un alto
+     propio crecería con la conversación hasta empujar el resto fuera de vista. */
+  height: min(60vh, 30rem);
+  overflow-y: auto;
+}
+
+.burbuja {
+  max-width: 85%;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radio);
+  border: 1px solid var(--borde);
+  background: var(--papel);
+}
+
+.burbuja p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.burbuja .autor {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tinta-suave);
+  margin-bottom: 0.2rem;
+}
+
+.burbuja.yo {
+  align-self: flex-end;
+  background: var(--azul-claro);
+  border-color: var(--azul-claro);
+}
+
+.burbuja.sistema {
+  align-self: center;
+  max-width: 100%;
+  background: var(--ambar-claro);
+  border-color: var(--ambar-claro);
+  color: var(--ambar);
+  font-size: 0.88rem;
+}
+
+.burbuja .acciones {
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--borde);
+  font-size: 0.8rem;
+  color: var(--verde);
+}
+
+.burbuja .acciones li::before {
+  content: '✓ ';
+}
+
+.pensando {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.punto {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tinta-suave);
+  animation: latir 1.2s infinite ease-in-out;
+}
+
+.punto:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.punto:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes latir {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .punto {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.redactor {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  padding: 0.7rem;
+  border-top: 1px solid var(--borde);
+}
+
+.redactor button {
+  white-space: nowrap;
+}
+
+.descargo {
+  margin: 0;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.75rem;
+  color: var(--tinta-suave);
+  background: var(--papel);
+  border-top: 1px solid var(--borde);
+}
+
+/* ------------------------------------------------------------------- avisos */
+
+.aviso {
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.88rem;
+  border: 1px solid transparent;
+}
+
+.aviso.info {
+  background: var(--azul-claro);
+  color: var(--azul);
+}
+
+.aviso.error {
+  background: var(--rojo-claro);
+  color: var(--rojo);
+}
+
+.aviso.urgente {
+  background: var(--rojo);
+  color: #fff;
+  font-weight: 600;
+}
+
+.cargando,
+.vacio {
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------- estado y nivel */
+
+.etiqueta,
+.nivel {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--papel);
+  border: 1px solid var(--borde);
+  color: var(--tinta-suave);
+}
+
+.etiqueta.e-canalizado,
+.etiqueta.e-agendado {
+  background: var(--azul-claro);
+  color: var(--azul);
+  border-color: transparent;
+}
+
+.etiqueta.e-en_seguimiento,
+.etiqueta.e-atendida,
+.etiqueta.e-atendido {
+  background: var(--verde-claro);
+  color: var(--verde);
+  border-color: transparent;
+}
+
+.etiqueta.e-urgencia_escalada {
+  background: var(--rojo);
+  color: #fff;
+  border-color: transparent;
+}
+
+.nivel.n-1 {
+  background: var(--rojo);
+  color: #fff;
+  border-color: transparent;
+}
+.nivel.n-2 {
+  background: var(--ambar-claro);
+  color: var(--ambar);
+  border-color: transparent;
+}
+.nivel.n-3 {
+  background: var(--azul-claro);
+  color: var(--azul);
+  border-color: transparent;
+}
+
+/* --------------------------------------------------------------------- listas */
+
+.datos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.8rem;
+  margin: 0 0 0.7rem;
+  font-size: 0.9rem;
+}
+
+.datos dt {
+  color: var(--tinta-suave);
+}
+
+.datos dd {
+  margin: 0;
+}
+
+.resumen {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.destacado {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.fino {
+  font-size: 0.8rem;
+  color: var(--tinta-suave);
+}
+
+.citas li,
+.casos li,
+.cupos li,
+.indicaciones li,
+.evolucion li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--borde);
+}
+
+.citas li:last-child,
+.casos li:last-child,
+.cupos li:last-child,
+.indicaciones li:last-child,
+.evolucion li:last-child {
+  border-bottom: 0;
+}
+
+.cuando {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.quien {
+  flex: 1;
+  min-width: 8rem;
+  font-size: 0.9rem;
+}
+
+.marcas {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.texto {
+  flex: 1;
+  min-width: 10rem;
+  font-size: 0.9rem;
+}
+
+/* La agenda del profesional: cada cita es un botón que abre el detalle. */
+.citas button.fila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+  padding: 0.4rem 0.5rem;
+}
+
+.citas button.fila.activa {
+  background: var(--azul-claro);
+  border-color: var(--azul);
+}
+
+.citas li:has(button.fila) {
+  padding: 0.15rem 0;
+}
+
+/* La escala de evolución va de 0 a 10; las franjas son las de `bandaDeEscala`. */
+.escala {
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--papel);
+  border: 1px solid var(--borde);
+  color: var(--tinta-suave);
+}
+
+.escala.mal {
+  background: var(--rojo-claro);
+  color: var(--rojo);
+  border-color: transparent;
+}
+
+.escala.medio {
+  background: var(--ambar-claro);
+  color: var(--ambar);
+  border-color: transparent;
+}
+
+.escala.bien {
+  background: var(--verde-claro);
+  color: var(--verde);
+  border-color: transparent;
+}
+
+/* ---------------------------------------------------------------- formularios */
+
+.formulario .principal {
+  width: 100%;
+  margin-top: 0.3rem;
+}
+
+.formulario .aviso {
+  margin-top: 0.7rem;
+}

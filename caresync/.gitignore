@@ -1,0 +1,46 @@
+# Nada de secretos, nada de artefactos, nada de estado local.
+
+# --- credenciales y configuración de máquina ---------------------------------
+# Las credenciales de ROBLE viven en Parameter Store y las carga una persona; en el
+# árbol de trabajo no debe existir ningún archivo con contraseñas. Estas reglas son
+# la red de seguridad, no el mecanismo.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credenciales*
+app/esquema/semilla.json
+
+# --- Terraform ---------------------------------------------------------------
+# El estado de `infra/` vive en S3 (ver infra/backend.tf), así que aquí no debería
+# aparecer ninguno. El de `infra/arranque/` sí es local y tampoco se versiona: son
+# cuatro recursos con nombre fijo y se recuperan importándolos.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+# Los .tfvars sí se versionan: no llevan secretos. Se excluyen sólo los locales.
+*.local.tfvars
+# `.terraform.lock.hcl` **sí** se versiona: es lo que garantiza que los tres
+# integrantes del equipo apliquen con la misma versión del proveedor de AWS.
+
+# --- artefactos de compilación ----------------------------------------------
+.build/
+dist/
+node_modules/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+
+# --- desechables -------------------------------------------------------------
+# Todo lo temporal vive aquí, con su marca `generated-by`.
+_scratch/
+
+# --- sistema operativo -------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini

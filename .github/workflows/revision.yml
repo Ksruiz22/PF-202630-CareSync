@@ -1,0 +1,129 @@
+# Comprobaciones que no tocan AWS.
+#
+# Todo lo que se puede saber sin credenciales se sabe aquí, y este flujo es el
+# único que corre en un pull request venido de un fork (esos no reciben token de
+# OIDC, así que el flujo de infraestructura no puede funcionar en ellos).
+#
+# Son las mismas comprobaciones que se hacen a mano antes de subir un cambio. Estar
+# escritas dos veces sería garantizar que un día difieran, así que lo que se
+# ejecuta aquí son los mismos comandos, no una versión de CI.
+#
+# Cada trabajo declara `working-directory: caresync` porque el archivo vive en la
+# raíz del repositorio —GitHub no ejecuta workflows en subcarpetas— y el proyecto
+# no. Los `with:` de un `uses:` no obedecen a ese valor, así que ahí las rutas van
+# completas.
+
+name: revisión
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: caresync
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          # La misma versión que hay instalada en la máquina del equipo. Fijarla
+          # evita el caso más molesto: que CI valide con una versión más nueva y
+          # apruebe algo que en local falla.
+          terraform_version: 1.5.7
+          # El envoltorio del action intercepta stdout de terraform. Los scripts
+          # leen `terraform output -raw`, así que aquí estorba.
+          terraform_wrapper: false
+
+      - name: formato
+        run: terraform fmt -check -recursive infra
+
+      # `-backend=false` porque validar no necesita el estado, y el bucket exige
+      # credenciales que este flujo no tiene a propósito.
+      - name: validar infra
+        run: |
+          terraform -chdir=infra init -input=false -backend=false
+          terraform -chdir=infra validate
+
+      - name: validar arranque
+        run: |
+          terraform -chdir=infra/arranque init -input=false -backend=false
+          terraform -chdir=infra/arranque validate
+
+  python:
+    name: python y scripts
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: caresync
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # la misma que el runtime de las Lambdas
+
+      - name: sintaxis de los scripts
+        run: |
+          for archivo in scripts/*.sh; do
+            bash -n "${archivo}"
+          done
+
+      - name: compilar las Lambdas
+        # No es una prueba, es un cedazo: coge los errores de sintaxis y de
+        # indentación antes de que aparezcan como un import fallido en CloudWatch.
+        run: python3 -m compileall -q lambdas scripts
+
+      - name: construir los paquetes
+        # Se construyen aquí aunque este flujo no despliegue: es donde se descubre
+        # que una dependencia nueva no tiene rueda para arm64, y descubrirlo en el
+        # pull request cuesta un minuto en vez de un despliegue a medias.
+        run: scripts/construir_paquetes.sh
+
+  pwa:
+    name: pwa
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: caresync/app/package-lock.json
+
+      - name: npm ci
+        working-directory: caresync/app
+        run: npm ci --no-audit --no-fund
+
+      # `npm run build` es `tsc --noEmit && vite build`: comprueba los tipos y que
+      # el bundle sale. Sin variables VITE_*: sólo se leen al arrancar, y las
+      # reales salen de las salidas de Terraform en el momento de publicar.
+      - name: compilar
+        working-directory: caresync/app
+        run: npm run build
+
+  esquema:
+    name: script del esquema
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: caresync
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # No se ejecuta: crearía tablas en ROBLE y pediría credenciales. Sólo se
+      # comprueba que es JavaScript válido.
+      - name: sintaxis
+        run: node --check app/esquema/bootstrap_roble.mjs

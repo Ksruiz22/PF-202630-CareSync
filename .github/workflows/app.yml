@@ -1,0 +1,84 @@
+# Publicación de la PWA en Amplify Hosting.
+#
+# Separada del flujo de infraestructura porque cambian por motivos distintos: la
+# aplicación se retoca a diario y la infraestructura casi nunca. Pero no son
+# independientes — el bundle lleva horneada la URL del API, que sale de las salidas
+# de Terraform— y de ahí los dos disparadores: un cambio en app/, o un despliegue de
+# infraestructura que haya terminado bien.
+#
+# Un empujón que toque app/ **y** infra/ publica dos veces. No se ha evitado porque
+# el resultado es el mismo bundle y el precio de evitarlo es un flujo más difícil de
+# leer que el problema que resuelve.
+
+name: aplicación web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "caresync/app/**"
+      - ".github/workflows/app.yml"
+  workflow_run:
+    workflows: ["infraestructura"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+# El mismo grupo que el flujo de infraestructura: publicar mientras se aplica
+# leería salidas de Terraform a medio cambiar.
+concurrency:
+  group: infra-dev
+  cancel-in-progress: false
+
+env:
+  CARESYNC_ENTORNO: dev
+  AWS_REGION: us-east-1
+
+jobs:
+  publicar:
+    name: publicar
+    # Si el despliegue de infraestructura falló, no hay nada nuevo que publicar y
+    # las salidas pueden estar a medias.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    # El proyecto vive en caresync/ y este archivo tiene que estar en la raíz. Los
+    # `run:` se ejecutan ahí dentro; las rutas de un `uses:` no lo obedecen.
+    defaults:
+      run:
+        working-directory: caresync
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: caresync/app/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+          # Imprescindible aquí: el script lee `terraform output -raw` y el
+          # envoltorio del action se mete en medio de la salida.
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # El mismo rol que aplica. Publicar escribe en Amplify, así que el rol de
+          # sólo lectura no sirve. El ARN va literal: no es un secreto y así el
+          # despliegue no depende de variables de repositorio, que exigen admin. El
+          # por qué está en infra.yml.
+          role-to-assume: arn:aws:iam::539091491293:role/caresync-ci-apply
+          role-session-name: caresync-app-${{ github.run_id }}
+          aws-region: us-east-1
+
+      - name: publicar_app.sh
+        run: scripts/publicar_app.sh

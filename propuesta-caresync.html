@@ -1,0 +1,1373 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CareSync Agentic Network — Propuesta técnica y plan de ejecución (16 semanas)</title>
+<style>
+:root{
+  /* AWS brand */
+  --squid:#232F3E; --squid-2:#1B2532; --squid-3:#161E2B;
+  --orange:#FF9900; --orange-d:#EC7211; --link:#0972D3;
+  --ink:#16191F; --ink-2:#414D5C; --ink-3:#5F6B7A;
+  --bg:#F4F6F8; --card:#FFFFFF; --line:#D5DBDB; --line-2:#E9EBED;
+  --ok:#037F0C; --warn:#8D6605; --bad:#D91515; --info:#0972D3;
+  /* AWS architecture category colors */
+  --c-compute:#ED7100; --c-storage:#7AA116; --c-db:#C925D1; --c-ml:#01A88D;
+  --c-net:#8C4FFF; --c-sec:#DD344C; --c-appint:#E7157B; --c-dev:#4D27AA;
+  --radius:12px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Amazon Ember","Segoe UI",Inter,system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{line-height:1.25;margin:0;font-weight:700;letter-spacing:-.01em}
+p{margin:0 0 12px}
+a{color:var(--link)}
+.wrap{max-width:1280px;margin:0 auto;padding:0 24px}
+
+/* ---------- top bar ---------- */
+.topbar{position:sticky;top:0;z-index:50;background:var(--squid-2);border-bottom:1px solid #000;}
+.topbar .wrap{display:flex;align-items:center;gap:22px;height:52px}
+.brand{display:flex;align-items:center;gap:9px;color:#fff;font-weight:700;font-size:15px;white-space:nowrap}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 3px rgba(255,153,0,.22)}
+.navlinks{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.navlinks::-webkit-scrollbar{display:none}
+.navlinks a{color:#C6CDD6;text-decoration:none;font-size:13px;padding:6px 10px;border-radius:6px;white-space:nowrap}
+.navlinks a:hover{background:#2B3A4D;color:#fff}
+
+/* ---------- hero ---------- */
+.hero{background:
+   radial-gradient(1100px 420px at 88% -10%,rgba(255,153,0,.20),transparent 60%),
+   radial-gradient(760px 380px at 8% 110%,rgba(9,114,211,.20),transparent 62%),
+   linear-gradient(160deg,var(--squid) 0%,var(--squid-3) 100%);
+  color:#fff;padding:52px 0 44px;border-bottom:3px solid var(--orange)}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:#FFC46B;background:rgba(255,153,0,.12);border:1px solid rgba(255,153,0,.35);
+  padding:5px 11px;border-radius:999px}
+.hero h1{font-size:40px;margin:16px 0 10px;max-width:20ch}
+.hero .sub{font-size:17px;color:#C6CDD6;max-width:78ch}
+.hero-grid{display:grid;grid-template-columns:1.35fr .95fr;gap:36px;align-items:end}
+.meta{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.14);border-radius:var(--radius);overflow:hidden}
+.meta div{background:rgba(255,255,255,.04);padding:12px 14px;backdrop-filter:blur(2px)}
+.meta dt{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:#93A1B0;margin-bottom:3px}
+.meta dd{margin:0;font-size:13.5px;font-weight:600;color:#fff}
+
+/* week strip */
+.weekstrip{margin-top:26px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.13);
+  border-radius:var(--radius);padding:14px 16px}
+.weekstrip .lbl{display:flex;justify-content:space-between;font-size:11.5px;color:#93A1B0;margin-bottom:8px}
+.bar{height:9px;border-radius:99px;background:rgba(255,255,255,.14);overflow:hidden;position:relative}
+.bar > i{position:absolute;inset:0 auto 0 0;width:18.75%;background:linear-gradient(90deg,var(--orange),#FFC46B);border-radius:99px}
+.bar > b{position:absolute;top:-4px;left:18.75%;width:2px;height:17px;background:#fff;box-shadow:0 0 8px #fff}
+.wknums{display:grid;grid-template-columns:repeat(16,1fr);gap:3px;margin-top:9px}
+.wknums span{font-size:10px;text-align:center;color:#7D8B99;padding:3px 0;border-radius:4px;background:rgba(255,255,255,.05)}
+.wknums span.done{color:#0A1119;background:#FFC46B;font-weight:700}
+.wknums span.now{color:#161E2B;background:#fff;font-weight:800;outline:2px solid var(--orange)}
+
+/* ---------- sections ---------- */
+section{padding:52px 0}
+section + section{border-top:1px solid var(--line-2)}
+.sechead{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+.sechead .num{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--orange-d);
+  background:#FFF3E0;border:1px solid #FFD9A8;padding:3px 8px;border-radius:6px}
+.sechead h2{font-size:26px}
+.lead{color:var(--ink-2);max-width:96ch;margin-bottom:26px}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px}
+.card h3{font-size:16px;margin-bottom:8px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--orange)}
+.kpi .n{font-size:28px;font-weight:800;letter-spacing:-.02em}
+.kpi .t{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3);font-weight:700}
+.kpi .d{font-size:12.5px;color:var(--ink-2);margin-top:4px}
+.kpi.b::before{background:var(--info)} .kpi.g::before{background:var(--ok)} .kpi.p::before{background:var(--c-net)}
+
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;border:1px solid}
+.pill.ok{color:var(--ok);background:#F0FBF1;border-color:#B7E3BC}
+.pill.now{color:var(--orange-d);background:#FFF3E0;border-color:#FFD9A8}
+.pill.next{color:var(--ink-3);background:#F6F7F8;border-color:var(--line)}
+.pill.risk{color:var(--bad);background:#FDF3F3;border-color:#F3C6C6}
+.pill.info{color:var(--info);background:#F1F8FE;border-color:#C2E0FB}
+
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;font-size:13.5px}
+th{background:#F6F7F8;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);padding:10px 12px;border-bottom:1px solid var(--line)}
+td{padding:11px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#FAFBFC}
+td.mono,.mono{font-family:var(--mono);font-size:12.5px}
+
+ul.clean{margin:0;padding-left:18px}
+ul.clean li{margin-bottom:5px}
+ul.tick{list-style:none;margin:0;padding:0}
+ul.tick li{position:relative;padding-left:24px;margin-bottom:7px}
+ul.tick li::before{content:"";position:absolute;left:4px;top:8px;width:6px;height:10px;border:2px solid var(--ok);border-top:0;border-left:0;transform:rotate(45deg)}
+ul.cross{list-style:none;margin:0;padding:0}
+ul.cross li{position:relative;padding-left:24px;margin-bottom:7px;color:var(--ink-2)}
+ul.cross li::before{content:"×";position:absolute;left:5px;top:-1px;color:var(--bad);font-weight:800;font-size:17px}
+
+/* ---------- AWS architecture diagram ---------- */
+.diagram{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:22px;overflow-x:auto}
+.cloud{border:2px solid var(--squid);border-radius:10px;padding:34px 16px 16px;position:relative;min-width:1000px}
+.cloud > .tag{position:absolute;top:-1px;left:-1px;background:var(--squid);color:#fff;font-size:11.5px;font-weight:700;
+  padding:5px 12px;border-radius:8px 0 8px 0;display:flex;align-items:center;gap:7px}
+.region{border:2px dashed #00A4A6;border-radius:10px;padding:32px 14px 14px;position:relative;margin-top:8px}
+.region > .tag{position:absolute;top:8px;left:12px;color:#00777A;font-size:11px;font-weight:700;letter-spacing:.03em;
+  display:flex;align-items:center;gap:6px}
+.vpc{border:2px solid var(--c-net);border-radius:10px;padding:30px 12px 12px;position:relative;background:#FBF8FF}
+.vpc > .tag{position:absolute;top:7px;left:11px;color:#6B2FD9;font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px}
+.subnet{border:1.5px dashed var(--c-storage);border-radius:8px;padding:26px 10px 10px;position:relative;background:#FAFCF5}
+.subnet > .tag{position:absolute;top:6px;left:10px;color:#5E7D10;font-size:10.5px;font-weight:700}
+
+.roble{border:2px solid #14634A;border-radius:10px;padding:34px 16px 16px;position:relative;background:#F5FBF8;min-width:1000px}
+.roble > .tag{position:absolute;top:-1px;left:-1px;background:#14634A;color:#fff;font-size:11.5px;font-weight:700;
+  padding:5px 12px;border-radius:8px 0 8px 0;display:flex;align-items:center;gap:7px}
+.roble .layer{background:#fff;border-color:#BFE3D4}
+.roble .layer > .tag{color:#14634A}
+.free{display:inline-block;background:#1B8A5F;color:#fff;border-radius:20px;padding:1px 8px;font-size:9.5px;
+  font-weight:800;letter-spacing:.05em;text-transform:uppercase;margin-left:7px;vertical-align:middle}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:0;align-items:center;padding:7px 0}
+.split > div{display:flex;align-items:center;justify-content:center;gap:9px;color:var(--ink-3);font-size:10.5px;
+  font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+
+.layer{border:1px solid var(--line);background:#FBFCFD;border-radius:10px;padding:26px 12px 12px;position:relative}
+.layer > .tag{position:absolute;top:7px;left:11px;font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.layer + .layer{margin-top:0}
+.row{display:grid;gap:12px;align-items:stretch}
+.stack{display:flex;flex-direction:column;gap:12px}
+
+.node{background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 11px;display:flex;gap:10px;align-items:flex-start;
+  min-height:56px;transition:.15s;box-shadow:0 1px 0 rgba(22,25,31,.03)}
+.node:hover{border-color:var(--orange);box-shadow:0 3px 12px rgba(22,25,31,.10);transform:translateY(-1px)}
+.node svg{flex:0 0 34px;width:34px;height:34px}
+.node b{display:block;font-size:12.5px;line-height:1.3}
+.node span{display:block;font-size:11px;color:var(--ink-3);line-height:1.35;margin-top:2px}
+.node.actor{border-style:solid;border-color:#B6BEC9;background:#F6F7F8}
+.node.ghost{border-style:dashed;background:#FCFCFD}
+
+.agentcard{background:#fff;border:1px solid var(--line);border-left:4px solid var(--c-ml);border-radius:9px;padding:10px 12px}
+.agentcard h4{font-size:12.5px;display:flex;align-items:center;gap:8px}
+.agentcard p{font-size:11px;color:var(--ink-3);margin:5px 0 0}
+.agentcard.t2{border-left-color:var(--c-appint)} .agentcard.t3{border-left-color:var(--c-net)}
+
+.flowarrow{display:flex;align-items:center;justify-content:center;gap:9px;color:var(--ink-3);font-size:10.5px;
+  font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:7px 0}
+.flowarrow::before,.flowarrow::after{content:"";height:1px;flex:1;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+.chev{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--orange)}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:16px;font-size:11.5px;color:var(--ink-2)}
+.legend i{display:inline-block;width:13px;height:13px;border-radius:3px;margin-right:6px;vertical-align:-2px}
+
+/* ---------- flow steps ---------- */
+.steps{display:grid;grid-template-columns:repeat(6,1fr);gap:0;counter-reset:s}
+.step{position:relative;padding:16px 14px 14px;background:#fff;border:1px solid var(--line);border-right:0}
+.step:first-child{border-radius:10px 0 0 10px}
+.step:last-child{border-right:1px solid var(--line);border-radius:0 10px 10px 0}
+.step::before{counter-increment:s;content:counter(s);position:absolute;top:-11px;left:14px;width:22px;height:22px;border-radius:50%;
+  background:var(--squid);color:#fff;font-size:11.5px;font-weight:800;display:grid;place-items:center}
+.step h4{font-size:12.5px;margin:6px 0 5px}
+.step p{font-size:11.5px;color:var(--ink-3);margin:0}
+.step .svc{font-family:var(--mono);font-size:10px;color:var(--orange-d);margin-top:7px;display:block}
+
+/* ---------- gantt ---------- */
+.gantt{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px;overflow-x:auto}
+.gt{display:grid;grid-template-columns:212px repeat(16,minmax(46px,1fr));min-width:1060px;position:relative;row-gap:7px}
+.gt .hcell{font-size:10px;color:var(--ink-3);text-align:center;padding:0 0 9px;border-bottom:1px solid var(--line);font-weight:700}
+.gt .hcell.now{color:var(--orange-d)}
+.gt .hcell small{display:block;font-weight:400;font-size:9px;color:#94A0AD}
+.gt .hlabel{border-bottom:1px solid var(--line);padding-bottom:9px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:800}
+.gt .rlabel{font-size:12px;padding:5px 12px 5px 0;display:flex;align-items:center;gap:8px;line-height:1.25}
+.gt .rlabel em{font-style:normal;font-family:var(--mono);font-size:10.5px;color:#8B96A3}
+.nowcol{grid-row:1/-1;background:rgba(255,153,0,.10);border-left:2px solid var(--orange);border-right:1px dashed rgba(236,114,17,.5);z-index:0;pointer-events:none;border-radius:3px}
+.bar2{grid-row:auto;height:26px;border-radius:6px;display:flex;align-items:center;padding:0 9px;font-size:10.5px;font-weight:700;
+  color:#fff;z-index:1;white-space:nowrap;overflow:hidden;box-shadow:inset 0 -1px 0 rgba(0,0,0,.15)}
+.b0{background:linear-gradient(90deg,#5F6B7A,#414D5C)}
+.b1{background:linear-gradient(90deg,#8C4FFF,#6B2FD9)}
+.b2{background:linear-gradient(90deg,#01A88D,#017F6B)}
+.b3{background:linear-gradient(90deg,#E7157B,#B70E60)}
+.b4{background:linear-gradient(90deg,#0972D3,#07529B)}
+.b5{background:linear-gradient(90deg,#ED7100,#C25E00)}
+.b6{background:linear-gradient(90deg,#DD344C,#B02338)}
+.mstone{grid-row:auto;height:26px;display:flex;align-items:center;justify-content:center;z-index:2}
+.mstone i{width:15px;height:15px;background:var(--squid);transform:rotate(45deg);border:2px solid #fff;box-shadow:0 0 0 1px var(--squid)}
+.gt .mlabel{font-size:11px;color:var(--ink-2);padding:5px 12px 5px 0;display:flex;align-items:center;gap:8px;line-height:1.25}
+.gt .mlabel i.dia{flex:0 0 11px;width:11px;height:11px;background:var(--squid);transform:rotate(45deg);border-radius:1px}
+.gt .mlabel b{font-weight:800}
+
+/* ---------- phase cards ---------- */
+.phase{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;display:grid;grid-template-columns:196px 1fr}
+.phase + .phase{margin-top:14px}
+.phase .side{background:linear-gradient(160deg,#F6F7F8,#EDEFF2);border-right:1px solid var(--line);padding:16px 16px}
+.phase .side .pn{font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;background:var(--squid);padding:2px 8px;border-radius:5px;display:inline-block}
+.phase .side h3{font-size:15px;margin:9px 0 7px}
+.phase .side .wk{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);display:block}
+.phase .side .dt{font-size:11.5px;color:var(--ink-3);display:block;margin-top:2px}
+.phase .body{padding:16px 18px;display:grid;grid-template-columns:1.15fr 1fr;gap:20px}
+.phase .body h5{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3);margin:0 0 7px;font-weight:800}
+.phase .body ul{margin:0;padding-left:17px;font-size:13px}
+.phase .body li{margin-bottom:4px}
+.dod{margin-top:12px;background:#F1F8FE;border:1px solid #C2E0FB;border-radius:8px;padding:9px 12px;font-size:12.5px;grid-column:1/-1}
+.dod b{color:#07529B}
+
+/* ---------- personas / responsables ---------- */
+.owners{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  border-top:1px dashed var(--line);padding-top:11px;margin-top:1px}
+.owners .lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3);font-weight:800;margin-right:2px}
+.who{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:#FAFBFC;
+  border-radius:20px;padding:3px 11px 3px 4px;font-size:11.5px;color:var(--ink-2);line-height:1.35}
+.who i{width:20px;height:20px;flex:0 0 20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:8.5px;font-weight:700;color:#fff;font-style:normal;letter-spacing:0}
+.who.as i{background:linear-gradient(140deg,#FF9900,#C2410C)}
+.who.kr i{background:linear-gradient(140deg,#8B5CF6,#4C1D95)}
+.who.ba i{background:linear-gradient(140deg,#00A1C9,#0B5F7D)}
+.who.eq i{background:linear-gradient(140deg,#5C6B7A,#232F3E)}
+.who b{color:var(--ink);font-weight:800}
+.rolecard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:16px 17px;position:relative;overflow:hidden}
+.rolecard:before{content:"";position:absolute;top:0;left:0;right:0;height:4px}
+.rolecard.as:before{background:linear-gradient(90deg,#FF9900,#C2410C)}
+.rolecard.kr:before{background:linear-gradient(90deg,#8B5CF6,#4C1D95)}
+.rolecard.ba:before{background:linear-gradient(90deg,#00A1C9,#0B5F7D)}
+.rolecard .ic{width:27px;height:27px;display:block;margin-bottom:8px}
+.rolecard .nm{font-size:15px;font-weight:800;color:var(--ink);margin:4px 0 1px}
+.rolecard .rl{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;color:var(--ink-3);margin-bottom:9px}
+.rolecard ul{margin:0;padding-left:16px;font-size:12.5px;color:var(--ink-2)}
+.rolecard ul li{margin-bottom:3px}
+.rolecard .own{margin-top:10px;font-size:11.5px;color:var(--ink-3);border-top:1px dashed var(--line);padding-top:8px}
+.rolecard .own b{color:var(--ink-2)}
+.phase.current{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,153,0,.14)}
+.phase.current .side{background:linear-gradient(160deg,#FFF7EC,#FFEBD1)}
+
+.note{background:#FFFBEB;border:1px solid #FCE7A2;border-left:4px solid var(--orange);border-radius:8px;padding:13px 16px;font-size:13.5px}
+.note.blue{background:#F1F8FE;border-color:#C2E0FB;border-left-color:var(--info)}
+.note.red{background:#FDF3F3;border-color:#F3C6C6;border-left-color:var(--bad)}
+
+footer{background:var(--squid);color:#93A1B0;padding:30px 0;font-size:12.5px;margin-top:8px}
+footer b{color:#fff}
+
+@media (max-width:1080px){
+  .hero-grid{grid-template-columns:1fr;gap:24px}
+  .grid-3,.grid-4{grid-template-columns:repeat(2,1fr)}
+  .steps{grid-template-columns:repeat(2,1fr)}
+  .step{border-right:1px solid var(--line);border-radius:10px!important;margin-bottom:-1px}
+  .phase{grid-template-columns:1fr}
+  .phase .body{grid-template-columns:1fr}
+  .hero h1{font-size:30px}
+}
+@media print{
+  .topbar{display:none}body{background:#fff;font-size:11px}
+  section{padding:18px 0;break-inside:avoid}.card,.phase,table,.diagram,.gantt,.rolecard,.owners{break-inside:avoid}
+  .hero{padding:24px 0}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ AWS ICON SPRITE ============ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+  <linearGradient id="g-compute" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F79B4D"/><stop offset="1" stop-color="#C25E00"/></linearGradient>
+  <linearGradient id="g-storage" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A3C750"/><stop offset="1" stop-color="#5E7D10"/></linearGradient>
+  <linearGradient id="g-db" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#DD6BE3"/><stop offset="1" stop-color="#9A1CA1"/></linearGradient>
+  <linearGradient id="g-ml" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3FCBB4"/><stop offset="1" stop-color="#017F6B"/></linearGradient>
+  <linearGradient id="g-net" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#B18AFF"/><stop offset="1" stop-color="#6B2FD9"/></linearGradient>
+  <linearGradient id="g-sec" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EC6F82"/><stop offset="1" stop-color="#B02338"/></linearGradient>
+  <linearGradient id="g-appint" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F45CA5"/><stop offset="1" stop-color="#B70E60"/></linearGradient>
+  <linearGradient id="g-dev" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7A57D6"/><stop offset="1" stop-color="#351A7A"/></linearGradient>
+  <linearGradient id="g-user" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5F6B7A"/><stop offset="1" stop-color="#232F3E"/></linearGradient>
+  <linearGradient id="g-roble" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3FA97C"/><stop offset="1" stop-color="#14634A"/></linearGradient>
+
+  <!-- Front-end / Edge -->
+  <symbol id="i-cloudfront" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-net)"/><g fill="none" stroke="#fff" stroke-width="1.9"><circle cx="20" cy="20" r="9.5"/><ellipse cx="20" cy="20" rx="4" ry="9.5"/><path d="M10.8 16.6h18.4M10.8 23.4h18.4"/></g></symbol>
+  <symbol id="i-s3" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-storage)"/><path d="M12 11h16l-1.9 18.1a1 1 0 0 1-1 .9H14.9a1 1 0 0 1-1-.9L12 11z" fill="none" stroke="#fff" stroke-width="1.9"/><path d="M13.1 21.5c3.6 1.7 10.2 1.7 13.8 0" fill="none" stroke="#fff" stroke-width="1.7"/></symbol>
+  <symbol id="i-amplify" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-sec)"/><path d="M14.4 27.5 20 12l5.6 15.5" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M17 22.6h6.1" stroke="#fff" stroke-width="2"/></symbol>
+  <symbol id="i-cognito" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-sec)"/><path d="M20 10.5l7.5 2.8v6.4c0 4.6-3.1 7.7-7.5 9.3-4.4-1.6-7.5-4.7-7.5-9.3v-6.4L20 10.5z" fill="none" stroke="#fff" stroke-width="1.9"/><circle cx="20" cy="18.4" r="2.5" fill="#fff"/><path d="M15.9 25c.9-1.9 2.4-2.9 4.1-2.9s3.2 1 4.1 2.9" fill="none" stroke="#fff" stroke-width="1.8"/></symbol>
+  <symbol id="i-waf" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-sec)"/><path d="M20 10.5l8 3v7c0 5-3.4 8.2-8 9.9-4.6-1.7-8-4.9-8-9.9v-7l8-3z" fill="none" stroke="#fff" stroke-width="1.9"/><path d="M16.3 19.8l2.9 3 4.6-5.4" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="i-apigw" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-net)"/><g fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M15.5 12.5h-3.2v15h3.2M24.5 12.5h3.2v15h-3.2"/><path d="M17.6 20h4.8M20 20l-2 -2.4M20 20l-2 2.4"/></g></symbol>
+  <symbol id="i-appsync" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-net)"/><g fill="none" stroke="#fff" stroke-width="1.8"><circle cx="20" cy="20" r="3.1"/><circle cx="20" cy="11.5" r="2.2"/><circle cx="27.4" cy="24.3" r="2.2"/><circle cx="12.6" cy="24.3" r="2.2"/><path d="M20 13.7v3.2M22.7 21.6l2.8 1.6M17.3 21.6l-2.8 1.6"/></g></symbol>
+
+  <!-- Compute / Orchestration -->
+  <symbol id="i-lambda" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-compute)"/><path d="M12 28.5 19.2 11.5h3.4L30 28.5h-3.6l-5.6-13.6-3 7.4 2.5 6.2H12z" fill="#fff"/></symbol>
+  <symbol id="i-fargate" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-compute)"/><g fill="none" stroke="#fff" stroke-width="1.9"><rect x="12" y="12" width="7" height="7" rx="1.2"/><rect x="21" y="12" width="7" height="7" rx="1.2"/><rect x="12" y="21" width="7" height="7" rx="1.2"/><rect x="21" y="21" width="7" height="7" rx="1.2"/></g></symbol>
+  <symbol id="i-sfn" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-appint)"/><g fill="none" stroke="#fff" stroke-width="1.9"><rect x="11.5" y="11.5" width="8" height="6" rx="1.2"/><rect x="20.5" y="22.5" width="8" height="6" rx="1.2"/><path d="M15.5 17.5v5.5a2 2 0 0 0 2 2h3.2" stroke-linecap="round"/><path d="M19.2 23.4l1.6 1.6-1.6 1.6" stroke-linecap="round"/></g></symbol>
+  <symbol id="i-eventbridge" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-appint)"/><g fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M20 12.2v15.6M13.2 16.1l13.6 7.8M26.8 16.1l-13.6 7.8"/></g><circle cx="20" cy="20" r="3" fill="#fff"/></symbol>
+  <symbol id="i-sqs" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-appint)"/><g fill="none" stroke="#fff" stroke-width="1.9"><rect x="11" y="15" width="6.4" height="10" rx="1.3"/><rect x="22.6" y="15" width="6.4" height="10" rx="1.3"/><path d="M18.2 20h3.6" stroke-linecap="round"/></g></symbol>
+  <symbol id="i-sns" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-appint)"/><path d="M20 11.8c-3.3 0-5.6 2.4-5.6 5.6 0 4.3-1.9 5.6-1.9 5.6h15c0-.1-1.9-1.3-1.9-5.6 0-3.2-2.3-5.6-5.6-5.6z" fill="none" stroke="#fff" stroke-width="1.9"/><path d="M17.7 26.2a2.6 2.6 0 0 0 4.6 0" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-ses" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-appint)"/><rect x="11.5" y="14" width="17" height="12" rx="1.6" fill="none" stroke="#fff" stroke-width="1.9"/><path d="M11.9 15.1 20 21l8.1-5.9" fill="none" stroke="#fff" stroke-width="1.9"/></symbol>
+
+  <!-- AI / ML -->
+  <symbol id="i-bedrock" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-ml)"/><g fill="none" stroke="#fff" stroke-width="1.8"><path d="M20 10.6 28.4 15v10L20 29.4 11.6 25V15L20 10.6z"/><path d="M20 10.6v8.2M20 18.8 11.6 15M20 18.8 28.4 15M20 18.8v10.6"/></g></symbol>
+  <symbol id="i-agentcore" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-ml)"/><g fill="none" stroke="#fff" stroke-width="1.8"><circle cx="20" cy="20" r="4"/><circle cx="20" cy="11.6" r="2.1"/><circle cx="20" cy="28.4" r="2.1"/><circle cx="11.6" cy="20" r="2.1"/><circle cx="28.4" cy="20" r="2.1"/><path d="M20 13.7v2.3M20 24v2.3M13.7 20h2.3M24 20h2.3"/></g></symbol>
+  <symbol id="i-guardrails" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-ml)"/><path d="M20 10.8l7.8 2.9v6.6c0 4.7-3.2 8-7.8 9.6-4.6-1.6-7.8-4.9-7.8-9.6v-6.6l7.8-2.9z" fill="none" stroke="#fff" stroke-width="1.8"/><path d="M15.6 20h8.8M20 15.7v8.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-kb" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-ml)"/><g fill="none" stroke="#fff" stroke-width="1.8"><path d="M12.5 12.6h6.2a2 2 0 0 1 2 2v13a2.6 2.6 0 0 0-2-1.1h-6.2V12.6z"/><path d="M27.5 12.6h-6.2a2 2 0 0 0-2 2v13a2.6 2.6 0 0 1 2-1.1h6.2V12.6z"/></g></symbol>
+  <symbol id="i-opensearch" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-net)"/><g fill="none" stroke="#fff" stroke-width="1.9"><circle cx="18.6" cy="18.6" r="6"/><path d="M23 23l5 5" stroke-linecap="round"/></g></symbol>
+  <symbol id="i-transcribe" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-ml)"/><g stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M13 17v6M17 13.6v12.8M21 16v8M25 12.4v15.2M29 18v4"/></g></symbol>
+
+  <!-- Data -->
+  <symbol id="i-dynamodb" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-db)"/><g fill="none" stroke="#fff" stroke-width="1.9"><ellipse cx="20" cy="13.6" rx="7.6" ry="2.9"/><path d="M12.4 13.6v12.8c0 1.6 3.4 2.9 7.6 2.9s7.6-1.3 7.6-2.9V13.6"/><path d="M12.4 20c0 1.6 3.4 2.9 7.6 2.9s7.6-1.3 7.6-2.9"/></g></symbol>
+  <symbol id="i-aurora" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-db)"/><g fill="none" stroke="#fff" stroke-width="1.9"><circle cx="20" cy="20" r="8.2"/><path d="M20 11.8c3.4 3 3.4 13.4 0 16.4-3.4-3-3.4-13.4 0-16.4z"/><path d="M11.8 20h16.4"/></g></symbol>
+  <symbol id="i-kms" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-sec)"/><g fill="none" stroke="#fff" stroke-width="1.9"><circle cx="17.2" cy="17.2" r="4.4"/><path d="M20.3 20.3 28 28M24.2 24.2l-2.1 2.1M26.4 26.4l-2.1 2.1" stroke-linecap="round"/></g></symbol>
+  <symbol id="i-secrets" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-sec)"/><rect x="12.6" y="18.4" width="14.8" height="10.4" rx="1.8" fill="none" stroke="#fff" stroke-width="1.9"/><path d="M16.2 18.4v-3.1a3.8 3.8 0 0 1 7.6 0v3.1" fill="none" stroke="#fff" stroke-width="1.9"/><circle cx="20" cy="23.6" r="1.6" fill="#fff"/></symbol>
+  <symbol id="i-macie" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-sec)"/><path d="M11.4 20s3.4-5.6 8.6-5.6S28.6 20 28.6 20s-3.4 5.6-8.6 5.6S11.4 20 11.4 20z" fill="none" stroke="#fff" stroke-width="1.9"/><circle cx="20" cy="20" r="2.5" fill="#fff"/></symbol>
+
+  <!-- Observability / Dev -->
+  <symbol id="i-cloudwatch" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-appint)"/><path d="M11.6 22.4h3.6l2.6-6 3 10.4 2.6-8 2 3.6h3" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-xray" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-appint)"/><g fill="none" stroke="#fff" stroke-width="1.9"><circle cx="14" cy="14.6" r="2.4"/><circle cx="26" cy="20" r="2.4"/><circle cx="14" cy="25.4" r="2.4"/><path d="M16.2 15.8 23.6 19M16.2 24.2 23.6 21"/></g></symbol>
+  <symbol id="i-cloudtrail" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-appint)"/><g fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M13 14.5h14M13 20h14M13 25.5h9"/></g></symbol>
+  <symbol id="i-iac" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-dev)"/><g fill="none" stroke="#fff" stroke-width="1.8"><path d="M20 10.8 28.4 15v10L20 29.2 11.6 25V15L20 10.8z"/><path d="M11.6 15 20 19.2 28.4 15M20 19.2v10"/></g></symbol>
+  <symbol id="i-roble" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-roble)"/><g fill="#fff"><circle cx="20" cy="14" r="5.1"/><circle cx="14" cy="18.4" r="4.2"/><circle cx="26" cy="18.4" r="4.2"/><rect x="18.9" y="18" width="2.2" height="12" rx="1.1"/></g><g fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"><path d="M20 24.6l-3.4-2.4M20 27.4l3.4-2.4"/></g></symbol>
+  <symbol id="i-roble-auth" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-roble)"/><path d="M20 9.4l7.6 3.1v6.2c0 4.9-3.1 8.6-7.6 10.3-4.5-1.7-7.6-5.4-7.6-10.3v-6.2z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M16.6 19.6l2.6 2.6 4.6-5" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-roble-db" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-roble)"/><g fill="none" stroke="#fff" stroke-width="2"><ellipse cx="20" cy="13.4" rx="7.6" ry="3.1"/><path d="M12.4 13.4v13.2c0 1.7 3.4 3.1 7.6 3.1s7.6-1.4 7.6-3.1V13.4"/><path d="M12.4 20c0 1.7 3.4 3.1 7.6 3.1s7.6-1.4 7.6-3.1"/></g></symbol>
+  <symbol id="i-roble-panel" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-roble)"/><g fill="none" stroke="#fff" stroke-width="1.9" stroke-linejoin="round"><rect x="10.6" y="11.4" width="18.8" height="17.2" rx="2.4"/><path d="M10.6 16.6h18.8M16.4 16.6v12"/></g></symbol>
+  <symbol id="i-ssm" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-appint)"/><g fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"><path d="M12.4 15.4h15.2M12.4 24.6h15.2"/></g><circle cx="18.4" cy="15.4" r="2.6" fill="#fff"/><circle cx="23.6" cy="24.6" r="2.6" fill="#fff"/></symbol>
+  <symbol id="i-pipeline" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-dev)"/><g fill="none" stroke="#fff" stroke-width="1.9"><circle cx="14" cy="20" r="2.6"/><circle cx="26" cy="20" r="2.6"/><path d="M16.6 20h6.8" stroke-linecap="round"/><path d="M21.4 18.2 23.4 20l-2 1.8" stroke-linecap="round"/></g></symbol>
+
+  <!-- Actors -->
+  <symbol id="i-user" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-user)"/><circle cx="20" cy="16.8" r="4.2" fill="none" stroke="#fff" stroke-width="1.9"/><path d="M12.8 28.4c1.3-3.8 4-5.7 7.2-5.7s5.9 1.9 7.2 5.7" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-doctor" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-user)"/><circle cx="20" cy="15.6" r="3.8" fill="none" stroke="#fff" stroke-width="1.9"/><path d="M13.4 28.4c1-3.6 3.6-5.4 6.6-5.4s5.6 1.8 6.6 5.4" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/><path d="M17.6 24.4h4.8M20 22v4.8" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-admin" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-user)"/><g fill="none" stroke="#fff" stroke-width="1.8"><circle cx="20" cy="20" r="3.4"/><path d="M20 11.6v3M20 25.4v3M11.6 20h3M25.4 20h3M14.1 14.1l2.1 2.1M23.8 23.8l2.1 2.1M25.9 14.1l-2.1 2.1M16.2 23.8l-2.1 2.1" stroke-linecap="round"/></g></symbol>
+  <symbol id="i-hospital" viewBox="0 0 40 40"><rect width="40" height="40" rx="7" fill="url(#g-user)"/><path d="M12.6 28.4V15.4L20 11.6l7.4 3.8v13" fill="none" stroke="#fff" stroke-width="1.9"/><path d="M17.4 20.4h5.2M20 17.8v5.2" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></symbol>
+</defs>
+</svg>
+
+<!-- ============ TOP BAR ============ -->
+<div class="topbar">
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span>CareSync <span style="color:#7D8B99;font-weight:400">| Uninorte</span></div>
+    <nav class="navlinks">
+      <a href="#resumen">Resumen</a>
+      <a href="#alcance">Alcance acotado</a>
+      <a href="#arquitectura">Arquitectura AWS</a>
+      <a href="#flujo">Flujo E2E</a>
+      <a href="#plan">Plan por fases</a>
+      <a href="#cronograma">Cronograma</a>
+      <a href="#semana3">Semana 3</a>
+      <a href="#riesgos">Riesgos</a>
+      <a href="#costos">Costos</a>
+      <a href="#exito">Criterios de éxito</a>
+    </nav>
+  </div>
+</div>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow">Proyecto Final · Universidad del Norte · Campo: Salud</span>
+        <h1>CareSync Agentic Network</h1>
+        <p class="sub">Red de agentes de IA que acompaña a un miembro de la comunidad Uninorte desde el primer síntoma
+        hasta su recuperación: triaje conversacional, canalización al <b>Centro Médico Uninorte</b> (salud física) o al
+        <b>Centro de Acompañamiento Estudiantil</b> (salud mental), agendamiento con contexto clínico para el profesional
+        y seguimiento proactivo post-atención.</p>
+        <p class="sub" style="font-size:14.5px;color:#93A1B0">Propuesta técnica, arquitectura serverless mínima sobre AWS y plan de ejecución en 16 semanas.</p>
+      </div>
+      <dl class="meta">
+        <div><dt>Docente proponente</dt><dd>Dadier Jabba</dd></div>
+        <div><dt>Co-asesor</dt><dd>Augusto Salazar</dd></div>
+        <div><dt>Equipo</dt><dd>Alejandro Santiago · Kevin Ruiz · Bernardo Álvarez</dd></div>
+        <div><dt>Naturaleza</dt><dd>Prototipo funcional E2E</dd></div>
+        <div><dt>Centros de atención</dt><dd>CMU · CAE</dd></div>
+        <div><dt>Nube</dt><dd>AWS serverless · sin costo fijo</dd></div>
+      </dl>
+    </div>
+
+    <div class="weekstrip">
+      <div class="lbl">
+        <span><b style="color:#fff">Semana 3 de 16</b> &nbsp;·&nbsp; hoy: jueves 13 de agosto de 2026</span>
+        <span>Inicio 27 jul 2026 &nbsp;→&nbsp; Sustentación 13 nov 2026 &nbsp;·&nbsp; <b style="color:#FFC46B">13 semanas restantes</b></span>
+      </div>
+      <div class="bar"><i></i><b></b></div>
+      <div class="wknums">
+        <span class="done">1</span><span class="done">2</span><span class="now">3</span>
+        <span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+        <span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ 1. RESUMEN ============ -->
+<section id="resumen">
+  <div class="wrap">
+    <div class="sechead"><span class="num">01</span><h2>Resumen ejecutivo</h2></div>
+    <p class="lead">CareSync no es un sistema clínico de producción: es un <b>prototipo de extremo a extremo</b> cuyo objetivo
+    es demostrar que una red de agentes coordinados puede sostener la continuidad del cuidado dentro del campus. La apuesta
+    técnica es una <b>arquitectura deliberadamente mínima</b> construida sobre <b>ROBLE</b>, la plataforma gratuita de
+    OPENLAB Uninorte, que aporta autenticación y base de datos administrada sin costo. AWS queda reducido a 8 servicios
+    —ninguno con costo fijo— y solo para lo que ROBLE no hace: razonar. Así, un equipo de 3 personas invierte sus 13
+    semanas restantes en la lógica de los agentes y en la experiencia de las cuatro vistas, no en operar infraestructura
+    ni en pagarla. El trabajo se reparte en tres frentes con dueño único —infraestructura y despliegues, agentes e
+    inteligencia artificial, y aplicación y experiencia— y el plan se organiza en 7 fases con 7 hitos demostrables.</p>
+
+    <div class="grid-4" style="margin-bottom:18px">
+      <div class="kpi"><div class="t">Agentes</div><div class="n">3</div><div class="d">Triaje · Agenda y Logística · Seguimiento</div></div>
+      <div class="kpi b"><div class="t">Vistas por rol</div><div class="n">4</div><div class="d">Paciente · Profesional · Admin CMU · Admin CAE, en una sola app</div></div>
+      <div class="kpi p"><div class="t">Servicios AWS</div><div class="n">8</div><div class="d">Reducidos desde 30 · persistencia e identidad en ROBLE</div></div>
+      <div class="kpi g"><div class="t">Costo de nube</div><div class="n">≈ USD 8</div><div class="d">Por mes; casi todo es consumo del modelo</div></div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <h3>Problema</h3>
+        <p style="font-size:13.5px;color:var(--ink-2);margin:0">Los servicios de salud del campus concentran carga
+        administrativa en el agendamiento y en el seguimiento manual. Un caso tratable puede agravarse simplemente porque
+        nadie confirmó si la persona siguió las indicaciones, y la ruta física/mental no siempre es evidente para quien
+        consulta.</p>
+      </div>
+      <div class="card">
+        <h3>Propuesta</h3>
+        <p style="font-size:13.5px;color:var(--ink-2);margin:0">Tres agentes especializados que se pasan el caso entre sí
+        sobre un estado compartido: el de Triaje clasifica y canaliza, el de Agenda reserva y entrega contexto al
+        profesional, el de Seguimiento vigila la adherencia y escala anomalías al equipo tratante.</p>
+      </div>
+      <div class="card">
+        <h3>Prueba de valor al cierre</h3>
+        <p style="font-size:13.5px;color:var(--ink-2);margin:0">Un recorrido completo, con datos sintéticos, ejecutándose
+        en AWS: síntoma descrito por texto → ruta CMU/CAE → cita confirmada → resumen del caso en la interfaz del
+        profesional → plan de tratamiento dictado por voz → recordatorios → alerta por retroceso reportado.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. ALCANCE ============ -->
+<section id="alcance">
+  <div class="wrap">
+    <div class="sechead"><span class="num">02</span><h2>Alcance acotado</h2></div>
+    <p class="lead">Con 13 semanas de trabajo efectivo y 3 personas, el alcance se acota deliberadamente. Lo que sigue es
+    un contrato: <b>lo de la izquierda se construye y se demuestra</b>; lo de la derecha se documenta como trabajo futuro
+    y no se promete en la sustentación.</p>
+
+    <div class="grid-2">
+      <div class="card" style="border-left:4px solid var(--ok)">
+        <h3 style="display:flex;align-items:center;gap:9px">Dentro del alcance <span class="pill ok">Comprometido</span></h3>
+        <ul class="tick" style="font-size:13.5px;margin-top:10px">
+          <li><b>Agente de Triaje</b> conversacional por texto, en español, con protocolos <b>básicos</b> y clasificación en 4 niveles de urgencia.</li>
+          <li><b>Ruteo binario</b> salud física → CMU / salud mental → CAE, con criterios explícitos y trazables.</li>
+          <li><b>Agente de Agenda</b> con motor de disponibilidad propio (profesionales, horarios, duración de cita) y confirmación al usuario.</li>
+          <li><b>Resumen estructurado del caso</b> entregado al profesional antes de la consulta.</li>
+          <li><b>Agente de Seguimiento</b>: recordatorios programados, reporte de evolución y adherencia, detección de anomalías y alerta al equipo tratante.</li>
+          <li><b>Una aplicación web</b> (PWA) con <b>4 vistas por rol</b>: paciente, profesional, admin CMU y admin CAE, con acceso separado.</li>
+          <li><b>Dictado por voz</b> del plan de tratamiento, resuelto con la API de voz del navegador.</li>
+          <li><b>Seguridad base</b>: autenticación y permisos por rol sobre ROBLE, cifrado en tránsito, registro de accesos, guardrails del modelo.</li>
+          <li><b>Persistencia sobre ROBLE</b>, la plataforma gratuita de OPENLAB Uninorte, aislada tras un módulo de acceso a datos sustituible.</li>
+          <li><b>Infraestructura como código</b> y despliegue reproducible en una cuenta AWS.</li>
+          <li><b>Datos 100% sintéticos</b> y un banco de ~40 casos de prueba para evaluar el triaje.</li>
+        </ul>
+      </div>
+      <div class="card" style="border-left:4px solid var(--bad)">
+        <h3 style="display:flex;align-items:center;gap:9px">Fuera del alcance <span class="pill risk">Trabajo futuro</span></h3>
+        <ul class="cross" style="font-size:13.5px;margin-top:10px">
+          <li>Historia clínica electrónica completa e interoperabilidad HL7/FHIR.</li>
+          <li>Integración productiva con los sistemas reales del CMU y del CAE: se usa un <b>adaptador con contrato definido y backend simulado</b>.</li>
+          <li>Diagnóstico, prescripción o dosificación automática por parte de la IA.</li>
+          <li>Atención de emergencias en tiempo real; el sistema solo <b>informa</b> los canales de emergencia del campus.</li>
+          <li>Apps móviles nativas (iOS/Android) — se entrega PWA instalable.</li>
+          <li>Triaje por imagen, video o audio; el canal de entrada es solo texto.</li>
+          <li>Facturación, autorizaciones o integración con EPS.</li>
+          <li>Multi-idioma, multi-tenant y escalado a otras universidades.</li>
+          <li>Certificación clínica, habilitación normativa y uso con pacientes o datos reales.</li>
+          <li>Validación clínica de los protocolos de triaje por personal de salud calificado.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note red" style="margin-top:16px">
+      <b>Salvaguarda explícita y no negociable.</b> En cada interfaz el sistema declara que no reemplaza la valoración
+      profesional. Ante cualquier señal de urgencia vital o de riesgo de autolesión, el flujo conversacional se
+      interrumpe y deriva de inmediato a los canales de emergencia del campus, sin intentar resolver el caso. Este
+      comportamiento se implementa en la Fase 2 y se prueba con casos dedicados en la Fase 5.
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. ARQUITECTURA ============ -->
+<section id="arquitectura">
+  <div class="wrap">
+    <div class="sechead"><span class="num">03</span><h2>Arquitectura de referencia en AWS</h2></div>
+    <p class="lead">La arquitectura se apoya en <b>ROBLE</b>, la plataforma de OPENLAB de la Universidad del Norte, que es
+    gratuita para estudiantes y resuelve por sí sola las dos piezas más costosas de construir y operar: <b>autenticación</b>
+    e <b>identidad</b> (JWT con tokens de acceso y renovación, verificación por correo, recuperación de contraseña, panel de
+    usuarios y roles) y una <b>base de datos PostgreSQL administrada</b> con API de lectura y escritura, permisos por tabla
+    e interfaz visual. AWS queda reducido a lo único que ROBLE no hace: <b>razonar</b>. La PWA consume ROBLE directamente
+    para todo el CRUD y llama a AWS solo cuando hay que conversar con un agente.</p>
+
+    <div class="grid-4" style="margin-bottom:18px">
+      <div class="kpi g"><div class="t">Servicios AWS</div><div class="n">8</div><div class="d">Desde 30 en el diseño inicial</div></div>
+      <div class="kpi b"><div class="t">Costo de nube</div><div class="n">≈ USD 8</div><div class="d">Por mes; casi todo es consumo del modelo</div></div>
+      <div class="kpi p"><div class="t">Funciones Lambda</div><div class="n">3</div><div class="d">Orquestador · herramientas · recordatorios</div></div>
+      <div class="kpi"><div class="t">Datos de salud en AWS</div><div class="n">0</div><div class="d">Toda la persistencia vive en ROBLE, en infraestructura de Uninorte</div></div>
+    </div>
+
+    <div class="diagram">
+      <!-- Actors -->
+      <div class="row" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px;min-width:1000px">
+        <div class="node actor"><svg><use href="#i-user"/></svg><div><b>Usuario / Paciente</b><span>Comunidad Uninorte · PWA</span></div></div>
+        <div class="node actor"><svg><use href="#i-doctor"/></svg><div><b>Profesional</b><span>Médico (CMU) · Psicólogo (CAE)</span></div></div>
+        <div class="node actor"><svg><use href="#i-admin"/></svg><div><b>Administrador de centro</b><span>Vista CMU · Vista CAE</span></div></div>
+        <div class="node actor ghost"><svg><use href="#i-hospital"/></svg><div><b>Sistemas Uninorte</b><span>Agenda CMU / CAE · simulado</span></div></div>
+      </div>
+
+      <!-- 1 · PWA -->
+      <div class="layer" style="min-width:1000px">
+        <span class="tag">1 · Aplicación web — una sola PWA con 4 vistas por rol</span>
+        <div class="row" style="grid-template-columns:repeat(2,1fr)">
+          <div class="node"><svg><use href="#i-amplify"/></svg><div><b>AWS Amplify Hosting</b><span>CDN, TLS y despliegue continuo en un solo recurso · alternativa sin costo alguno: GitHub Pages</span></div></div>
+          <div class="node ghost"><svg><use href="#i-iac"/></svg><div><b>Módulo de acceso a datos</b><span>Única puerta hacia ROBLE. Aísla la plataforma para poder sustituirla sin tocar la lógica de los agentes</span></div></div>
+        </div>
+      </div>
+
+      <div class="split" style="min-width:1000px">
+        <div><span class="chev"></span> identidad, roles y datos</div>
+        <div><span class="chev"></span> conversación con los agentes</div>
+      </div>
+
+      <!-- ROBLE -->
+      <div class="roble">
+        <span class="tag"><svg style="width:15px;height:15px"><use href="#i-roble"/></svg> Plataforma ROBLE — OPENLAB, Universidad del Norte <span class="free">Gratuita para estudiantes</span></span>
+        <div class="row" style="grid-template-columns:1fr 1fr">
+          <div class="layer">
+            <span class="tag">Autenticación centralizada · JWT</span>
+            <div class="stack">
+              <div class="node"><svg><use href="#i-roble-auth"/></svg><div><b>Auth API</b><span class="mono" style="font-size:10px">signup · verify-email · login · refresh-token · verify-token · logout · forgot-password · reset-password</span></div></div>
+              <div class="node"><svg><use href="#i-roble-panel"/></svg><div><b>Panel de usuarios y roles</b><span>Altas, inhabilitación y asignación de rol desde la interfaz de ROBLE, sin escribir código propio</span></div></div>
+            </div>
+          </div>
+          <div class="layer">
+            <span class="tag">Base de datos administrada · PostgreSQL</span>
+            <div class="stack">
+              <div class="node"><svg><use href="#i-roble-db"/></svg><div><b>Database API</b><span class="mono" style="font-size:10px">insert · insert-one · read (filtros de igualdad) · update · delete</span></div></div>
+              <div class="node"><svg><use href="#i-roble-panel"/></svg><div><b>Permisos por tabla y por rol</b><span>read / insert / update / delete: aísla lo que ve el paciente, el profesional y cada centro</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="grid-template-columns:1fr;margin-top:12px">
+          <div class="node"><svg><use href="#i-roble-db"/></svg><div><b>Tablas del prototipo</b><span>casos · conversaciones · profesionales · horarios · cupos · citas · planes · indicaciones · adherencia · reportes de evolución · eventos &nbsp;·&nbsp; tipos <span class="mono">timestamptz · date · time · jsonb · uuid · bool</span></span></div></div>
+        </div>
+      </div>
+
+      <div class="flowarrow" style="min-width:1000px"><span class="chev"></span> el orquestador valida el token y escribe en ROBLE con las credenciales del proyecto <span class="chev"></span></div>
+
+      <div class="cloud">
+        <span class="tag">☁ AWS Cloud — únicamente lo que ROBLE no puede hacer</span>
+
+        <div class="region">
+          <span class="tag">⬡ Región us-east-1 · sin VPC, sin base de datos y sin identidad propia</span>
+
+          <!-- 2 · ENTRADA -->
+          <div class="layer">
+            <span class="tag">2 · Entrada de la conversación</span>
+            <div class="row" style="grid-template-columns:repeat(2,1fr)">
+              <div class="node"><svg><use href="#i-apigw"/></svg><div><b>API Gateway — HTTP API</b><span>Un único endpoint: <span class="mono">POST /agente</span>. El resto del CRUD lo atiende ROBLE directamente</span></div></div>
+              <div class="node"><svg><use href="#i-roble-auth"/></svg><div><b>Autorización</b><span>La función valida el token contra <span class="mono">verify-token</span> de ROBLE antes de razonar</span></div></div>
+            </div>
+          </div>
+
+          <div class="flowarrow"><span class="chev"></span> invoca al orquestador <span class="chev"></span></div>
+
+          <!-- AGENTS -->
+          <div class="layer" style="background:#F7FEFC;border-color:#B6E8DE">
+            <span class="tag" style="color:#017F6B">3 · Red de agentes — plano de razonamiento</span>
+            <div class="row" style="grid-template-columns:1.05fr 1.05fr 1.05fr .95fr">
+              <div class="agentcard">
+                <h4><svg style="width:20px;height:20px"><use href="#i-agentcore"/></svg> Agente de Triaje</h4>
+                <p>Evalúa gravedad por texto siguiendo protocolos básicos, asigna nivel de urgencia y decide la ruta
+                <b>CMU</b> (física) o <b>CAE</b> (mental). Ante señales de riesgo, deriva a emergencias.</p>
+              </div>
+              <div class="agentcard t2">
+                <h4><svg style="width:20px;height:20px"><use href="#i-agentcore"/></svg> Agente de Agenda y Logística</h4>
+                <p>Consulta disponibilidad, reserva la cita en el centro correspondiente y envía el resumen del caso al
+                profesional que atenderá.</p>
+              </div>
+              <div class="agentcard t3">
+                <h4><svg style="width:20px;height:20px"><use href="#i-agentcore"/></svg> Agente de Seguimiento</h4>
+                <p>Programa recordatorios, registra adherencia y evolución reportada, detecta retrocesos y alerta al
+                equipo tratante.</p>
+              </div>
+              <div class="stack">
+                <div class="node"><svg><use href="#i-bedrock"/></svg><div><b>Amazon Bedrock</b><span>Claude Haiku 4.5 · un único modelo, con prompt caching</span></div></div>
+                <div class="node"><svg><use href="#i-guardrails"/></svg><div><b>Bedrock Guardrails</b><span>Temas vetados, PII y contenido sensible</span></div></div>
+              </div>
+            </div>
+
+            <div class="row" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+              <div class="node"><svg><use href="#i-lambda"/></svg><div><b>Lambda — Orquestador de agentes</b><span>Un bucle de herramientas sobre la Converse API; el rol activo define prompt, herramientas y permisos</span></div></div>
+              <div class="node"><svg><use href="#i-lambda"/></svg><div><b>Lambda — Herramientas</b><span>agendar · notificar · consultar · escalar · todas escriben en ROBLE</span></div></div>
+              <div class="node ghost"><svg><use href="#i-kb"/></svg><div><b>Protocolos de triaje</b><span>Documento versionado en el repositorio, inyectado en el prompt · sin base vectorial</span></div></div>
+            </div>
+          </div>
+
+          <div class="flowarrow"><span class="chev"></span> toda la persistencia ocurre en ROBLE · AWS no almacena ningún dato de salud <span class="chev"></span></div>
+
+          <!-- 4 · AUTOMATIZACIÓN -->
+          <div class="layer">
+            <span class="tag">4 · Recordatorios y avisos</span>
+            <div class="row" style="grid-template-columns:repeat(3,1fr)">
+              <div class="node"><svg><use href="#i-eventbridge"/></svg><div><b>EventBridge Scheduler</b><span>Un recordatorio programado por indicación del plan</span></div></div>
+              <div class="node"><svg><use href="#i-lambda"/></svg><div><b>Lambda — Recordatorios</b><span>Lee la adherencia en ROBLE, dispara el aviso y evalúa las reglas de anomalía</span></div></div>
+              <div class="node"><svg><use href="#i-ses"/></svg><div><b>Amazon SES</b><span>Confirmaciones, recordatorios y alertas al equipo tratante</span></div></div>
+            </div>
+          </div>
+
+          <!-- 6 · SOPORTE -->
+          <div class="row" style="grid-template-columns:1fr 1fr;margin-top:12px">
+            <div class="layer">
+              <span class="tag">5 · Operación y configuración</span>
+              <div class="row" style="grid-template-columns:repeat(2,1fr)">
+                <div class="node"><svg><use href="#i-cloudwatch"/></svg><div><b>CloudWatch Logs</b><span>Logs con identificador de caso · retención de 7 días</span></div></div>
+                <div class="node"><svg><use href="#i-ssm"/></svg><div><b>SSM Parameter Store</b><span>Token del proyecto ROBLE y configuración · nivel estándar sin costo</span></div></div>
+              </div>
+            </div>
+            <div class="layer">
+              <span class="tag">6 · Integración y entrega</span>
+              <div class="row" style="grid-template-columns:repeat(2,1fr)">
+                <div class="node ghost"><svg><use href="#i-lambda"/></svg><div><b>Adaptador CMU / CAE</b><span>Módulo con contrato definido y backend simulado</span></div></div>
+                <div class="node"><svg><use href="#i-iac"/></svg><div><b>Terraform</b><span>Toda la infraestructura como código · aplicada desde GitHub Actions</span></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span><i style="background:#14634A"></i>Plataforma ROBLE (Uninorte) — sin costo</span>
+        <span><i style="background:var(--c-compute)"></i>Cómputo</span>
+        <span><i style="background:var(--c-ml)"></i>IA / Machine Learning</span>
+        <span><i style="background:var(--c-net)"></i>Redes y entrega de contenido</span>
+        <span><i style="background:var(--c-sec)"></i>Seguridad, identidad y front-end web</span>
+        <span><i style="background:var(--c-appint)"></i>Integración y gestión</span>
+        <span><i style="background:var(--c-dev)"></i>Herramientas de desarrollo</span>
+        <span><i style="background:#F6F7F8;border:1.5px dashed #8B96A3"></i>Artefacto del repositorio o componente simulado</span>
+      </div>
+    </div>
+
+    <h3 style="margin:26px 0 10px;font-size:17px">Qué resuelve ROBLE y qué queda por resolver alrededor</h3>
+    <div class="grid-2">
+      <div class="card" style="border-left:4px solid #14634A">
+        <h3>Lo que ROBLE entrega hecho</h3>
+        <ul class="clean" style="font-size:13.5px">
+          <li><b>Autenticación completa.</b> Registro con y sin verificación por correo, inicio de sesión, <span class="mono">accessToken</span> y <span class="mono">refreshToken</span>, cierre de sesión, validación de token, recuperación y restablecimiento de contraseña. Los correos de verificación y recuperación los envía ROBLE.</li>
+          <li><b>Roles y permisos por tabla.</b> <span class="mono">read / insert / update / delete</span> por rol, que es exactamente el control que necesitan las cuatro vistas: el paciente no ve la agenda del centro, el profesional no ve los casos de otro.</li>
+          <li><b>Base de datos PostgreSQL administrada</b> con los tipos que el dominio pide: <span class="mono">timestamptz</span> para citas, <span class="mono">date</span> y <span class="mono">time</span> para horarios, <span class="mono">jsonb</span> para el historial de conversación.</li>
+          <li><b>Panel visual</b> de tablas, usuarios y roles. Sustituye buena parte de la interfaz administrativa que había que construir e inspeccionar durante el desarrollo.</li>
+          <li><b>Inicio de sesión con correo institucional</b> <span class="mono">@uninorte.edu.co</span>, que coincide con la comunidad objetivo del proyecto.</li>
+        </ul>
+      </div>
+      <div class="card" style="border-left:4px solid var(--orange)">
+        <h3>Lo que sigue siendo trabajo del equipo</h3>
+        <ul class="clean" style="font-size:13.5px">
+          <li><b>El razonamiento.</b> ROBLE no ejecuta modelos: los tres agentes, sus prompts y su bucle de herramientas siguen viviendo en Lambda con Bedrock. Es el corazón del proyecto y no se terceriza.</li>
+          <li><b>Consultas de rango.</b> <span class="mono">read</span> solo admite filtros de igualdad, sin ordenamiento ni paginación documentados. La agenda se modela para consultarse por día (<span class="mono">fecha</span> y <span class="mono">estado</span> exactos) y se ordena en el cliente.</li>
+          <li><b>Control de doble agendamiento.</b> No hay escritura condicional documentada, así que se resuelve con reservar, releer y reconciliar: si dos reservas quedan sobre el mismo cupo, la segunda se cancela y se reofrece. Es la deuda técnica más concreta de esta decisión.</li>
+          <li><b>Archivos.</b> ROBLE almacena datos, no binarios. Las transcripciones se guardan como texto en una columna; el prototipo no maneja adjuntos, que ya estaban fuera de alcance.</li>
+          <li><b>Recordatorios programados y correos del sistema</b>, que siguen en EventBridge Scheduler y SES.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="margin:26px 0 10px;font-size:17px">Decisiones de arquitectura y por qué</h3>
+    <table>
+      <thead><tr><th style="width:19%">Decisión</th><th style="width:27%">Opción elegida</th><th style="width:27%">Alternativa descartada</th><th>Razón en el contexto del prototipo</th></tr></thead>
+      <tbody>
+        <tr><td><b>Runtime de agentes</b></td><td>Una función Lambda con bucle de herramientas sobre la Converse API de Bedrock</td><td>Bedrock AgentCore o orquestación en contenedores</td><td>Los 3 agentes siguen siendo 3 —prompt, herramientas y responsabilidad propios— pero comparten un runtime de unas 200 líneas. Nada que provisionar ni pagar por sesión.</td></tr>
+        <tr><td><b>Modelo</b></td><td>Claude Haiku 4.5, con prompt caching</td><td>Un modelo mayor para todo el flujo</td><td>El triaje es clasificación conversacional guiada por protocolo, no razonamiento abierto. El caching evita pagar el protocolo en cada turno. El modelo es una variable de configuración: se sube de gama si la evaluación lo exige.</td></tr>
+        <tr><td><b>Protocolos de triaje</b></td><td>Documento versionado en el repositorio, inyectado en el prompt</td><td>Knowledge Base con RAG e índice vectorial</td><td>Igual de revisable y auditable por personal clínico, y sin el costo fijo del índice. El protocolo del prototipo cabe holgadamente en el contexto del modelo.</td></tr>
+        <tr><td><b>Persistencia</b></td><td>Base de datos administrada de <b>ROBLE</b> (PostgreSQL), consumida por API</td><td>DynamoDB, o Aurora Serverless v2</td><td>Es gratuita para estudiantes, es infraestructura de la propia Universidad y devuelve el modelo relacional que se había sacrificado por costo: tipos de fecha y hora reales, <span class="mono">jsonb</span> y tablas legibles en un panel visual. Cero costo y cero infraestructura que administrar.</td></tr>
+        <tr><td><b>Identidad y roles</b></td><td>Autenticación centralizada de <b>ROBLE</b> con permisos por tabla</td><td>Amazon Cognito con grupos</td><td>Cubre más que Cognito para este caso: verificación por correo, recuperación de contraseña, panel de administración de usuarios y permisos por tabla, todo listo. Ahorra días de configuración y una interfaz administrativa que ya no hay que construir.</td></tr>
+        <tr><td><b>Aislamiento de la plataforma</b></td><td>Un módulo de acceso a datos como única puerta hacia ROBLE</td><td>Llamar a la API de ROBLE desde toda la aplicación</td><td>ROBLE es una plataforma en evolución y su documentación vive en un subdominio de pruebas. Concentrar el acceso en un módulo permite sustituirla en días, no en semanas, si cambia o falla.</td></tr>
+        <tr><td><b>Estado del caso</b></td><td>Campo de estado en la tabla de casos de ROBLE</td><td>AWS Step Functions</td><td>El caso ya vive en la tabla y se inspecciona desde el panel de ROBLE; una máquina de estados añade una pieza que el equipo tendría que aprender, depurar y explicar en la sustentación.</td></tr>
+        <tr><td><b>Recordatorios</b></td><td>EventBridge Scheduler, uno por indicación</td><td>Cron único que barre la tabla</td><td>Precisión y trazabilidad por paciente sin proceso batch; el costo por recordatorio es despreciable.</td></tr>
+        <tr><td><b>Dictado del plan</b></td><td>API de reconocimiento de voz del navegador</td><td>Amazon Transcribe</td><td>Cero costo, cero backend y cero latencia de subida de audio. Suficiente para demostrar la función; el profesional confirma el texto antes de guardarlo.</td></tr>
+        <tr><td><b>Front-end</b></td><td>Una PWA con enrutamiento por rol</td><td>4 aplicaciones independientes</td><td>Un repositorio, un despliegue y un sistema de diseño para 3 personas. Las vistas siguen aisladas por el rol del usuario en ROBLE y por los permisos por tabla.</td></tr>
+        <tr><td><b>Infraestructura como código</b></td><td><b>Terraform</b> con estado remoto en S3 y bloqueo en DynamoDB</td><td>AWS CDK, que era la opción de la primera versión de esta propuesta</td><td>La infraestructura son 40 recursos de nueve servicios sin lógica condicional: lo que se necesita es un archivo declarativo que se lea de un vistazo, no un programa que los genere. Terraform además es la herramienta que el equipo ya usa en su trabajo, y el estado compartido con bloqueo es lo que permite que tres personas y el pipeline apliquen sobre la misma cuenta sin pisarse.</td></tr>
+        <tr><td><b>Dónde se aplica</b></td><td><b>GitHub Actions</b>, con acceso a AWS por <b>OIDC</b> y dos roles: uno de sólo lectura para los <i>pull requests</i> y uno de despliegue para <span class="mono">main</span></td><td><span class="mono">terraform apply</span> desde la máquina de quien despliega, con un perfil local</td><td>Un <span class="mono">apply</span> local sobre un estado compartido pisa el trabajo de otro y deja la cuenta en un estado que el repositorio no explica. Aquí el camino es único y revisable: el plan se lee en el <i>pull request</i> y se aplica al entrar en <span class="mono">main</span>. Con OIDC no hay ninguna clave de AWS guardada en GitHub: el ejecutor presenta un token firmado que dice de qué repositorio y rama viene, y AWS lo cambia por credenciales de una hora.</td></tr>
+        <tr><td><b>Integración con CMU/CAE</b></td><td>Adaptador con contrato explícito y backend simulado</td><td>Integración real desde el inicio</td><td>Desacopla el avance del proyecto de un permiso institucional que el equipo no controla; el contrato queda listo para conectar.</td></tr>
+        <tr><td><b>Datos de prueba</b></td><td>100 % sintéticos</td><td>Datos reales anonimizados</td><td>Elimina el riesgo de privacidad durante el desarrollo académico, habilita publicar el repositorio y es lo que hace defendible retirar controles de seguridad costosos.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin:28px 0 10px;font-size:17px">Qué se eliminó del diseño inicial, y qué se pierde</h3>
+    <p class="lead" style="margin-bottom:14px">La reducción no es gratuita. Esta tabla es el registro honesto de cada recorte:
+    lo que ahorra, con qué se sustituye y qué capacidad se sacrifica.</p>
+    <table>
+      <thead><tr><th style="width:22%">Se elimina</th><th style="width:13%">Ahorro mensual</th><th style="width:31%">Qué lo reemplaza</th><th>Qué se pierde</th></tr></thead>
+      <tbody>
+        <tr><td><b>OpenSearch Serverless</b> + Knowledge Bases</td><td class="mono">USD 25 – 50</td><td>Protocolos en el prompt con caching</td><td>Búsqueda semántica. Si el protocolo superara unas 20 páginas habría que volver a RAG.</td></tr>
+        <tr><td><b>Aurora Serverless v2</b> y, después, <b>DynamoDB</b></td><td class="mono">USD 15 – 45</td><td>Base de datos administrada de ROBLE</td><td>Control sobre el motor, respaldos propios y consultas por rango. Se depende de una plataforma que el equipo no opera.</td></tr>
+        <tr><td><b>Amazon Cognito</b></td><td class="mono">USD 0</td><td>Autenticación centralizada de ROBLE</td><td>Nada en costo: Cognito ya era gratuito en este volumen. Lo que se gana es tiempo y una consola de usuarios lista.</td></tr>
+        <tr><td><b>Amazon S3</b></td><td class="mono">USD 0 – 2</td><td>Transcripciones como texto en una columna de ROBLE</td><td>Almacenamiento de binarios. Los adjuntos ya estaban fuera de alcance.</td></tr>
+        <tr><td><b>Lambda — API de CRUD</b></td><td class="mono">USD 0</td><td>La PWA consume la Database API de ROBLE directamente</td><td>Una capa propia donde poner validaciones de negocio; las validaciones que importan pasan al orquestador y a los permisos por tabla.</td></tr>
+        <tr><td><b>VPC, subredes y NAT Gateway</b></td><td class="mono">USD 32+</td><td>Servicios administrados con IAM</td><td>Aislamiento de red. Aceptable porque ninguna base de datos escucha en una IP privada y no hay datos reales.</td></tr>
+        <tr><td><b>AWS WAF</b></td><td class="mono">USD 10 – 15</td><td>Autenticación obligatoria y límite de tasa en API Gateway</td><td>Reglas gestionadas contra ataques web. El prototipo no es público ni contiene datos reales.</td></tr>
+        <tr><td><b>Bedrock AgentCore</b></td><td class="mono">por sesión</td><td>Bucle de herramientas propio en Lambda</td><td>Memoria e identidad de agente administradas; se implementa un historial simple en la tabla.</td></tr>
+        <tr><td><b>Step Functions</b>, SQS, SNS y AppSync</td><td class="mono">USD 1 – 5</td><td>Estado en la tabla, correo con SES y bandeja de avisos que la vista consulta</td><td>Visualización del flujo, reintentos gestionados y notificación en vivo. El aviso llega por correo, no por push.</td></tr>
+        <tr><td><b>Amazon Transcribe</b></td><td class="mono">USD 1 – 4</td><td>Voz del navegador</td><td>Precisión y control del modelo de transcripción; depende del navegador del profesional.</td></tr>
+        <tr><td><b>KMS con llave propia</b>, Secrets Manager y Macie</td><td class="mono">USD 3 – 6</td><td>Cifrado con llaves administradas por AWS y Parameter Store estándar</td><td>Rotación propia de llaves y descubrimiento automático de PII. Mitigado por el uso de datos sintéticos.</td></tr>
+        <tr><td><b>X-Ray</b> y traza de eventos de datos</td><td class="mono">USD 2 – 5</td><td>Logs estructurados con identificador de caso</td><td>Traza distribuida visual entre agentes.</td></tr>
+        <tr><td><b>CloudFront y CodePipeline</b> por separado</td><td class="mono">—</td><td>Amplify Hosting, que incluye CDN, TLS y CI/CD</td><td>Control fino de la CDN y del pipeline.</td></tr>
+        <tr><td><b>API WebSocket</b> para streaming</td><td class="mono">—</td><td>Petición y respuesta HTTP</td><td>La respuesta aparece completa en lugar de palabra por palabra.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note red" style="margin-top:16px">
+      <b>Lo que hay que reponer antes de cualquier uso real.</b> Los recortes anteriores son defendibles únicamente porque
+      este prototipo funciona con datos sintéticos y no atiende a nadie. Antes de tocar un dato real de un miembro de la
+      comunidad hay que restituir, como mínimo: aislamiento de red, llaves de cifrado propias con rotación, WAF,
+      auditoría de eventos de datos con CloudTrail, base de conocimiento revisable con RAG y validación clínica de los
+      protocolos. A esa lista se suma ahora una definición institucional: <b>si ROBLE es la custodia definitiva de datos de
+      salud</b> —incluida la salud mental— hace falta un acuerdo formal de tratamiento de datos con OPENLAB y con los
+      centros de atención, además de conocer sus respaldos y su compromiso de disponibilidad. Es el primer capítulo del
+      documento de trabajo futuro de la Fase 6.
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. FLUJO ============ -->
+<section id="flujo">
+  <div class="wrap">
+    <div class="sechead"><span class="num">04</span><h2>Flujo de extremo a extremo</h2></div>
+    <p class="lead">El recorrido que se demuestra en la sustentación. Cada paso es también un caso de prueba automatizado.</p>
+    <div class="steps">
+      <div class="step">
+        <h4>Contacto</h4>
+        <p>La persona describe por texto su malestar en la PWA del paciente, autenticada con su cuenta institucional.</p>
+        <span class="svc">Amplify Hosting · ROBLE Auth</span>
+      </div>
+      <div class="step">
+        <h4>Triaje</h4>
+        <p>El Agente de Triaje pregunta, evalúa gravedad contra el protocolo y fija nivel de urgencia.</p>
+        <span class="svc">Bedrock Haiku 4.5 · Guardrails</span>
+      </div>
+      <div class="step">
+        <h4>Canalización</h4>
+        <p>Decide la ruta: CMU si es salud física, CAE si es salud mental; si hay riesgo, deriva a emergencias.</p>
+        <span class="svc">Lambda · ROBLE Database</span>
+      </div>
+      <div class="step">
+        <h4>Agendamiento</h4>
+        <p>Se reserva el cupo disponible y el profesional recibe el resumen estructurado del caso.</p>
+        <span class="svc">ROBLE Database · Lambda · SES</span>
+      </div>
+      <div class="step">
+        <h4>Atención</h4>
+        <p>El profesional registra el plan de tratamiento dictándolo por voz y lo confirma antes de guardar.</p>
+        <span class="svc">Voz del navegador · ROBLE Database</span>
+      </div>
+      <div class="step">
+        <h4>Seguimiento</h4>
+        <p>Recordatorios, reporte de evolución y adherencia; ante retroceso, alerta al equipo tratante.</p>
+        <span class="svc">EventBridge Scheduler · SES</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. PLAN POR FASES ============ -->
+<section id="plan">
+  <div class="wrap">
+    <div class="sechead"><span class="num">05</span><h2>Plan de acción por fases</h2></div>
+    <p class="lead">Siete fases con solapamiento controlado. La estrategia es <b>vertical, no por capas</b>: cada fase entrega
+    un recorrido funcionando de punta a punta y demostrable, en lugar de terminar primero todo el backend. Así, si una
+    fase se atrasa, se pierde profundidad en una función pero nunca la demo completa.</p>
+
+    <h3 style="font-size:16px;margin:26px 0 5px">Equipo y reparto de responsabilidades</h3>
+    <p style="font-size:13.5px;color:var(--ink-2);margin:0 0 14px">Tres integrantes, tres frentes con <b>dueño único</b>:
+    cada frente tiene un responsable que decide y documenta, para que ninguna decisión quede sin dueño y los tres puedan
+    avanzar en paralelo sin bloquearse. Todos programan; lo que cambia es de qué responde cada uno.</p>
+
+    <div class="grid-3">
+      <div class="rolecard as">
+        <svg class="ic"><use href="#i-iac"/></svg>
+        <div class="nm">Alejandro Santiago</div>
+        <div class="rl">Infraestructura y despliegues</div>
+        <ul>
+          <li>Cuenta AWS, topes de gasto y acceso a los modelos de Bedrock.</li>
+          <li>Toda la infraestructura como código con <b>Terraform</b>: Lambdas, API Gateway, EventBridge Scheduler, SES y SSM.</li>
+          <li>Entrega continua en <b>GitHub Actions</b> con acceso a AWS por <b>OIDC</b>: el <span class="mono">apply</span> no ocurre en ninguna máquina y no hay claves de AWS guardadas en el repositorio.</li>
+          <li>Proyecto <b>ROBLE</b>: tablas, tipos, roles y permisos por tabla; usuarios de prueba.</li>
+          <li><b>Módulo de acceso a datos</b>, la única puerta hacia ROBLE que consumen los otros dos frentes.</li>
+          <li>Entornos <span class="mono">dev</span> y <span class="mono">demo</span>, despliegue continuo en Amplify y promoción entre entornos.</li>
+          <li>Observabilidad en CloudWatch, manejo de secretos y seguimiento del costo mensual.</li>
+        </ul>
+        <div class="own"><b>Suyo de punta a punta:</b> el repositorio de Terraform, los dos entornos desplegados, el esquema de ROBLE
+        y el tablero de costos. Es quien desbloquea a los demás, así que su trabajo va siempre una fase por delante.</div>
+      </div>
+
+      <div class="rolecard kr">
+        <svg class="ic"><use href="#i-bedrock"/></svg>
+        <div class="nm">Kevin Ruiz</div>
+        <div class="rl">Agentes e inteligencia artificial</div>
+        <ul>
+          <li>Los tres agentes: Triaje, Agenda y Logística, y Seguimiento.</li>
+          <li>Prompts, bucle de herramientas y contrato de herramientas dentro del Lambda orquestador.</li>
+          <li><b>Protocolos de triaje v0</b> y matriz de decisión CMU / CAE, con su descargo clínico explícito.</li>
+          <li>Bedrock Guardrails, ruta de emergencia y salvaguardas de contenido sensible.</li>
+          <li>Lógica de agenda sobre ROBLE: reservar, releer y reconciliar para evitar dobles reservas.</li>
+          <li>Batería de casos de conversación y medición del acierto de canalización.</li>
+        </ul>
+        <div class="own"><b>Suyo de punta a punta:</b> los agentes funcionando, los protocolos v0 y el informe de
+        evaluación con los casos de prueba. Consume la infraestructura; no la construye.</div>
+      </div>
+
+      <div class="rolecard ba">
+        <svg class="ic"><use href="#i-user"/></svg>
+        <div class="nm">Bernardo Álvarez</div>
+        <div class="rl">Aplicación y experiencia</div>
+        <ul>
+          <li>La PWA única con enrutamiento por rol y las <b>cuatro vistas</b>: paciente, profesional, admin CMU y admin CAE.</li>
+          <li>Autenticación contra ROBLE desde el cliente y manejo de sesión y tokens.</li>
+          <li>Conversación de triaje, reporte de evolución y registro de adherencia.</li>
+          <li>Dictado por voz del plan de tratamiento con Web Speech del navegador.</li>
+          <li>Consolas administrativas: doctores, horarios y visualización de la agenda.</li>
+          <li>Sistema de diseño, accesibilidad y comportamiento en móvil.</li>
+        </ul>
+        <div class="own"><b>Suyo de punta a punta:</b> la PWA desplegada, el sistema de diseño y el guion de la demo que
+        se sustenta. Es el frente que hace visible el trabajo de los otros dos.</div>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:14px">
+      <b>Lo que los tres comparten.</b> Las pruebas de aceptación de la Fase 5, la documentación y la sustentación de la
+      Fase 6, la reunión semanal con Dadier Jabba y Augusto Salazar, y la <b>revisión cruzada de código</b>: nadie fusiona
+      su propio cambio. En una emergencia de calendario, el orden de sacrificio está acordado de antemano —primero
+      profundidad de funciones secundarias, después alcance de las consolas administrativas; nunca el recorrido completo.
+    </div>
+
+    <!-- F0 -->
+    <div class="phase current">
+      <div class="side">
+        <span class="pn">FASE 0</span>
+        <h3>Encuadre y descubrimiento</h3>
+        <span class="wk">Semanas 1 – 3</span>
+        <span class="dt">27 jul – 16 ago 2026</span>
+        <div style="margin-top:10px"><span class="pill now">En curso · cierra esta semana</span></div>
+      </div>
+      <div class="body">
+        <div>
+          <h5>Actividades</h5>
+          <ul>
+            <li>Levantamiento del flujo actual de atención en CMU y CAE con los asesores.</li>
+            <li>Redacción y congelamiento del alcance (este documento).</li>
+            <li>Diseño de la arquitectura de referencia y validación técnica.</li>
+            <li>Definición de la versión 0 de los protocolos de triaje, con su descargo de responsabilidad.</li>
+            <li>Habilitación de la cuenta AWS, acceso a los modelos de Bedrock y alertas de presupuesto.</li>
+            <li>Repositorio, tablero de tareas y convenciones de trabajo.</li>
+          </ul>
+        </div>
+        <div>
+          <h5>Entregables</h5>
+          <ul>
+            <li>Documento de alcance con lo que entra y lo que no.</li>
+            <li>Diagrama de arquitectura AWS aprobado.</li>
+            <li>Protocolos de triaje v0 y matriz de decisión CMU/CAE.</li>
+            <li>Cuenta AWS operativa con límite de gasto configurado.</li>
+            <li>Backlog priorizado de las 13 semanas restantes.</li>
+          </ul>
+        </div>
+        <div class="dod"><b>Hito 1 — 16 ago:</b> alcance firmado por los asesores y arquitectura aprobada. Sin esto, la Fase 1 no arranca.</div>
+        <div class="owners"><span class="lbl">Responsables</span>
+          <span class="who as"><i>AS</i>Cuenta AWS con tope de gasto, repositorio y tablero</span>
+          <span class="who kr"><i>KR</i>Protocolos de triaje v0 y matriz CMU / CAE</span>
+          <span class="who ba"><i>BA</i>Bocetos de las 4 vistas y enrutamiento por rol</span>
+          <span class="who eq"><i>3</i>Alcance firmado y arquitectura aprobada</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- F1 -->
+    <div class="phase">
+      <div class="side">
+        <span class="pn">FASE 1</span>
+        <h3>Fundamentos y esqueleto vivo</h3>
+        <span class="wk">Semanas 4 – 6</span>
+        <span class="dt">17 ago – 6 sep 2026</span>
+        <div style="margin-top:10px"><span class="pill next">Siguiente</span></div>
+      </div>
+      <div class="body">
+        <div>
+          <h5>Actividades</h5>
+          <ul>
+            <li><b>Prueba de humo de ROBLE</b> antes que nada: registro, inicio de sesión, validación de token e inserción, lectura, actualización y borrado reales contra la API, midiendo latencia y confirmando el comportamiento de los filtros.</li>
+            <li>Proyecto en ROBLE con las tablas del dominio, los tipos de dato y los permisos por rol para las cuatro vistas.</li>
+            <li><b>Módulo de acceso a datos</b> como única puerta hacia ROBLE, con la interfaz que permitirá sustituirlo si hace falta.</li>
+            <li>Infraestructura como código con Terraform, solo para el plano de AWS: API Gateway, Lambda, Bedrock y logs.</li>
+            <li>Cascarón de la PWA con enrutamiento por rol y las 4 vistas vacías, autenticando contra ROBLE.</li>
+            <li>Primer agente mínimo: mensaje del paciente → Bedrock (Haiku 4.5) → respuesta en pantalla.</li>
+            <li>Despliegue continuo con Amplify Hosting y dos entornos: dev y demo.</li>
+          </ul>
+        </div>
+        <div>
+          <h5>Entregables</h5>
+          <ul>
+            <li><b>Walking skeleton</b> desplegado y accesible por URL.</li>
+            <li>Informe de la prueba de humo de ROBLE, con los límites encontrados y su impacto en el diseño.</li>
+            <li>Modelo de tablas documentado y desplegado en ROBLE.</li>
+            <li>Repositorio con despliegue reproducible desde cero.</li>
+          </ul>
+        </div>
+        <div class="dod"><b>Hito 2 — 6 sep:</b> un usuario inicia sesión, escribe un mensaje y recibe respuesta del modelo, todo en AWS y desplegado desde el pipeline.</div>
+        <div class="owners"><span class="lbl">Responsables</span>
+          <span class="who as"><i>AS</i><b>Lidera la fase</b> · ROBLE, Terraform, módulo de acceso a datos, dev y demo</span>
+          <span class="who kr"><i>KR</i>Primer agente mínimo contra Bedrock</span>
+          <span class="who ba"><i>BA</i>Cascarón de la PWA y sesión con ROBLE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- F2 -->
+    <div class="phase">
+      <div class="side">
+        <span class="pn">FASE 2</span>
+        <h3>Agente de Triaje e interfaz del paciente</h3>
+        <span class="wk">Semanas 6 – 9</span>
+        <span class="dt">31 ago – 27 sep 2026</span>
+        <div style="margin-top:10px"><span class="pill info">Núcleo del proyecto</span></div>
+      </div>
+      <div class="body">
+        <div>
+          <h5>Actividades</h5>
+          <ul>
+            <li>Protocolos de triaje versionados en el repositorio e inyectados en el prompt con <b>prompt caching</b>.</li>
+            <li>Lógica conversacional: preguntas de seguimiento, nivel de urgencia, ruteo CMU/CAE.</li>
+            <li>Guardrails: temas vetados, manejo de PII y tono para salud mental.</li>
+            <li>Ruta de emergencia con interrupción del flujo y derivación inmediata.</li>
+            <li>Interfaz del paciente completa: chat, resultado del triaje y explicación de la ruta.</li>
+            <li>Banco de ~40 casos sintéticos y evaluación automática de la clasificación.</li>
+          </ul>
+        </div>
+        <div>
+          <h5>Entregables</h5>
+          <ul>
+            <li>Agente de Triaje funcional y trazable.</li>
+            <li>Informe de evaluación: acierto de ruta y de nivel de urgencia sobre el banco de casos.</li>
+            <li>Interfaz del paciente en su versión completa.</li>
+            <li>Registro de auditoría de cada decisión de triaje.</li>
+          </ul>
+        </div>
+        <div class="dod"><b>Hito 3 — 27 sep · Demo 1:</b> tres casos distintos —físico leve, mental moderado y señal de riesgo— canalizados correctamente y con la decisión explicable.</div>
+        <div class="owners"><span class="lbl">Responsables</span>
+          <span class="who kr"><i>KR</i><b>Lidera la fase</b> · agente de Triaje, guardrails, ruta de emergencia y evaluación</span>
+          <span class="who ba"><i>BA</i>Interfaz del paciente completa</span>
+          <span class="who as"><i>AS</i>Tabla de auditoría en ROBLE y trazas en CloudWatch</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- F3 -->
+    <div class="phase">
+      <div class="side">
+        <span class="pn">FASE 3</span>
+        <h3>Agenda, logística e interfaces administrativas</h3>
+        <span class="wk">Semanas 9 – 11</span>
+        <span class="dt">21 sep – 11 oct 2026</span>
+      </div>
+      <div class="body">
+        <div>
+          <h5>Actividades</h5>
+          <ul>
+            <li>Motor de disponibilidad: profesionales, horarios, duración y bloqueos.</li>
+            <li>Agente de Agenda con herramientas de consulta y reserva; control de doble agendamiento por reservar, releer y reconciliar, con prueba de concurrencia.</li>
+            <li>Generación del resumen estructurado del caso y envío al profesional.</li>
+            <li>Vistas administrativas de CMU y CAE: alta de profesionales, horarios y agenda del centro. El alta de usuarios y la asignación de roles se hacen en el panel de ROBLE, así que solo se construye lo específico del dominio.</li>
+            <li>Confirmación de cita al paciente por correo y en la interfaz.</li>
+            <li>Adaptador de integración con contrato definido apuntando al backend simulado.</li>
+          </ul>
+        </div>
+        <div>
+          <h5>Entregables</h5>
+          <ul>
+            <li>Agente de Agenda y Logística funcional.</li>
+            <li>Dos consolas administrativas operativas.</li>
+            <li>Especificación del contrato de integración con los servicios de Uninorte.</li>
+            <li>Plantilla del resumen de caso validada con los asesores.</li>
+          </ul>
+        </div>
+        <div class="dod"><b>Hito 4 — 11 oct · Demo 2:</b> del triaje a una cita real en el calendario del centro, con el resumen del caso visible para el profesional asignado.</div>
+        <div class="owners"><span class="lbl">Responsables</span>
+          <span class="who kr"><i>KR</i>Agente de Agenda, control de doble reserva y resumen del caso</span>
+          <span class="who ba"><i>BA</i><b>Lidera la fase</b> · consolas de CMU y CAE</span>
+          <span class="who as"><i>AS</i>Tablas de disponibilidad, permisos por rol y correo con SES</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- F4 -->
+    <div class="phase">
+      <div class="side">
+        <span class="pn">FASE 4</span>
+        <h3>Agente de Seguimiento e interfaz del profesional</h3>
+        <span class="wk">Semanas 11 – 13</span>
+        <span class="dt">5 oct – 25 oct 2026</span>
+      </div>
+      <div class="body">
+        <div>
+          <h5>Actividades</h5>
+          <ul>
+            <li>Vista del profesional: plan de tratamiento por texto y por dictado con la voz del navegador, con confirmación previa al guardado.</li>
+            <li>Vista de progreso del paciente para el profesional.</li>
+            <li>Programación automática de recordatorios a partir del plan de tratamiento.</li>
+            <li>Registro de adherencia y reporte de evolución en la interfaz del paciente.</li>
+            <li>Reglas de detección de anomalía o retroceso y escalamiento al equipo tratante.</li>
+            <li>Ciclo de vida del caso con un campo de estado en la tabla y cierre del caso al alta.</li>
+          </ul>
+        </div>
+        <div>
+          <h5>Entregables</h5>
+          <ul>
+            <li>Agente de Seguimiento funcional.</li>
+            <li>Vista del profesional completa, con dictado por voz.</li>
+            <li>Reglas de alerta documentadas y probadas.</li>
+            <li>Ciclo de vida completo del caso, desde el síntoma hasta el alta.</li>
+          </ul>
+        </div>
+        <div class="dod"><b>Hito 5 — 25 oct · Demo 3:</b> plan dictado por voz, recordatorio recibido, retroceso reportado por el paciente y alerta llegando al profesional.</div>
+        <div class="owners"><span class="lbl">Responsables</span>
+          <span class="who ba"><i>BA</i><b>Lidera la fase</b> · vista del profesional, dictado por voz y progreso del paciente</span>
+          <span class="who kr"><i>KR</i>Agente de Seguimiento y reglas de alerta</span>
+          <span class="who as"><i>AS</i>EventBridge Scheduler, Lambda de recordatorios y entrega por SES</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- F5 -->
+    <div class="phase">
+      <div class="side">
+        <span class="pn">FASE 5</span>
+        <h3>Integración, endurecimiento y pruebas</h3>
+        <span class="wk">Semanas 13 – 15</span>
+        <span class="dt">19 oct – 8 nov 2026</span>
+      </div>
+      <div class="body">
+        <div>
+          <h5>Actividades</h5>
+          <ul>
+            <li>Pruebas de recorrido completo automatizadas sobre los cuatro roles.</li>
+            <li>Revisión de seguridad: permisos IAM mínimos por función, cifrado en reposo, configuración en Parameter Store y registro de accesos.</li>
+            <li>Pruebas de usabilidad con 6 a 8 personas de la comunidad, usando datos sintéticos.</li>
+            <li>Ajustes de conversación y de interfaz a partir de lo observado.</li>
+            <li>Pruebas de casos límite: ambigüedad física/mental, riesgo, sin cupos, caídas del modelo.</li>
+            <li>Cierre de costos: consumo real contra la estimación, retención de logs y tope de tokens por sesión.</li>
+          </ul>
+        </div>
+        <div>
+          <h5>Entregables</h5>
+          <ul>
+            <li>Suite de pruebas E2E en verde.</li>
+            <li>Informe de revisión de seguridad y privacidad, con hallazgos cerrados.</li>
+            <li>Informe de usabilidad con cambios aplicados.</li>
+            <li>Entorno de demo estable y congelado.</li>
+          </ul>
+        </div>
+        <div class="dod"><b>Hito 6 — 8 nov:</b> congelamiento de funcionalidad. A partir de aquí solo se corrigen defectos, no se agrega nada.</div>
+        <div class="owners"><span class="lbl">Responsables</span>
+          <span class="who eq"><i>3</i>Pruebas de recorrido completo y sesiones de usabilidad</span>
+          <span class="who as"><i>AS</i>Revisión de seguridad, permisos mínimos, retención de logs y cierre de costos</span>
+          <span class="who kr"><i>KR</i>Casos límite de conversación y caídas del modelo</span>
+          <span class="who ba"><i>BA</i>Ajustes de interfaz a partir de lo observado</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- F6 -->
+    <div class="phase">
+      <div class="side">
+        <span class="pn">FASE 6</span>
+        <h3>Cierre, documentación y sustentación</h3>
+        <span class="wk">Semanas 15 – 16</span>
+        <span class="dt">2 nov – 15 nov 2026</span>
+      </div>
+      <div class="body">
+        <div>
+          <h5>Actividades</h5>
+          <ul>
+            <li>Documento final del proyecto y manual de despliegue.</li>
+            <li>Guion de la demo con datos sembrados y respaldo grabado en video.</li>
+            <li>Presentación de sustentación y ensayo cronometrado.</li>
+            <li>Documento de trabajo futuro: validación clínica, integración real, reposición de los controles de seguridad recortados y camino a producción.</li>
+            <li>Entrega del repositorio, la infraestructura y los accesos.</li>
+          </ul>
+        </div>
+        <div>
+          <h5>Entregables</h5>
+          <ul>
+            <li>Documento final e informe de resultados.</li>
+            <li>Demo en vivo más video de respaldo.</li>
+            <li>Presentación de sustentación.</li>
+            <li>Hoja de ruta de continuidad del proyecto.</li>
+          </ul>
+        </div>
+        <div class="dod"><b>Hito 7 — 13 nov:</b> sustentación con demo en vivo del recorrido completo y entrega formal de todos los artefactos.</div>
+        <div class="owners"><span class="lbl">Responsables</span>
+          <span class="who eq"><i>3</i>Documento final, presentación y ensayo cronometrado</span>
+          <span class="who as"><i>AS</i>Manual de despliegue y entrega de infraestructura y accesos</span>
+          <span class="who kr"><i>KR</i>Informe de resultados de la evaluación de triaje</span>
+          <span class="who ba"><i>BA</i>Guion de la demo, datos sembrados y video de respaldo</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. CRONOGRAMA ============ -->
+<section id="cronograma">
+  <div class="wrap">
+    <div class="sechead"><span class="num">06</span><h2>Cronograma de 16 semanas</h2></div>
+    <p class="lead">Semanas de lunes a domingo. La franja naranja marca la <b>semana 3</b>, la posición actual. Los rombos
+    son hitos con entregable verificable.</p>
+
+    <div class="gantt">
+      <div class="gt">
+        <!-- header · fila 1 -->
+        <div class="hlabel" style="grid-row:1">Fase / entregable</div>
+        <div class="hcell" style="grid-row:1;grid-column:2">S1<small>27 jul</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:3">S2<small>3 ago</small></div>
+        <div class="hcell now" style="grid-row:1;grid-column:4">S3<small>10 ago</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:5">S4<small>17 ago</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:6">S5<small>24 ago</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:7">S6<small>31 ago</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:8">S7<small>7 sep</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:9">S8<small>14 sep</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:10">S9<small>21 sep</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:11">S10<small>28 sep</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:12">S11<small>5 oct</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:13">S12<small>12 oct</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:14">S13<small>19 oct</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:15">S14<small>26 oct</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:16">S15<small>2 nov</small></div>
+        <div class="hcell" style="grid-row:1;grid-column:17">S16<small>9 nov</small></div>
+
+        <!-- franja de la semana actual -->
+        <div class="nowcol" style="grid-column:4;grid-row:1 / span 15"></div>
+
+        <!-- fases · filas 2–8 -->
+        <div class="rlabel" style="grid-row:2;grid-column:1"><b>F0</b> Encuadre y descubrimiento <em>S1–S3</em></div>
+        <div class="bar2 b0" style="grid-row:2;grid-column:2 / span 3">Alcance · arquitectura · cuenta AWS</div>
+
+        <div class="rlabel" style="grid-row:3;grid-column:1"><b>F1</b> Fundamentos y esqueleto vivo <em>S4–S6</em></div>
+        <div class="bar2 b1" style="grid-row:3;grid-column:5 / span 3">IaC · identidad · datos · CI/CD</div>
+
+        <div class="rlabel" style="grid-row:4;grid-column:1"><b>F2</b> Triaje + interfaz paciente <em>S6–S9</em></div>
+        <div class="bar2 b2" style="grid-row:4;grid-column:7 / span 4">Protocolos · RAG · guardrails · chat</div>
+
+        <div class="rlabel" style="grid-row:5;grid-column:1"><b>F3</b> Agenda + consolas admin <em>S9–S11</em></div>
+        <div class="bar2 b3" style="grid-row:5;grid-column:10 / span 3">Disponibilidad · reserva · resumen</div>
+
+        <div class="rlabel" style="grid-row:6;grid-column:1"><b>F4</b> Seguimiento + interfaz profesional <em>S11–S13</em></div>
+        <div class="bar2 b4" style="grid-row:6;grid-column:12 / span 3">Voz · recordatorios · alertas</div>
+
+        <div class="rlabel" style="grid-row:7;grid-column:1"><b>F5</b> Integración y endurecimiento <em>S13–S15</em></div>
+        <div class="bar2 b5" style="grid-row:7;grid-column:14 / span 3">E2E · seguridad · usabilidad</div>
+
+        <div class="rlabel" style="grid-row:8;grid-column:1"><b>F6</b> Cierre y sustentación <em>S15–S16</em></div>
+        <div class="bar2 b6" style="grid-row:8;grid-column:16 / span 2">Documentación · demo · defensa</div>
+
+        <!-- hitos · filas 9–15 -->
+        <div class="mlabel" style="grid-row:9;grid-column:1;padding-top:13px"><i class="dia"></i> <b>H1</b> Alcance y arquitectura aprobados</div>
+        <div class="mstone" style="grid-row:9;grid-column:4;padding-top:13px"><i></i></div>
+
+        <div class="mlabel" style="grid-row:10;grid-column:1"><i class="dia"></i> <b>H2</b> Walking skeleton en AWS</div>
+        <div class="mstone" style="grid-row:10;grid-column:7"><i></i></div>
+
+        <div class="mlabel" style="grid-row:11;grid-column:1"><i class="dia"></i> <b>H3</b> Demo 1 — triaje y canalización</div>
+        <div class="mstone" style="grid-row:11;grid-column:10"><i></i></div>
+
+        <div class="mlabel" style="grid-row:12;grid-column:1"><i class="dia"></i> <b>H4</b> Demo 2 — cita agendada con contexto</div>
+        <div class="mstone" style="grid-row:12;grid-column:12"><i></i></div>
+
+        <div class="mlabel" style="grid-row:13;grid-column:1"><i class="dia"></i> <b>H5</b> Demo 3 — seguimiento y alertas</div>
+        <div class="mstone" style="grid-row:13;grid-column:14"><i></i></div>
+
+        <div class="mlabel" style="grid-row:14;grid-column:1"><i class="dia"></i> <b>H6</b> Congelamiento de funcionalidad</div>
+        <div class="mstone" style="grid-row:14;grid-column:16"><i></i></div>
+
+        <div class="mlabel" style="grid-row:15;grid-column:1"><i class="dia"></i> <b>H7</b> Sustentación final</div>
+        <div class="mstone" style="grid-row:15;grid-column:17"><i></i></div>
+      </div>
+    </div>
+
+    <div class="grid-3" style="margin-top:18px">
+      <div class="card"><h3>Reparto del trabajo</h3>
+        <p style="font-size:13.5px;color:var(--ink-2);margin:0">Tres frentes en paralelo desde la Fase 1:
+        <b>Alejandro</b> va siempre una fase por delante con la infraestructura y los despliegues, para que
+        <b>Kevin</b> (agentes) y <b>Bernardo</b> (aplicación) nunca esperen por un entorno. Los tres convergen en las
+        pruebas de la Fase 5. El liderazgo de fase rota: F1 Alejandro, F2 Kevin, F3 y F4 Bernardo.</p></div>
+      <div class="card"><h3>Ritmo de trabajo</h3>
+        <p style="font-size:13.5px;color:var(--ink-2);margin:0">Reunión de sincronización con los asesores cada semana,
+        cierre de semana con demo interna del avance y despliegue al entorno de demo al final de cada fase. Nada se
+        considera terminado si no está desplegado.</p></div>
+      <div class="card"><h3>Holgura</h3>
+        <p style="font-size:13.5px;color:var(--ink-2);margin:0">El congelamiento en la semana 15 deja una semana completa
+        de amortiguación antes de la sustentación. Si una fase se desborda, se recorta profundidad de funciones
+        secundarias —nunca el recorrido completo, que es lo que se defiende.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7. SEMANA 3 ============ -->
+<section id="semana3">
+  <div class="wrap">
+    <div class="sechead"><span class="num">07</span><h2>Dónde estamos: semana 3</h2></div>
+    <p class="lead">La Fase 0 cierra el <b>domingo 16 de agosto</b>. Estas son las acciones concretas de los próximos días
+    para no arrastrar deuda a la Fase 1.</p>
+
+    <table>
+      <thead><tr><th style="width:31%">Acción de cierre de Fase 0</th><th style="width:15%">Responsable</th><th style="width:12%">Fecha límite</th><th style="width:12%">Estado</th><th>Por qué bloquea</th></tr></thead>
+      <tbody>
+        <tr><td>Revisar y firmar este documento de alcance con Dadier Jabba y Augusto Salazar</td><td>Equipo</td><td class="mono">14 ago</td><td><span class="pill now">En curso</span></td><td>Define qué se construye en 13 semanas; sin firma, el alcance sigue moviéndose.</td></tr>
+        <tr><td>Aprobar la arquitectura AWS de referencia</td><td>Equipo + asesores</td><td class="mono">15 ago</td><td><span class="pill now">En curso</span></td><td>Determina la infraestructura como código de la Fase 1.</td></tr>
+        <tr><td>Habilitar cuenta AWS, solicitar acceso a Claude Haiku 4.5 en Bedrock y crear la alerta de presupuesto con tope</td><td>Alejandro Santiago</td><td class="mono">15 ago</td><td><span class="pill risk">Crítico</span></td><td>La aprobación de acceso al modelo puede tardar días; si no se pide ya, retrasa la Fase 1.</td></tr>
+        <tr><td><b>Crear el proyecto en ROBLE</b>, guardar el token y correr la prueba de humo de los endpoints de autenticación y datos</td><td>Alejandro Santiago</td><td class="mono">15 ago</td><td><span class="pill risk">Crítico</span></td><td>Toda la persistencia depende de esto. Si algún límite de la API rompe el diseño de la agenda, hay que saberlo antes de la Fase 1, no en la Fase 3.</td></tr>
+        <tr><td>Preguntar a OPENLAB por estabilidad, respaldos y cambios previstos en la API de ROBLE</td><td>Bernardo Álvarez</td><td class="mono">16 ago</td><td><span class="pill next">Pendiente</span></td><td>Es la mitigación del riesgo más alto de la arquitectura. El proyecto es comunitario y tiene canal abierto en Discord.</td></tr>
+        <tr><td>Averiguar si Uninorte tiene convenio AWS Academy o créditos AWS Educate para el proyecto</td><td>Alejandro Santiago</td><td class="mono">16 ago</td><td><span class="pill next">Pendiente</span></td><td>Con créditos, el costo del prototipo es cero y nadie asocia una tarjeta personal a la cuenta.</td></tr>
+        <tr><td>Escribir los protocolos de triaje v0 y la matriz de decisión CMU/CAE</td><td>Kevin Ruiz</td><td class="mono">16 ago</td><td><span class="pill next">Pendiente</span></td><td>Es el insumo del prompt del Agente de Triaje en la Fase 2.</td></tr>
+        <tr><td>Definir la ruta de emergencia con los canales reales del campus</td><td>Kevin Ruiz</td><td class="mono">16 ago</td><td><span class="pill next">Pendiente</span></td><td>Es una salvaguarda, no una función: debe estar definida antes de escribir el agente.</td></tr>
+        <tr><td>Bocetos de las 4 vistas y el enrutamiento por rol de la PWA</td><td>Bernardo Álvarez</td><td class="mono">16 ago</td><td><span class="pill next">Pendiente</span></td><td>Habilita el cascarón de la aplicación en la Fase 1.</td></tr>
+        <tr><td>Repositorio, tablero y backlog de las 13 semanas restantes</td><td>Equipo</td><td class="mono">16 ago</td><td><span class="pill next">Pendiente</span></td><td>Sin backlog priorizado, la Fase 1 arranca sin orden de ejecución.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note" style="margin-top:16px">
+      <b>Decisiones que aún requieren respuesta de los asesores.</b>
+      1) ¿El equipo tendrá algún contacto clínico del CMU o del CAE, aunque sea para una revisión puntual de los
+      protocolos de triaje? 2) ¿Es viable usar la cuenta institucional de Uninorte para la autenticación, o se emplea un
+      registro propio con datos sintéticos? 3) ¿Habrá cuenta AWS institucional o créditos académicos, o se usa una cuenta
+      del equipo? Cada respuesta cambia decisiones de la Fase 1, por lo que se necesitan antes del 16 de agosto.
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8. RIESGOS ============ -->
+<section id="riesgos">
+  <div class="wrap">
+    <div class="sechead"><span class="num">08</span><h2>Riesgos y mitigación</h2></div>
+    <p class="lead">Los tres riesgos ya identificados en la propuesta original, más los que aparecen al comprometerse con
+    un calendario de 16 semanas.</p>
+    <table>
+      <thead><tr><th style="width:22%">Riesgo</th><th style="width:9%">Impacto</th><th style="width:9%">Probab.</th><th style="width:38%">Mitigación</th><th>Fase / disparador</th></tr></thead>
+      <tbody>
+        <tr><td><b>Privacidad de datos sensibles</b>, en especial salud mental</td><td><span class="pill risk">Alto</span></td><td><span class="pill now">Media</span></td><td>Datos exclusivamente sintéticos durante todo el proyecto —es la condición que hace defendible la arquitectura austera—; cifrado en reposo, permisos IAM mínimos por función, registro de accesos, separación de los datos de salud mental y revisión de seguridad dedicada en la Fase 5.</td><td>F1 y F5</td></tr>
+        <tr><td><b>Triaje sin validación clínica</b> puede clasificar mal un caso</td><td><span class="pill risk">Alto</span></td><td><span class="pill risk">Alta</span></td><td>Protocolos deliberadamente básicos y versionados como documento revisable; descargo visible en cada interfaz; sesgo hacia sobreestimar la urgencia; derivación inmediata ante señal de riesgo; banco de casos con informe de acierto publicado sin maquillaje.</td><td>F0, F2 y F5</td></tr>
+        <tr><td><b>Dependencia de la integración con CMU y CAE</b></td><td><span class="pill risk">Alto</span></td><td><span class="pill now">Media</span></td><td>Adaptador con contrato explícito y backend simulado desde el inicio; la integración real queda declarada fuera de alcance y documentada como trabajo futuro.</td><td>F3</td></tr>
+        <tr><td><b>Acceso tardío a modelos de Bedrock o a la cuenta AWS</b></td><td><span class="pill now">Medio</span></td><td><span class="pill now">Media</span></td><td>Solicitar el acceso en la semana 3; desarrollo local con contratos simulados mientras se aprueba; región con disponibilidad confirmada del modelo.</td><td>F0 · disparador: sin acceso al 22 ago</td></tr>
+        <tr><td><b>Alcance que crece</b> durante el semestre</td><td><span class="pill now">Medio</span></td><td><span class="pill risk">Alta</span></td><td>Alcance congelado en el hito 1; toda idea nueva entra a la lista de trabajo futuro; congelamiento de funcionalidad en la semana 15.</td><td>Todo el proyecto</td></tr>
+        <tr><td><b>Costos de nube superiores a lo previsto</b></td><td><span class="pill next">Bajo</span></td><td><span class="pill next">Baja</span></td><td>Ningún servicio cobra por estar encendido, así que el gasto solo crece si hay uso; alerta de presupuesto con tope duro desde la semana 3; límite de tokens por sesión; un único entorno permanente.</td><td>F0 y F5</td></tr>
+        <tr><td><b>Dependencia de ROBLE</b>, plataforma en evolución, sin acuerdo de nivel de servicio y con documentación en un subdominio de pruebas</td><td><span class="pill risk">Alto</span></td><td><span class="pill now">Media</span></td><td>Todo el acceso pasa por un único módulo de datos, de modo que sustituir ROBLE por DynamoDB o Postgres es cuestión de días. Verificación temprana en la Fase 1 con una prueba de humo de los endpoints. Datos exportables por la API de lectura, con respaldo propio periódico. Contacto directo con OPENLAB —el proyecto es comunitario y tiene canal abierto— para conocer cambios de contrato con antelación.</td><td>F1 · revisión en cada hito</td></tr>
+        <tr><td><b>Doble agendamiento</b>: sin escritura condicional en la API de datos</td><td><span class="pill now">Medio</span></td><td><span class="pill now">Media</span></td><td>Reservar, releer y reconciliar: tras escribir la reserva se vuelve a leer el cupo y, si quedaron dos, la segunda se cancela y se reofrece automáticamente. Prueba de concurrencia explícita en los criterios de aceptación de la Fase 3.</td><td>F3</td></tr>
+        <tr><td><b>Las consultas por rango no están soportadas</b> en la API de datos de ROBLE</td><td><span class="pill next">Bajo</span></td><td><span class="pill now">Media</span></td><td>El modelo de datos se diseña para filtros de igualdad: los cupos se consultan por día y estado exactos, y el ordenamiento se hace en el cliente. Se valida en la prueba de humo de la Fase 1, antes de construir la agenda.</td><td>F1 y F3</td></tr>
+        <tr><td><b>La arquitectura mínima resulta insuficiente</b> para alguna función</td><td><span class="pill now">Medio</span></td><td><span class="pill now">Media</span></td><td>Cada recorte tiene su reemplazo documentado y reversible: si el protocolo crece se vuelve a RAG, si ROBLE no alcanza se vuelve a una base propia. Se reevalúa en el hito 3, cuando el triaje ya está construido y el costo real es conocido.</td><td>F2 · disparador: hito 3</td></tr>
+        <tr><td><b>Equipo de 3 personas con carga académica paralela</b></td><td><span class="pill now">Medio</span></td><td><span class="pill risk">Alta</span></td><td>Fases verticales que siempre dejan algo demostrable; tres frentes con dueño único que reducen bloqueos mutuos; infraestructura una fase por delante para que nadie espere por un entorno; semana 16 reservada solo para cierre.</td><td>Todo el proyecto</td></tr>
+        <tr><td><b>Conocimiento concentrado en una sola persona por frente</b></td><td><span class="pill now">Medio</span></td><td><span class="pill next">Media</span></td><td>Revisión cruzada obligatoria de código: nadie fusiona su propio cambio, así que cada frente lo lee al menos otra persona. Manual de despliegue escrito desde la Fase 1, no al final, y credenciales compartidas por el equipo.</td><td>Todas las fases</td></tr>
+        <tr><td><b>Respuestas inadecuadas del modelo</b> en temas de salud mental</td><td><span class="pill risk">Alto</span></td><td><span class="pill now">Media</span></td><td>Guardrails con temas vetados y tono definido; prohibición explícita de diagnosticar o prescribir; casos adversariales en la suite de pruebas; registro completo de conversaciones para revisión.</td><td>F2 y F5</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 9. COSTOS ============ -->
+<section id="costos">
+  <div class="wrap">
+    <div class="sechead"><span class="num">09</span><h2>Costo estimado de la nube</h2></div>
+    <p class="lead">Con la persistencia y la identidad en <b>ROBLE</b> —gratuito para estudiantes— la factura se reduce
+    prácticamente al <b>consumo del modelo</b>. Ya no hay base de datos, ni identidad, ni almacenamiento que pagar, y
+    ningún servicio cobra por estar encendido: si nadie usa el sistema, la factura tiende a cero.</p>
+    <div class="grid-2">
+      <table>
+        <thead><tr><th>Componente</th><th style="width:24%">Costo mensual aprox.</th><th style="width:30%">Palanca de control</th></tr></thead>
+        <tbody>
+          <tr style="background:#F5FBF8"><td><b>ROBLE</b> — autenticación + base de datos PostgreSQL</td><td class="mono"><b>USD 0</b></td><td>Gratuito para estudiantes de Uninorte</td></tr>
+          <tr><td>Amazon Bedrock — Claude Haiku 4.5 con caching</td><td class="mono">USD 3 – 10</td><td>Tope de tokens por sesión</td></tr>
+          <tr><td>Bedrock Guardrails</td><td class="mono">USD 1 – 3</td><td>Solo filtros indispensables</td></tr>
+          <tr><td>Lambda ×3 + API Gateway (un endpoint)</td><td class="mono">USD 0 – 1</td><td>Capa gratuita</td></tr>
+          <tr><td>Amplify Hosting — una app, dos ramas</td><td class="mono">USD 0 – 3</td><td>Minutos de compilación; GitHub Pages si sobra</td></tr>
+          <tr><td>EventBridge Scheduler + SES</td><td class="mono">USD 0 – 1</td><td>Volumen de demo</td></tr>
+          <tr><td>CloudWatch Logs — retención de 7 días</td><td class="mono">USD 0 – 2</td><td>Retención y nivel de log</td></tr>
+          <tr><td>Parameter Store estándar</td><td class="mono">USD 0</td><td>Sin costo en nivel estándar</td></tr>
+          <tr style="background:#F0FBF1"><td><b>Total estimado</b></td><td class="mono"><b>USD 4 – 20 / mes</b></td><td><b>~USD 15 – 65 en 13 semanas</b></td></tr>
+          <tr style="color:var(--ink-3)"><td>Diseño inicial, para comparar</td><td class="mono">USD 62 – 177 / mes</td><td>~USD 200 – 550 en 13 semanas</td></tr>
+        </tbody>
+      </table>
+      <div class="stack">
+        <div class="note" style="border-left-color:#14634A;background:#F5FBF8">
+          <b>Conviene ser honesto con el ahorro.</b> Frente al diseño anterior, ROBLE recorta poco en dinero —DynamoDB,
+          Cognito y S3 ya estaban casi todos en capa gratuita: entre <b>USD 0 y 5 al mes</b>. Su valor real es otro y es
+          mayor: <b>elimina código e infraestructura</b> (no hay que diseñar una tabla única, ni configurar identidad, ni
+          construir la administración de usuarios), deja el gasto concentrado en un único rubro auditable, y alinea el
+          proyecto con la plataforma de la propia Universidad, que es más fácil de defender ante los asesores que una
+          cuenta de nube personal.
+        </div>
+        <div class="card"><h3>Cómo se contiene lo que queda</h3>
+          <ul class="clean" style="font-size:13.5px">
+            <li>El modelo es el único gasto inevitable: la red de agentes no existe sin él. Se controla con tope de tokens por sesión y con la caché del protocolo de triaje.</li>
+            <li>Alerta de presupuesto con tope duro configurada en la semana 3, antes de desplegar nada.</li>
+            <li>Un solo entorno permanente (demo); el de desarrollo se destruye y recrea con <span class="mono">terraform destroy</span> y <span class="mono">apply</span>.</li>
+            <li>Con créditos de AWS Educate o convenio AWS Academy, el costo neto del prototipo queda en cero.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10. ÉXITO ============ -->
+<section id="exito">
+  <div class="wrap">
+    <div class="sechead"><span class="num">10</span><h2>Criterios de éxito</h2></div>
+    <p class="lead">Cómo se juzga el proyecto en la sustentación del 13 de noviembre. Son verificables: se cumplen o no.</p>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Criterios funcionales</h3>
+        <ul class="tick" style="font-size:13.5px;margin-top:8px">
+          <li>Un caso recorre las seis etapas del flujo sin intervención manual, en vivo y en AWS.</li>
+          <li>Los tres agentes se transfieren el caso sobre un estado compartido y trazable.</li>
+          <li>Las cuatro vistas operan con sus roles correctamente separados dentro de una sola aplicación, y los permisos por tabla de ROBLE impiden que un rol lea datos que no le corresponden.</li>
+          <li>Dos reservas simultáneas sobre el mismo cupo dejan una sola cita en firme, y la segunda persona recibe una alternativa.</li>
+          <li>Todo el acceso a datos pasa por el módulo de acceso: ninguna vista ni herramienta llama a ROBLE por su cuenta.</li>
+          <li>El ruteo CMU/CAE acierta en al menos el 85 % del banco de casos sintéticos.</li>
+          <li>Ningún caso con señal de riesgo se procesa como consulta ordinaria: el 100 % deriva a emergencias.</li>
+          <li>El plan de tratamiento se dicta por voz y queda guardado tras confirmación del profesional.</li>
+          <li>Un retroceso reportado por el paciente genera alerta al profesional en menos de 5 minutos.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Criterios de ingeniería y de proceso</h3>
+        <ul class="tick" style="font-size:13.5px;margin-top:8px">
+          <li>Toda la infraestructura se despliega desde cero con un comando y código versionado.</li>
+          <li>Suite de pruebas E2E en verde para los cuatro roles.</li>
+          <li>Cero datos reales de pacientes en cualquier entorno.</li>
+          <li>Cada acceso a un dato de salud queda auditado y consultable.</li>
+          <li>Los siete hitos se alcanzaron con evidencia demostrable en su fecha.</li>
+          <li>Documento final y manual de despliegue entregados.</li>
+          <li>Hoja de ruta de continuidad con lo que falta para un uso real, explícita y honesta.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:18px">
+      <b>Qué NO es un criterio de éxito.</b> Que el triaje sea clínicamente correcto. Este prototipo demuestra que la
+      arquitectura de agentes sostiene la continuidad del cuidado; la corrección clínica de los protocolos exige
+      validación de personal de salud calificado y queda, declaradamente, como el primer paso del trabajo futuro.
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <b>CareSync Agentic Network</b> — Propuesta técnica y plan de ejecución · Proyecto Final, Universidad del Norte, campo Salud<br>
+    Docente proponente: Dadier Jabba · Co-asesor: Augusto Salazar<br>
+    Estudiantes: Alejandro Santiago (infraestructura y despliegues) · Kevin Ruiz (agentes e IA) · Bernardo Álvarez (aplicación y experiencia)<br>
+    Semana 3 de 16 · 13 de agosto de 2026 · Sustentación prevista: 13 de noviembre de 2026<br>
+    <span style="font-size:11.5px;color:#6E7B8A">Los nombres de servicios y la iconografía referencian productos de Amazon Web Services; los iconos de este documento son representaciones propias en el estilo de la guía de arquitectura de AWS.</span>
+  </div>
+</footer>
+
+</body>
+</html>

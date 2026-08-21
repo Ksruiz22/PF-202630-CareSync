@@ -1,0 +1,138 @@
+# Destruir la infraestructura de CareSync. **Sólo a mano y nunca por un empujón.**
+#
+# No tiene ningún disparador automático, y eso es lo único que impide que un
+# `push` desafortunado borre el entorno. `workflow_dispatch` lo ejecuta quien tenga
+# permiso de escritura, desde la pestaña Actions o con:
+#
+#   gh workflow run destruir.yml --ref main -f confirmacion='destruir dev'
+#
+# Tres cosas tienen que cumplirse para que llegue a borrar algo:
+#
+#   1. El texto de confirmación coincide con «destruir <entorno>». Un desplegable
+#      con «sí/no» se contesta sin leer; escribir el nombre del entorno obliga a
+#      mirar cuál es.
+#   2. Se ejecuta desde `main`. La comprobación de abajo sólo sirve para dar un
+#      error legible: lo que de verdad lo impide es la política de confianza del
+#      rol, que acepta el `sub` de `refs/heads/main` y de ningún otro sitio, así
+#      que desde otra rama no hay credenciales que asumir.
+#   3. El rol `caresync-ci-apply` puede borrar la infraestructura pero no puede
+#      tocarse a sí mismo ni al proveedor OIDC: eso lo niega su propia política.
+#      Un destroy no deja la cuenta sin forma de volver a desplegar.
+#
+# Lo que no hay es aprobación de un segundo par de ojos: sería un `environment:` con
+# revisores, y en un repositorio privado de plan gratuito los environments no están
+# disponibles. Ver el comentario equivalente en infra.yml.
+
+name: destruir
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmacion:
+        description: "Escribe exactamente: destruir dev"
+        required: true
+        type: string
+      motivo:
+        description: "Por qué se destruye (queda en el registro del flujo)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+# El mismo grupo que desplegar y publicar. Destruir mientras se aplica es la peor
+# forma de descubrir para qué sirve el bloqueo de DynamoDB.
+concurrency:
+  group: infra-dev
+  cancel-in-progress: false
+
+env:
+  CARESYNC_ENTORNO: dev
+  AWS_REGION: us-east-1
+
+jobs:
+  destruir:
+    name: destruir
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: caresync
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: comprobar la confirmación y la rama
+        # La confirmación entra por `env:` y no interpolada dentro del `run:`. Un
+        # `${{ inputs.confirmacion }}` en medio del script se ejecutaría como
+        # código si alguien escribiera comillas y un `;` en la casilla.
+        env:
+          CONFIRMACION: ${{ inputs.confirmacion }}
+          MOTIVO: ${{ inputs.motivo }}
+        run: |
+          esperado="destruir ${CARESYNC_ENTORNO}"
+          if [ "${CONFIRMACION}" != "${esperado}" ]; then
+            echo "::error::La confirmación no coincide. Se esperaba «${esperado}»." >&2
+            exit 1
+          fi
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "::error::Sólo desde main (esto corrió en ${GITHUB_REF}). El rol de despliegue no se puede asumir desde otra rama." >&2
+            exit 1
+          fi
+          {
+            echo "## Destrucción del entorno \`${CARESYNC_ENTORNO}\`"
+            echo
+            echo "- Lo pidió: @${GITHUB_ACTOR}"
+            echo "- Motivo: ${MOTIVO:-(no indicado)}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # El rol que aplica. No hay un rol «de destruir»: borrar es el mismo
+          # permiso que crear, y un tercer rol daría la falsa impresión de que
+          # destruir está más acotado que desplegar.
+          role-to-assume: arn:aws:iam::539091491293:role/caresync-ci-apply
+          role-session-name: caresync-destruir-${{ github.run_id }}
+          aws-region: us-east-1
+
+      - name: destruir.sh --plan
+        run: scripts/destruir.sh --plan
+
+      # El plan de destrucción queda escrito en el resumen antes de ejecutarse. No
+      # es una puerta —nadie lo aprueba— sino el registro de qué había cuando se
+      # borró, que es lo que se busca cuando alguien pregunta después.
+      - name: el plan de destrucción, en el resumen
+        run: |
+          source scripts/entorno.sh
+          {
+            echo
+            echo '### terraform plan -destroy'
+            echo '```'
+            terraform -chdir=infra show -no-color destruir.tfplan
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: destruir.sh --si
+        run: scripts/destruir.sh --si
+
+      - name: lo que hay que reponer
+        if: always()
+        run: |
+          {
+            echo
+            echo '### Si se vuelve a desplegar, hay que reponer a mano'
+            echo '- Las credenciales de ROBLE en Parameter Store, incluida la contraseña.'
+            echo '- La verificación en SES del remitente y del correo de emergencias.'
+            echo '- La confirmación de la suscripción al tema de SNS de los avisos.'
+            echo
+            echo 'Los datos y las trece tablas de ROBLE no se han tocado: no están en AWS.'
+            echo 'El arranque (bucket del estado, tabla de bloqueo, proveedor OIDC y roles de CI) sigue intacto.'
+          } >> "${GITHUB_STEP_SUMMARY}"
