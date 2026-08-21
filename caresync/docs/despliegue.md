@@ -110,6 +110,7 @@ log en lugar de mandarlos, y no se crean ni el presupuesto ni los avisos.
 | `infra.yml` | pull request que toque `infra/`, `lambdas/`, `protocolos/`, `scripts/` | `caresync-ci-plan` (sólo lectura) | plan, y lo publica en el resumen |
 | `infra.yml` | empujón a `main` | `caresync-ci-apply` | plan + apply + sonda de salud |
 | `app.yml` | `app/` cambia, o `infra.yml` terminó bien | `caresync-ci-apply` | compila la PWA y la publica en Amplify |
+| `destruir.yml` | **sólo a mano**, desde `main` | `caresync-ci-apply` | `plan -destroy` al resumen y lo aplica |
 
 `revision.yml` es el único que funciona en un pull request venido de un fork:
 GitHub no emite token de OIDC en esos, así que el plan no puede autenticarse. No es
@@ -119,6 +120,39 @@ cuenta.
 Los tres flujos ejecutan los mismos scripts de `scripts/` que se usan a mano. Si CI
 tuviera sus propios pasos de `terraform`, el día que divergieran nadie se enteraría
 hasta que el despliegue de una persona y el de CI dieran resultados distintos.
+
+## Destruir el entorno
+
+```bash
+gh workflow run destruir.yml --ref main -f confirmacion='destruir dev' -f motivo='...'
+```
+
+O en la pestaña *Actions* → *destruir* → *Run workflow*. No tiene disparador
+automático: sólo `workflow_dispatch`, que es lo que impide que un empujón borre el
+entorno. Pide escribir `destruir dev` —el nombre del entorno, no un «sí», para que
+haya que mirar cuál se está destruyendo— y sólo funciona desde `main`, porque la
+política de confianza del rol no acepta el `sub` de ninguna otra rama.
+
+Antes de borrar deja el `terraform plan -destroy` en el resumen del trabajo. No es
+una puerta de aprobación, que en este repositorio no se puede tener: es el registro
+de qué había cuando se borró.
+
+**Qué sobrevive**, y no por descuido:
+
+| | |
+|---|---|
+| El arranque | bucket del estado, tabla de bloqueo, proveedor OIDC y los dos roles de CI. Están en otro módulo y en otro estado, y el rol de CI tiene un `Deny` sobre ellos. Un destroy no deja la cuenta sin forma de volver a desplegar. |
+| Los datos | viven en ROBLE, que no es AWS. Las trece tablas también: `esquema_roble.sh` no hay que repetirlo. |
+
+**Qué hay que reponer** al volver a desplegar: las credenciales de ROBLE en Parameter
+Store (incluida la contraseña, que se borra con el parámetro), la verificación en SES
+de los dos correos, y la confirmación de la suscripción al tema de SNS. La URL de la
+PWA además cambia, porque Amplify da un dominio nuevo al recrear la aplicación. La
+lista sale también en el resumen del trabajo y al final de `scripts/destruir.sh`.
+
+A mano, para una emergencia con Actions caído, existe `scripts/destruir.sh` — pide el
+nombre del entorno por consola. Vale la misma regla que para `desplegar.sh --si`: el
+estado es compartido y el sitio para destruir es el flujo.
 
 ## Ejecutar los scripts en una máquina
 
