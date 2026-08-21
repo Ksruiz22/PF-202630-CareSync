@@ -179,6 +179,21 @@ data "aws_iam_policy_document" "plan_extra" {
     }
   }
 
+  # `ReadOnlyAccess` deja pasar `bedrock:GetGuardrail` y `bedrock:ListGuardrails`
+  # pero no `bedrock:ListTagsForResource`, y el proveedor de AWS lee las etiquetas de
+  # cada recurso al refrescarlo. Sin esto, el plan de todo pull request muere con un
+  # 403 en `aws_bedrock_guardrail.principal` en cuanto el guardrail existe —o sea,
+  # después del primer despliegue y no antes, que es lo que lo hace desconcertante.
+  #
+  # Comprobado con: aws iam simulate-principal-policy --policy-source-arn <rol>
+  #   --action-names bedrock:ListTagsForResource bedrock:GetGuardrail
+  statement {
+    sid       = "LeerLasEtiquetasDeBedrock"
+    effect    = "Allow"
+    actions   = ["bedrock:ListTagsForResource"]
+    resources = ["arn:aws:bedrock:${var.region}:${var.cuenta}:guardrail/*"]
+  }
+
   # El módulo no usa Secrets Manager. Negarlo explícitamente cierra la vía más
   # obvia de sacar algo de la cuenta con un rol de sólo lectura.
   statement {

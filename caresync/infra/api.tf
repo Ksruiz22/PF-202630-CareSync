@@ -26,7 +26,11 @@ resource "aws_apigatewayv2_integration" "orquestador" {
   integration_type       = "AWS_PROXY"
   integration_uri        = aws_lambda_function.orquestador.invoke_arn
   payload_format_version = "2.0"
-  timeout_milliseconds   = var.timeout_orquestador * 1000
+  # El mismo valor que el timeout de la Lambda, y no por casualidad: si la
+  # integración esperara menos, la función seguiría corriendo y escribiendo en ROBLE
+  # después de que el cliente recibiera un 504. El máximo de un HTTP API son 30 s y
+  # es lo que valida `var.timeout_orquestador`.
+  timeout_milliseconds = var.timeout_orquestador * 1000
 }
 
 resource "aws_apigatewayv2_route" "agente" {

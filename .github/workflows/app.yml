@@ -6,9 +6,15 @@
 # de Terraform— y de ahí los dos disparadores: un cambio en app/, o un despliegue de
 # infraestructura que haya terminado bien.
 #
-# Un empujón que toque app/ **y** infra/ publica dos veces. No se ha evitado porque
-# el resultado es el mismo bundle y el precio de evitarlo es un flujo más difícil de
-# leer que el problema que resuelve.
+# Un empujón que toque app/ **y** infra/ no publica dos veces: el trabajo `decidir`
+# aplaza el disparador del empujón y deja que publique el `workflow_run`, cuando la
+# infraestructura ya terminó. Antes no era así y el resultado fue el primer
+# despliegue: el empujón a `main` lanzó los dos flujos a la vez, la publicación leyó
+# el estado antes de que el apply escribiera las salidas y murió con «The output
+# variable requested could not be found in the state file».
+#
+# El grupo de concurrencia no bastaba. Serializa, pero no ordena: si la publicación
+# entra primero, el apply es el que espera.
 
 name: aplicación web
 
@@ -39,11 +45,49 @@ env:
   AWS_REGION: us-east-1
 
 jobs:
+  # Un trabajo entero para responder a una sola pregunta: ¿publicamos ahora o deja
+  # que lo haga el flujo de infraestructura al terminar? No se puede expresar con los
+  # filtros de `paths`, que sólo saben decir «incluye», nunca «incluye esto y no
+  # aquello».
+  decidir:
+    name: decidir
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      publicar: ${{ steps.d.outputs.publicar }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Dos commits: hace falta el anterior para poder comparar qué cambió.
+          fetch-depth: 2
+
+      - id: d
+        env:
+          ANTERIOR: ${{ github.event.before }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" != "push" ]; then
+            echo "publicar=si" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          # `github.event.before` es 40 ceros en el primer empujón de una rama, y
+          # entonces no hay con qué comparar: se publica y ya.
+          if [ -z "${ANTERIOR}" ] || [ "${ANTERIOR}" = "0000000000000000000000000000000000000000" ]; then
+            echo "publicar=si" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          if git diff --name-only "${ANTERIOR}" "${GITHUB_SHA}" | grep -q '^caresync/infra/'; then
+            echo "Este empujón también toca la infraestructura: publica el flujo de infraestructura al terminar."
+            echo "publicar=no" >> "${GITHUB_OUTPUT}"
+          else
+            echo "publicar=si" >> "${GITHUB_OUTPUT}"
+          fi
+
   publicar:
     name: publicar
+    needs: decidir
     # Si el despliegue de infraestructura falló, no hay nada nuevo que publicar y
     # las salidas pueden estar a medias.
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: needs.decidir.outputs.publicar == 'si'
     runs-on: ubuntu-latest
     # El proyecto vive en caresync/ y este archivo tiene que estar en la raíz. Los
     # `run:` se ejecutan ahí dentro; las rutas de un `uses:` no lo obedecen.
