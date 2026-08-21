@@ -1,0 +1,15 @@
+# Copiar a arranque.tfvars y poner el repositorio real antes de aplicar.
+#
+#   cp arranque.tfvars.ejemplo arranque.tfvars
+#   terraform apply -var-file=arranque.tfvars
+#
+# `repositorio` es el único valor obligatorio: decide qué repositorio de GitHub
+# puede desplegar en la cuenta 539091491293. Escribirlo mal no da un error, da un
+# despliegue que falla con «Not authorized to perform sts:AssumeRoleWithWebIdentity»
+# desde el repositorio correcto.
+
+repositorio = "PROPIETARIO/caresync"
+
+# Descomentar si la cuenta ya tiene el proveedor de identidad de GitHub creado por
+# otro equipo. Sólo puede haber uno.
+# crear_proveedor_oidc = false

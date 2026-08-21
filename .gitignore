@@ -1,0 +1,27 @@
+# Reglas de la raíz del repositorio. Las del proyecto están en caresync/.gitignore,
+# que sigue aplicando a su subárbol: git lee un .gitignore por directorio.
+
+# --- desechables -------------------------------------------------------------
+# Todo lo temporal vive aquí con su marca `generated-by` (ver CLAUDE.md). Nunca se
+# versiona: son sondas, volcados de respuestas de API y logs de un solo uso.
+_scratch/
+_archivo_*/
+
+# --- credenciales ------------------------------------------------------------
+# Red de seguridad, no mecanismo: las credenciales de ROBLE viven en Parameter
+# Store y las carga una persona a mano.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credenciales*
+
+# --- sistema operativo y OneDrive --------------------------------------------
+# El proyecto está dentro de OneDrive, que siembra desktop.ini y deja archivos de
+# conflicto cuando dos máquinas sincronizan a la vez.
+desktop.ini
+.DS_Store
+Thumbs.db
+*-Copia.*
+*~$*

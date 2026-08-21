@@ -1,0 +1,146 @@
+# El despliegue de la infraestructura. **El único sitio desde el que se aplica.**
+#
+# Nadie ejecuta `terraform apply` desde su máquina, y no es una norma de estilo: el
+# estado está en S3 y compartido, así que dos personas aplicando a la vez —o una
+# aplicando desde una rama a medias— se sobreescriben el trabajo. Aquí hay un solo
+# camino: se revisa el plan en el pull request y se aplica al entrar en main.
+#
+# Las credenciales llegan por OIDC. No hay ninguna clave de AWS guardada en el
+# repositorio; los dos roles los crea caresync/infra/arranque/ y sus ARN están en
+# las variables del repositorio.
+#
+# Este archivo está en la raíz del repositorio porque GitHub sólo ejecuta lo que
+# encuentra en `.github/workflows/` de la raíz, pero el proyecto vive en
+# `caresync/`. De ahí las dos consecuencias que se repiten abajo: los filtros de
+# `paths` llevan el prefijo `caresync/`, y cada trabajo declara
+# `working-directory: caresync` para que los scripts se ejecuten donde esperan
+# estar. Los parámetros de un `uses:` no obedecen a ese valor por omisión —sólo lo
+# hacen los `run:`— así que esos van siempre con la ruta completa.
+
+name: infraestructura
+
+on:
+  pull_request:
+    paths:
+      - "caresync/infra/**"
+      - "caresync/lambdas/**"
+      - "caresync/protocolos/**"
+      - "caresync/scripts/**"
+      - ".github/workflows/infra.yml"
+  push:
+    branches: [main]
+    paths:
+      - "caresync/infra/**"
+      - "caresync/lambdas/**"
+      - "caresync/protocolos/**"
+      - "caresync/scripts/**"
+      - ".github/workflows/infra.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # sin esto no hay token de OIDC y no se puede asumir el rol
+
+# Una ejecución a la vez contra el entorno. El bloqueo de DynamoDB ya impide el
+# desastre, pero impidiéndolo con un error: dos ejecuciones simultáneas harían que
+# una fallara con «Error acquiring the state lock». Con esto, esperan su turno.
+concurrency:
+  group: infra-dev
+  cancel-in-progress: false
+
+env:
+  CARESYNC_ENTORNO: dev
+  AWS_REGION: us-east-1
+
+jobs:
+  plan:
+    name: plan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: caresync
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Rol de sólo lectura: un pull request trae código que todavía no ha
+          # revisado nadie y aquí se ejecutan scripts del propio pull request.
+          role-to-assume: ${{ vars.AWS_ROL_PLAN }}
+          role-session-name: caresync-plan-${{ github.run_id }}
+          aws-region: us-east-1
+
+      - name: desplegar.sh --plan
+        run: scripts/desplegar.sh --plan
+
+      # El plan a la vista en el resumen del trabajo, que es lo que hace revisable
+      # un cambio de infraestructura: sin esto hay que abrir el log y buscarlo.
+      - name: el plan, en el resumen
+        # Se carga entorno.sh porque ahí se define TF_DATA_DIR: sin él, terraform
+        # busca `.terraform/` dentro del proyecto y no encuentra la inicialización
+        # que hizo el paso anterior.
+        run: |
+          source scripts/entorno.sh
+          {
+            echo '### terraform plan'
+            echo '```'
+            terraform -chdir=infra show -no-color plan.tfplan
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  aplicar:
+    name: aplicar
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # El environment es la puerta: es donde se configuran los revisores que tienen
+    # que aprobar para que este trabajo arranque. También cambia el `sub` del token
+    # de OIDC, y por eso figura en la política de confianza del rol (infra/arranque).
+    environment: aws-dev
+    defaults:
+      run:
+        working-directory: caresync
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+          terraform_wrapper: false
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROL_APPLY }}
+          role-session-name: caresync-apply-${{ github.run_id }}
+          aws-region: us-east-1
+
+      # El mismo script que se usaría a mano, con la confirmación ya dada. Vuelve a
+      # planificar antes de aplicar: el plan del pull request se hizo contra un
+      # estado que puede haber cambiado.
+      - name: desplegar.sh --si
+        run: scripts/desplegar.sh --si
+
+      - name: lo que queda por hacer a mano
+        # Cargar las credenciales de ROBLE y verificar el correo en SES no lo hace
+        # Terraform ni lo hace CI: son datos que sólo tiene una persona. Que la
+        # lista salga en el resumen es lo que evita que se olvide.
+        run: |
+          source scripts/entorno.sh
+          {
+            echo '### Pendiente a mano'
+            terraform -chdir=infra output -json pendiente_manual \
+              | python3 -c 'import json,sys; [print("-", x) for x in json.load(sys.stdin)]'
+          } >> "${GITHUB_STEP_SUMMARY}"

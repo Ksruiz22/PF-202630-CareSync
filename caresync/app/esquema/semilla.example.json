@@ -1,0 +1,66 @@
+{
+  "_lee_esto": [
+    "Copia este archivo como semilla.json y ajústalo. semilla.json está en .gitignore:",
+    "lleva nombres y correos, y los datos de personas no se versionan aunque sean de prueba.",
+    "",
+    "user_id es el `sub` de la cuenta de ROBLE del profesional. Se puede dejar en null al",
+    "principio: la agenda funciona igual. Sin él, ese profesional no puede entrar a la",
+    "aplicación a ver sus citas, porque las citas se buscan por profesional_user_id.",
+    "",
+    "dia_semana: 0 = lunes, 1 = martes, ... 6 = domingo.",
+    "hora_inicio y hora_fin son hora de Bogotá, sin zona. minutos_cupo es la duración."
+  ],
+  "profesionales": [
+    {
+      "nombre": "Dra. Ana Restrepo",
+      "email": "ana.restrepo@ejemplo.edu.co",
+      "user_id": null,
+      "centro": "CMU",
+      "especialidad": "Medicina general",
+      "horarios": [
+        { "dia_semana": 0, "hora_inicio": "08:00", "hora_fin": "12:00", "minutos_cupo": 20 },
+        { "dia_semana": 2, "hora_inicio": "08:00", "hora_fin": "12:00", "minutos_cupo": 20 },
+        { "dia_semana": 4, "hora_inicio": "14:00", "hora_fin": "17:00", "minutos_cupo": 20 }
+      ]
+    },
+    {
+      "nombre": "Dr. Julián Barrios",
+      "email": "julian.barrios@ejemplo.edu.co",
+      "user_id": null,
+      "centro": "CMU",
+      "especialidad": "Enfermería",
+      "horarios": [
+        { "dia_semana": 1, "hora_inicio": "07:00", "hora_fin": "11:00", "minutos_cupo": 30 },
+        { "dia_semana": 3, "hora_inicio": "07:00", "hora_fin": "11:00", "minutos_cupo": 30 }
+      ]
+    },
+    {
+      "nombre": "Ps. Camila Fonseca",
+      "email": "camila.fonseca@ejemplo.edu.co",
+      "user_id": null,
+      "centro": "CAE",
+      "especialidad": "Psicología",
+      "horarios": [
+        { "dia_semana": 0, "hora_inicio": "09:00", "hora_fin": "13:00", "minutos_cupo": 45 },
+        { "dia_semana": 1, "hora_inicio": "14:00", "hora_fin": "18:00", "minutos_cupo": 45 },
+        { "dia_semana": 3, "hora_inicio": "09:00", "hora_fin": "13:00", "minutos_cupo": 45 }
+      ]
+    },
+    {
+      "nombre": "Ps. Diego Mendoza",
+      "email": "diego.mendoza@ejemplo.edu.co",
+      "user_id": null,
+      "centro": "CAE",
+      "especialidad": "Psicología · primera vez",
+      "horarios": [
+        {
+          "dia_semana": 2,
+          "hora_inicio": "10:00",
+          "hora_fin": "16:00",
+          "minutos_cupo": 45,
+          "modalidad": "virtual"
+        }
+      ]
+    }
+  ]
+}

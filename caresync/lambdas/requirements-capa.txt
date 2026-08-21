@@ -1,0 +1,11 @@
+# Dependencias de la capa compartida de Lambda.
+#
+# Versiones fijas a propósito: el hash del zip entra en el estado de Terraform, y
+# un rango abierto haría que un `apply` de la semana que viene desplegara código
+# distinto sin que nadie lo hubiera cambiado.
+#
+# `boto3` y `botocore` NO van aquí: el runtime de Lambda ya los trae. Incluirlos
+# duplicaría unos 15 MB y no añadiría nada.
+
+roble==0.1.0
+requests==2.32.3

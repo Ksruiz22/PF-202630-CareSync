@@ -1,0 +1,20 @@
+{
+  "name": "CareSync · Universidad del Norte",
+  "short_name": "CareSync",
+  "description": "Acompañamiento en salud del campus. Prototipo académico.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#0b3d5c",
+  "lang": "es-CO",
+  "icons": [
+    {
+      "src": "/icono.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

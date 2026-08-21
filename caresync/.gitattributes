@@ -1,0 +1,28 @@
+# Finales de línea LF en todo el repositorio.
+#
+# El equipo trabaja en Windows y los scripts se ejecutan en WSL y en Lambda. Un
+# archivo .sh con CRLF falla con «bad interpreter: /usr/bin/env bash^M», que es un
+# error que cuesta media hora la primera vez que se ve. Se normaliza aquí y no en la
+# configuración de cada máquina.
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.py text eol=lf
+*.tf text eol=lf
+*.tfvars text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+
+# Binarios: que Git no intente normalizarlos ni mostrarlos como texto.
+*.png binary
+*.jpg binary
+*.zip binary
+*.pdf binary
+
+# Al revisar un cambio, el candado de npm es ruido: es generado, no escrito.
+app/package-lock.json linguist-generated=true -diff
