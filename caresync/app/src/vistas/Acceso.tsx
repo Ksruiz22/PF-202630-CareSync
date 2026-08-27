@@ -1,12 +1,15 @@
 /**
  * Entrar y crear cuenta.
  *
- * El registro pone el rol en `extra.role` del usuario de ROBLE y además intenta
- * escribir una fila en `perfiles`. Las dos cosas porque la Lambda lee el rol de
- * los dos sitios: primero del usuario, y si no está, de `perfiles`. Si la tabla
- * no admite la escritura desde una cuenta recién creada —lo normal, según cómo
- * queden los permisos por rol en la consola de ROBLE—, el registro no falla: el
- * rol declarado en `extra` es suficiente para entrar como paciente.
+ * El registro crea la cuenta y después escribe su fila en `perfiles`, que es el
+ * único sitio donde vive el rol. **No se declara nada en `extra`**: ROBLE dejó de
+ * aceptar ese campo en `register` el 2026-08-27 —«El campo extra 'role' no está
+ * permitido»— y tener dos fuentes del rol ya era un problema por sí solo, porque
+ * la Lambda prefería `extra` y esta aplicación nunca lo miró.
+ *
+ * Si la escritura del perfil falla, el registro no falla: sin fila la cuenta entra
+ * igual y las dos capas la tratan como `paciente`, que es exactamente el rol que
+ * este formulario iba a darle. Lo que se pierde es el nombre.
  *
  * Un rol distinto de `paciente` no se puede pedir desde aquí. Los profesionales y
  * el personal administrativo los crea quien administra el contrato, y eso es
@@ -136,12 +139,7 @@ async function registrar(email: string, password: string, nombre: string): Promi
   // `register` y no `registerWithVerification`: en un prototipo que se demuestra
   // en clase, esperar un código por correo rompe la demostración. Cambiarlo es una
   // línea cuando el proyecto salga de la fase de prueba.
-  await roble.register({
-    email: correo,
-    password,
-    name: nombre.trim(),
-    extra: { role: 'paciente' },
-  });
+  await roble.register({ email: correo, password, name: nombre.trim() });
 
   try {
     await roble.login({ email: correo, password });
@@ -155,7 +153,9 @@ async function registrar(email: string, password: string, nombre: string): Promi
       creado_en: new Date().toISOString(),
     });
   } catch (fallo) {
-    // Sin fila en `perfiles` la cuenta funciona igual: el rol viaja en `extra`.
-    console.warn('No se pudo crear el perfil; se sigue con el rol declarado', fallo);
+    // Sin fila en `perfiles` la cuenta entra igual y se comporta como paciente en
+    // las dos capas, que es el rol que este formulario da. Lo que falta es el
+    // nombre —se muestra el correo— y se arregla después con `--perfil`.
+    console.warn('No se pudo crear el perfil; se entra como paciente sin nombre', fallo);
   }
 }

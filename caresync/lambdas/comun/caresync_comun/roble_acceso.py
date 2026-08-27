@@ -226,23 +226,38 @@ class AccesoRoble:
     def _resolver_actor(self, usuario: User) -> Actor:
         """Deduce el rol del usuario autenticado.
 
-        El `User` del SDK no tiene campo `rol`: ROBLE lo entrega —cuando lo
-        entrega— dentro del cuerpo crudo de `/me` o en `extra`. Se busca ahí
-        primero y, si no aparece, se cae a la tabla `perfiles`, que es la fuente
-        que este proyecto controla. Sin ninguna de las dos, el rol es
-        `paciente`: el menos privilegiado.
+        Manda la fila de `perfiles`: es la fuente que este proyecto controla y la
+        misma que lee la PWA para decidir qué pantalla mostrar. Los metadatos de la
+        cuenta en ROBLE —`extra`, o el cuerpo crudo de `/me`— sólo se consultan si
+        no hay fila.
+
+        El orden era el contrario y estaba mal. Una cuenta registrada en la PWA
+        llevaba `extra.role: 'paciente'`, así que darle un rol con
+        `esquema_roble.sh --perfil admin_cmu` cambiaba lo que la persona veía —la
+        PWA sólo mira `perfiles`— y no lo que podía hacer: aquí seguía siendo
+        paciente y cada herramienta administrativa respondía 403. Que ROBLE dejara
+        de aceptar `extra` en `register` el 2026-08-27 quitó la fuente nueva, pero
+        no las cuentas que ya lo traían.
+
+        Sin fila ni metadato el rol es `paciente`: el menos privilegiado.
         """
         user_id = usuario.user_id or usuario.id
-        rol = _rol_declarado(usuario)
-        centro = _centro_declarado(usuario)
+        rol = None
+        centro = None
         perfil_id = None
 
+        perfil = self._perfil_de(user_id)
+        if perfil:
+            perfil_id = fila_id(perfil)
+            rol = _normalizar_rol(perfil.get("rol"))
+            centro = _normalizar_centro(perfil.get("centro"))
+
         if rol is None or centro is None:
-            perfil = self._perfil_de(user_id)
-            if perfil:
-                perfil_id = fila_id(perfil)
-                rol = rol or _normalizar_rol(perfil.get("rol"))
-                centro = centro or _normalizar_centro(perfil.get("centro"))
+            # Respaldo para las cuentas sin fila —a las que les falló la escritura
+            # del perfil al registrarse— y para lo que ROBLE decida entregar en
+            # `/me` algún día.
+            rol = rol or _rol_declarado(usuario)
+            centro = centro or _centro_declarado(usuario)
 
         if rol is None:
             evento(log, "rol_no_declarado", user_id=user_id)
@@ -291,6 +306,11 @@ class AccesoRoble:
         except RobleHttpError as exc:
             if exc.status_code in (401, 403):
                 raise NoAutorizado(f"ROBLE no autoriza escribir en {tabla}: {exc}") from exc
+            if exc.status_code == 400:
+                raise ErrorDeDatos(
+                    f"Esquema inesperado escribiendo en {tabla}"
+                    f" (¿columna que no existe?): {exc}"
+                ) from exc
             raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} escribiendo en {tabla}") from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió escribiendo en {tabla}") from exc
@@ -303,6 +323,15 @@ class AccesoRoble:
                 raise NoEncontrado(f"No existe el registro {fila_id} en {tabla}") from exc
             if exc.status_code in (401, 403):
                 raise NoAutorizado(f"ROBLE no autoriza actualizar {tabla}: {exc}") from exc
+            if exc.status_code == 400:
+                # El 400 de una actualización es casi siempre una columna que no
+                # existe, y el mensaje genérico costó una tarde: `canalizar_caso`
+                # enviaba `canalizado_en` y el log sólo decía «ROBLE respondió 400
+                # actualizando casos», que se lee como un problema de permisos.
+                raise ErrorDeDatos(
+                    f"Esquema inesperado actualizando {tabla}"
+                    f" (¿columna que no existe?): {exc}"
+                ) from exc
             raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} actualizando {tabla}") from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió actualizando {tabla}") from exc
