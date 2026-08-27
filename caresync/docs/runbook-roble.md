@@ -295,10 +295,16 @@ el 2026-08-27 con `curl -D -`, que devuelve las cabeceras:
 | Todo lo demás: leer, escribir, `refresh-token`, `verify-token` | 100 | 1 minuto |
 
 ```bash
-# Cuánto queda del cubo de esta IP, sin gastar un intento de verdad
+# El cubo de 100/minuto de esta IP. Gratis: un token inválido da 401 y ya.
 curl -s -o /dev/null -D - https://roble-api.test-openlab.uninorte.edu.co/auth/caresync_cab021ce03/verify-token \
   | grep -i ratelimit
 ```
+
+**Ese `curl` no dice nada de los otros dos cubos**: cada ruta lleva el suyo y sólo
+informa del propio. Para saber cómo va el de `login` hay que enviar un `login`, que
+cuesta uno de los diez —un correo inexistente basta, devuelve 401 y sus cabeceras
+dicen cuántos quedan—. Del de `signup` no hay forma de preguntar sin gastar un
+registro, así que ahí se cuenta a mano o se espera la hora.
 
 Lo que hay que hacer es **esperar**: la ventana es fija y reintentar no la acorta.
 `X-Ratelimit-Reset` dice los segundos que faltan. Y son **por IP, no por cuenta**:
