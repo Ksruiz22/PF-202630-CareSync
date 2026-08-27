@@ -24,9 +24,42 @@ el proyecto vive en una carpeta sincronizada con OneDrive y un `.env` con una
 contraseña se sube a la nube sin preguntar.
 
 Es **idempotente**: una tabla que ya existía se cuenta como tal y no es un error.
-El resumen dice cuántas se crearon, cuántas ya estaban y cuántas fallaron. La cuenta
-con la que se entra tiene que ser la dueña del contrato; una cuenta cualquiera puede
-leer y escribir filas, pero no crear tablas.
+El resumen dice cuántas se crearon, cuántas ya estaban y cuántas fallaron.
+
+Con una cuenta cualquiera del contrato **`--semilla` y `--perfil` funcionan, pero
+crear tablas no**: hace falta el permiso `alter`, que el rol predeterminado no tiene.
+La siguiente sección es la salida.
+
+### Crear las tablas con la Consola SQL
+
+`createTable` necesita `alter`, y el rol `user` —el que hereda toda cuenta que se
+registre— no lo tiene ni debe tenerlo. Con una cuenta normal las trece fallan con
+«No se pudo determinar el rol del usuario», que es un mensaje engañoso: el rol existe,
+es el permiso el que falta.
+
+La salida es la **Consola SQL** del proyecto (en la navegación de la consola web).
+Ejecuta PostgreSQL arbitrario, acepta varias sentencias por ejecución y descarta los
+comentarios. Fue así como se crearon las trece el 2026-08-27. El detalle que la hace
+segura de usar aquí: **ROBLE inyecta `_id UUID PRIMARY KEY NOT NULL UNIQUE DEFAULT
+gen_random_uuid()` en todo `CREATE TABLE` que no lo traiga**, que es exactamente la
+columna que espera la aplicación; no hay que declararla y no se corre el riesgo de
+declararla distinta.
+
+El esquema de referencia sigue siendo la constante `ESQUEMA` de
+`app/esquema/bootstrap_roble.mjs`: de ahí se leen las columnas y cuáles son nulables,
+y se transcriben con `NOT NULL` en toda la que no esté marcada nulable. Después se
+comprueba con
+
+```sql
+SELECT table_name, count(*) AS columnas FROM information_schema.columns
+WHERE table_schema = 'public' GROUP BY table_name ORDER BY table_name;
+```
+
+contando **una columna más** que en `ESQUEMA`, la del `_id`.
+
+Que exista este camino no convierte al script en código muerto: sigue siendo el que
+siembra, el que escribe perfiles y el que documenta el esquema en el repositorio. Lo
+que no puede es crear tablas con las credenciales de una cuenta normal.
 
 ### Las trece tablas
 
@@ -55,53 +88,79 @@ de SQL: `int4` y no `integer`, `bool` y no `boolean`. La lista está en
 [`/docs/database/types`](https://roble.test-openlab.uninorte.edu.co/docs/database/types)
 y centralizada en la constante `T` de `app/esquema/bootstrap_roble.mjs`.
 
-## Permisos de tabla en la consola de ROBLE
+## Permisos en la consola de ROBLE
 
-**Crear las tablas no basta, y este es el paso que se olvida.** Lo dice la
-documentación de ROBLE en
-[`/docs/roles`](https://roble.test-openlab.uninorte.edu.co/docs/roles): al crear el
-proyecto se genera un rol `user` con permisos de leer y actualizar **las tablas que
-existían en ese momento**, los permisos sólo se pueden crear sobre tablas que ya
-existen, y las tablas nuevas hay que darlas de alta a mano. Nuestras trece nacen
-sin ningún permiso.
+**Están en *Configuración*, no en *Base de datos* ni en *Autenticación*** —pestañas
+**ROLES** y **PERMISOS**—, y no funcionan como los describe
+[`/docs/roles`](https://roble.test-openlab.uninorte.edu.co/docs/roles). Un permiso es
+un par *(recurso, acción)* donde el recurso es una tabla **o el comodín `all`**, y las
+acciones son `create read update delete alter execute all`. Los permisos se asignan a
+**roles**, y cada cuenta tiene un rol (se cambia en *Autenticación → Usuarios →
+Editar rol*).
 
-El síntoma de que falta esto no es un 403 limpio: es un **500 de ROBLE** que la
+El contrato nació con cuatro roles —`user`, que es el **predeterminado** y por tanto el
+de toda cuenta que se registre en la PWA, más `readonly`, `editor` y `admin`— y siete
+permisos, todos con recurso `all`. `user` traía `all:create`, `all:read` y `all:execute`.
+
+Que el comodín exista cambia la conclusión que este runbook daba antes: **las trece
+tablas nuevas nacieron legibles y escribibles**, porque `all:read` y `all:create` no
+enumeran tablas y no hay que dar de alta nada al crear una. Lo que de verdad faltaba
+era `update`.
+
+Estado a 2026-08-27, ya aplicado: al rol `user` se le añadieron seis permisos de tabla,
+uno por cada tabla que el código actualiza.
+
+| Permiso | Quién actualiza |
+|---|---|
+| `perfiles:update` | `bootstrap_roble.mjs --perfil` |
+| `casos:update` | `actualizar_caso` en `roble_acceso.py` y `Profesional.tsx` |
+| `cupos:update` | reservar, confirmar y liberar cupos |
+| `citas:update` | marcar una cita como atendida |
+| `indicaciones:update` | desactivar una indicación |
+| `recordatorios:update` | `marcar_recordatorio` |
+
+**Se hizo por tabla y no con `all:update` a propósito.** El comodín era un clic en vez
+de doce, pero daba permiso para reescribir `conversaciones` y `eventos` —el hilo
+clínico y la bitácora—, que el sistema sólo añade y nunca modifica. Si algún día una
+escritura falla con un 500 en una tabla que no está en esa lista, la pregunta correcta
+es si esa escritura debería existir; si debe, se añade su permiso. Recurrir a
+`all:update` es apagar el detector de humo.
+
+**Ningún rol de la aplicación tiene `delete` ni `alter`, y así debe quedarse.** Nada
+del sistema borra filas clínicas —un cupo que se libera se marca `libre`, no se
+borra—, así que un permiso de borrado sólo añadiría una forma de perder datos que no
+están en ningún otro sitio. Y `alter` en el rol predeterminado significaría que
+cualquier paciente registrado puede cambiar el esquema.
+
+El síntoma de un permiso que falta no es un 403 limpio: es un **500 de ROBLE** que la
 aplicación traduce a un 502 y que se lee igual que «no me puedo conectar».
 
-En la consola: *Base de datos → Permisos* por cada tabla, y *Autenticación →
-Roles* para asignarlos al rol que tienen las cuentas. Lo que necesita CareSync,
-sacado de las llamadas que hay en el código:
+Dos cosas más que ahorran una tarde:
 
-| Tabla | read | insert | update | delete |
-|---|:--:|:--:|:--:|:--:|
-| `perfiles` | ✔ | ✔ | ✔ | |
-| `casos` | ✔ | ✔ | ✔ | |
-| `conversaciones` | ✔ | ✔ | | |
-| `profesionales` | ✔ | ✔ | | |
-| `horarios` | ✔ | ✔ | | |
-| `cupos` | ✔ | ✔ | ✔ | |
-| `citas` | ✔ | ✔ | ✔ | |
-| `planes` | ✔ | ✔ | | |
-| `indicaciones` | ✔ | ✔ | ✔ | |
-| `adherencia` | ✔ | ✔ | | |
-| `evolucion` | ✔ | ✔ | | |
-| `eventos` | ✔ | ✔ | | |
-| `recordatorios` | ✔ | ✔ | ✔ | |
-
-**Ninguna tabla necesita `delete`**, y conviene dejarlo así: nada del sistema borra
-filas clínicas, así que un permiso de borrado sólo añadiría una forma de perder
-datos que no están en ningún otro sitio. Un cupo que se libera se marca `libre`,
-no se borra.
-
-Dos cosas que la documentación deja claras y que ahorran una tarde:
-
-- El rol nuevo **toma efecto en el siguiente inicio de sesión**. Si se cambia y no
-  parece cambiar nada, hay que salir y volver a entrar.
+- Los permisos viajan en el token, así que un cambio de rol o de permisos **toma
+  efecto en el siguiente inicio de sesión**. Si se cambia algo y no parece cambiar
+  nada, hay que salir y volver a entrar.
 - El rol de ROBLE **no es** el rol de CareSync. `register` guarda
   `extra: { role: 'paciente' }`, pero eso es metadato de la cuenta: quien decide
   qué ve cada quien es la fila de `perfiles` (ver más abajo), y quien decide si la
   consulta a la tabla se permite es el rol de ROBLE. Son dos capas distintas y
   hacen falta las dos.
+
+> **El 2026-08-21 la consola no dejaba entrar, y eso bloqueaba todo lo de arriba.** El
+> login devolvía `401 No se pudo canjear el código de Microsoft con las credenciales
+> del proyecto` en `/auth/microsoft/callback`: Microsoft emitía el código y el canje
+> fallaba del lado de ROBLE, con dos cuentas distintas y también en incógnito. Las
+> credenciales de Microsoft **son propias de cada proyecto** y se guardan en sus
+> ajustes, así que desde fuera no se distingue «ROBLE está roto» de «este proyecto no
+> las tiene configuradas». Se arregló del lado de ROBLE el 2026-08-27 sin que
+> tocáramos nada.
+>
+> Si vuelve a pasar, no hay otra puerta a la consola: el botón llama a
+> `${API}/auth/microsoft`, la ruta `/login` del SPA renderiza un `root` vacío y las
+> alternativas sin Microsoft (`/auth/login`, `/users/login`, `/auth/signin`…) dan 404.
+> Queda preguntar en el Discord de ROBLE. Lo único que no depende de la consola es
+> autenticarse contra el pozo de usuarios del contrato, `/auth/<contrato>/login`, que
+> funcionó todos esos días.
 
 ## Roles
 
@@ -166,13 +225,31 @@ disparo del reloj los recoge.
 
 ## Fallos y qué hacer
 
+### `createTable` falla en las trece con «No se pudo determinar el rol del usuario»
+
+No es el esquema, y **el mensaje engaña**: el rol existe. `createTable` autoriza antes
+de mirar las columnas y lo que le falta a ese rol es el permiso `alter` —comprobado en
+*Configuración → Roles*, donde `ajsantiago@uninorte.edu.co` figura con rol `user` y
+`user` tiene `create`, `read`, `execute` y las seis actualizaciones por tabla, pero no
+`alter`—. No hay nada que arreglar en el script: se crean las tablas con la Consola
+SQL (ver arriba). Darle `alter` al rol predeterminado sería peor que el problema.
+
+El script detecta este caso y lo dice en lugar de mandar a revisar los tipos.
+
+Que la contraseña sea correcta no dice nada sobre el rol: ROBLE distingue
+`Contraseña incorrecta` de `Usuario no verificado o no encontrado`, así que un login
+que funciona sólo prueba que la cuenta existe en el contrato.
+
 ### `createTable` falla en una tabla
 
 El script imprime la tabla y el mensaje de ROBLE. Casi siempre es un tipo que ROBLE
 no acepta: los tipos están centralizados en la constante `T` de
-`app/esquema/bootstrap_roble.mjs` (`text`, `integer`, `boolean`, `timestamp`,
-`jsonb`). Se corrige ahí y se vuelve a ejecutar: las tablas que ya existían no
-estorban.
+`app/esquema/bootstrap_roble.mjs` (`text`, `int4`, `bool`, `timestamp`, `jsonb`).
+Se corrige ahí y se vuelve a ejecutar: las tablas que ya existían no estorban.
+
+Ojo con usar los alias de SQL —`integer`, `boolean`— que PostgreSQL aceptaría: quien
+valida aquí es la API de ROBLE, y su lista es la de
+[`/docs/database/types`](https://roble.test-openlab.uninorte.edu.co/docs/database/types).
 
 **No borrar las tablas para «reintentar limpio».** Borrar una tabla con filas se
 lleva por delante datos que no están en ningún otro sitio; AWS no tiene copia.

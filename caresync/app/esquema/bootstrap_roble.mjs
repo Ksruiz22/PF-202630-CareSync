@@ -266,6 +266,26 @@ function yaExistia(error) {
   );
 }
 
+/**
+ * Distingue «ROBLE no me deja» de «ROBLE no entiende el esquema».
+ *
+ * Importa porque el consejo es opuesto y el mensaje equivocado cuesta una tarde:
+ * ante un fallo de autorización no hay nada que corregir en este archivo. ROBLE
+ * responde `No se pudo determinar el rol del usuario` cuando al rol de la cuenta le
+ * falta el permiso `alter`, y `createTable` autoriza antes de mirar las columnas. El
+ * mensaje engaña: el rol existe, es el permiso el que no está.
+ */
+function esFalloDeAutorizacion(mensaje) {
+  const texto = mensaje.toLowerCase();
+  return (
+    texto.includes('rol') ||
+    texto.includes('permis') ||
+    texto.includes('autoriz') ||
+    texto.includes('401') ||
+    texto.includes('403')
+  );
+}
+
 function columnas(definicion) {
   return definicion.map(([name, type, nullable]) => ({
     name,
@@ -297,10 +317,21 @@ async function crearTablas(cliente) {
 
   console.log(`\n  ${creadas} creadas, ${existentes} ya estaban, ${fallos.length} con error`);
   if (fallos.length > 0) {
-    console.error(
-      '\nRevisa los tipos en la constante T de este archivo, o crea a mano las tablas' +
-        ' que fallaron siguiendo docs/runbook-roble.md.'
-    );
+    if (fallos.every((fallo) => esFalloDeAutorizacion(fallo.mensaje))) {
+      console.error(
+        '\nNo es el esquema: ROBLE rechazó las tablas por autorización, así que no hay' +
+          ' nada que corregir aquí. Crear una tabla necesita el permiso `alter`, que el' +
+          ' rol predeterminado `user` no tiene —ni debería tener, porque lo hereda toda' +
+          ' cuenta que se registre—. El camino que funciona es la Consola SQL de la' +
+          ' consola web, con el esquema de este archivo como referencia:' +
+          ' ver docs/runbook-roble.md.'
+      );
+    } else {
+      console.error(
+        '\nRevisa los tipos en la constante T de este archivo, o crea a mano las tablas' +
+          ' que fallaron siguiendo docs/runbook-roble.md.'
+      );
+    }
   }
   return fallos.length === 0;
 }
