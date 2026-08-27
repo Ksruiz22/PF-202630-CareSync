@@ -85,6 +85,16 @@ CENTRO_DE_ROL = {ADMIN_CMU: "CMU", ADMIN_CAE: "CAE"}
 CMU = "CMU"
 CAE = "CAE"
 
+# ROBLE limita por IP y devuelve un 429 con el cuerpo `ThrottlerException: Too Many
+# Requests`, que por sí solo no dice qué cubo se agotó. Los tres, medidos contra la
+# API el 2026-08-27 con las cabeceras `X-Ratelimit-*`: 100 por minuto para leer,
+# escribir y refrescar el token; 10 cada 15 minutos para iniciar sesión; 5 por hora
+# para registrar una cuenta. Que el mensaje lo diga ahorra buscarlo en el código.
+_DEMASIADAS_PETICIONES = (
+    "ROBLE está limitando las peticiones (429): 100 por minuto contra la base de datos"
+    " y 10 inicios de sesión cada 15 minutos, por IP"
+)
+
 # --------------------------------------------------------------- estados
 
 CASO_ABIERTO = "abierto"
@@ -206,6 +216,14 @@ class AccesoRoble:
                 raise NoAutorizado(
                     "La cuenta de servicio de ROBLE no autenticó: revisa las credenciales en Parameter Store"
                 ) from exc
+            if exc.status_code == 429:
+                # Un inicio de sesión por disparo del reloj, y el cubo son 10 cada 15
+                # minutos: con `cadencia_recordatorios` en `rate(15 minutes)` sobra
+                # margen, pero bajarla de un minuto y medio lo agotaría sola.
+                raise ErrorDeDatos(
+                    f"{_DEMASIADAS_PETICIONES}; autenticando el servicio. ¿Se bajó"
+                    " `cadencia_recordatorios`?"
+                ) from exc
             raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} al autenticar el servicio") from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos("No se pudo alcanzar ROBLE para autenticar el servicio") from exc
@@ -296,6 +314,8 @@ class AccesoRoble:
                 # 400 en /read significa tabla o columna inexistente: es un
                 # error nuestro de esquema, no del usuario.
                 raise ErrorDeDatos(f"Esquema inesperado leyendo {tabla}: {exc}") from exc
+            if exc.status_code == 429:
+                raise ErrorDeDatos(f"{_DEMASIADAS_PETICIONES}; leyendo {tabla}") from exc
             raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} leyendo {tabla}") from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió leyendo {tabla}") from exc
@@ -311,6 +331,8 @@ class AccesoRoble:
                     f"Esquema inesperado escribiendo en {tabla}"
                     f" (¿columna que no existe?): {exc}"
                 ) from exc
+            if exc.status_code == 429:
+                raise ErrorDeDatos(f"{_DEMASIADAS_PETICIONES}; escribiendo en {tabla}") from exc
             raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} escribiendo en {tabla}") from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió escribiendo en {tabla}") from exc
@@ -332,6 +354,8 @@ class AccesoRoble:
                     f"Esquema inesperado actualizando {tabla}"
                     f" (¿columna que no existe?): {exc}"
                 ) from exc
+            if exc.status_code == 429:
+                raise ErrorDeDatos(f"{_DEMASIADAS_PETICIONES}; actualizando {tabla}") from exc
             raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} actualizando {tabla}") from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió actualizando {tabla}") from exc

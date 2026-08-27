@@ -190,6 +190,17 @@ label textarea {
   color: var(--tinta);
 }
 
+/* La regla de un campo, bajo el campo: se lee antes de escribir, no después del
+   rechazo. En esta aplicación eso además ahorra intentos —ROBLE sólo permite cinco
+   registros por hora—. */
+label small {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--tinta-suave);
+}
+
 /* --------------------------------------------------------------------- acceso */
 
 .arranque,

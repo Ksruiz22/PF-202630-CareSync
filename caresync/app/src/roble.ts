@@ -185,9 +185,29 @@ export function esSesionInvalida(error: unknown): boolean {
   return error instanceof RobleApiHttpException && (error.statusCode === 401 || error.statusCode === 403);
 }
 
+/**
+ * Los límites de ROBLE que se pueden alcanzar usando la aplicación con normalidad.
+ *
+ * Medidos contra la API el 2026-08-27 leyendo las cabeceras `X-Ratelimit-*`, porque
+ * el 429 llega como `ThrottlerException: Too Many Requests` y así no se distingue
+ * cuál de los tres cubos se agotó ni cuánto hay que esperar:
+ *
+ * | ruta | límite | ventana |
+ * |---|---|---|
+ * | `/auth/<contrato>/signup` | 5 | 1 hora |
+ * | `/auth/<contrato>/login` | 10 | 15 minutos |
+ * | todo lo demás (leer, escribir, refrescar el token) | 100 | 1 minuto |
+ *
+ * Son por IP, no por cuenta: en una red compartida se agotan entre varios.
+ */
+const LIMITE_DE_INTENTOS =
+  'ROBLE está limitando los intentos desde esta red. Espera unos minutos y vuelve a ' +
+  'intentar: permite 10 inicios de sesión cada 15 minutos y 5 cuentas nuevas por hora.';
+
 /** Mensaje decible para la persona a partir de un fallo del SDK. */
 export function mensajeDeError(error: unknown): string {
   if (error instanceof RobleApiHttpException) {
+    if (error.statusCode === 429) return LIMITE_DE_INTENTOS;
     if (error.statusCode === 401) return 'Tu sesión venció. Vuelve a entrar.';
     if (error.statusCode === 403) return 'Tu cuenta no tiene permiso para esto.';
     if (error.statusCode === 404) return 'Eso no existe o ya no está disponible.';

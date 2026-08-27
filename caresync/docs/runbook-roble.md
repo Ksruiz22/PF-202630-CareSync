@@ -282,6 +282,44 @@ columna— y hay que seguir los envoltorios de `AccesoRoble`, no sólo los `_cre
 `_actualizar`, porque por ahí entraban estas dos. De los envoltorios, el único que
 acepta carga libre es `actualizar_caso`; los demás construyen el payload ellos mismos.
 
+### `ThrottlerException: Too Many Requests`
+
+Es un **429**: ROBLE limita por IP. El mensaje no dice cuál de los tres cubos se
+agotó ni cuánto hay que esperar, y son muy distintos entre sí. Medidos contra la API
+el 2026-08-27 con `curl -D -`, que devuelve las cabeceras:
+
+| Ruta | Límite | Ventana |
+|---|---|---|
+| `/auth/<contrato>/signup` | **5** | **1 hora** |
+| `/auth/<contrato>/login` | **10** | **15 minutos** |
+| Todo lo demás: leer, escribir, `refresh-token`, `verify-token` | 100 | 1 minuto |
+
+```bash
+# Cuánto queda del cubo de esta IP, sin gastar un intento de verdad
+curl -s -o /dev/null -D - https://roble-api.test-openlab.uninorte.edu.co/auth/caresync_cab021ce03/verify-token \
+  | grep -i ratelimit
+```
+
+Lo que hay que hacer es **esperar**: la ventana es fija y reintentar no la acorta.
+`X-Ratelimit-Reset` dice los segundos que faltan. Y son **por IP, no por cuenta**:
+en el campus o detrás de una NAT compartida se gastan entre varios, así que «a mí
+me funciona» no descarta nada.
+
+El de 5 por hora es el que sorprende, porque una sesión de pruebas se lo come sin
+darse cuenta. Dos cosas del código lo cuidan y conviene no deshacerlas:
+
+- La pantalla de acceso hace **un solo** `login` al registrarse. Hacía dos —uno para
+  escribir la fila de `perfiles` y otro para entrar—, o sea que gastaba el cupo de
+  inicios de sesión al doble de velocidad.
+- La contraseña se valida **antes** de llamar a `signup`, contra la política que
+  ROBLE responde en su 400: mínimo 8 caracteres, una mayúscula, una minúscula, un
+  número y un símbolo. Un rechazo por contraseña floja costaba un quinto del cupo de
+  la hora.
+
+Del lado de las Lambdas sólo hay un `login`: el de la cuenta de servicio, uno por
+disparo del reloj. Con `cadencia_recordatorios` en `rate(15 minutes)` hay margen de
+sobra; por debajo de minuto y medio ese cubo se agota solo.
+
 ### `El campo extra 'role' no está permitido` al crear cuenta
 
 ROBLE dejó de aceptar el campo `extra` en `register`, y el 2026-08-27 eso rompió el
