@@ -111,6 +111,10 @@ def canalizar_caso(
     nivel = int(argumentos["nivel_urgencia"])
     resumen = str(argumentos["resumen"])[:2000]
 
+    # Sin `canalizado_en`: esa columna no existe en `casos` y ROBLE rechaza la
+    # actualización entera con un 400 si se envía. Cuándo se canalizó ya está en dos
+    # sitios —`actualizado_en`, que pone `actualizar_caso`, y el evento
+    # `caso_canalizado` de aquí abajo—, así que no hace falta una tercera.
     acceso.actualizar_caso(
         caso_id,
         {
@@ -118,7 +122,6 @@ def canalizar_caso(
             "centro": centro,
             "nivel_urgencia": nivel,
             "resumen_triaje": resumen,
-            "canalizado_en": reloj.iso(),
         },
     )
     acceso.registrar_evento(
@@ -184,9 +187,11 @@ def escalar_urgencia(
     fallos: list[str] = []
 
     try:
-        acceso.actualizar_caso(
-            caso_id, {"estado": CASO_URGENTE, "nivel_urgencia": 1, "escalado_en": reloj.iso()}
-        )
+        # Tampoco `escalado_en`: no es columna de `casos`. Aquí dolía más que en
+        # `canalizar_caso`, porque este `except` se traga el 400 en `fallos` y la
+        # ruta de emergencia se entregaba igual: el caso se quedaba sin marcar
+        # urgente y nadie lo veía. El instante está en el evento `urgencia_escalada`.
+        acceso.actualizar_caso(caso_id, {"estado": CASO_URGENTE, "nivel_urgencia": 1})
     except Exception as exc:  # noqa: BLE001 - la ruta se entrega igual
         fallos.append(f"caso: {type(exc).__name__}")
 

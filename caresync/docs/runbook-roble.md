@@ -254,6 +254,33 @@ valida aquí es la API de ROBLE, y su lista es la de
 **No borrar las tablas para «reintentar limpio».** Borrar una tabla con filas se
 lleva por delante datos que no están en ningún otro sitio; AWS no tiene copia.
 
+### `Esquema inesperado actualizando casos (¿columna que no existe?)`
+
+Es una columna del payload que la tabla no tiene: ROBLE rechaza la actualización
+**entera** con un 400. Pasó el 2026-08-27 con `canalizar_caso`, que enviaba
+`canalizado_en`, y con `escalar_urgencia`, que enviaba `escalado_en`; ninguna de las
+dos está en `ESQUEMA` y nada las leía. Se quitaron del payload en vez de añadirlas al
+esquema: `actualizado_en` y la tabla `eventos` ya dicen cuándo pasó cada cosa.
+
+Cuesta encontrarlo por dos razones que conviene tener presentes:
+
+- El mensaje anterior era «ROBLE respondió 400 actualizando casos», que se lee como
+  un problema de permisos cuando se acaban de tocar los permisos. Por eso ahora las
+  escrituras tienen su propia rama para el 400, igual que las lecturas.
+- `escalar_urgencia` **no lanza excepción a propósito** —la ruta de emergencia se
+  entrega igual—, así que su 400 sólo quedaba en `fallos` y el caso se quedaba sin
+  marcar urgente en silencio. Si se sospecha de una escritura que «funciona pero no
+  guarda», mirar el log de `caresync-dev-herramientas`, no el del orquestador: el
+  rechazo de la herramienta se registra ahí.
+
+Comprobarlas todas de una vez es fácil y vale la pena cada vez que cambie el esquema:
+recoger las claves de cada `create`/`update` y restarles las columnas de `ESQUEMA`.
+Dos trampas al hacerlo, aprendidas haciéndolo: los diccionarios anidados dan falsos
+positivos —el `{"texto": …}` que va dentro del `jsonb` de `eventos.detalle` no es una
+columna— y hay que seguir los envoltorios de `AccesoRoble`, no sólo los `_crear` y
+`_actualizar`, porque por ahí entraban estas dos. De los envoltorios, el único que
+acepta carga libre es `actualizar_caso`; los demás construyen el payload ellos mismos.
+
 ### 401 al usar la aplicación
 
 El token de acceso caducó y el refresco falló. La aplicación guarda los dos tokens en

@@ -291,6 +291,11 @@ class AccesoRoble:
         except RobleHttpError as exc:
             if exc.status_code in (401, 403):
                 raise NoAutorizado(f"ROBLE no autoriza escribir en {tabla}: {exc}") from exc
+            if exc.status_code == 400:
+                raise ErrorDeDatos(
+                    f"Esquema inesperado escribiendo en {tabla}"
+                    f" (¿columna que no existe?): {exc}"
+                ) from exc
             raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} escribiendo en {tabla}") from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió escribiendo en {tabla}") from exc
@@ -303,6 +308,15 @@ class AccesoRoble:
                 raise NoEncontrado(f"No existe el registro {fila_id} en {tabla}") from exc
             if exc.status_code in (401, 403):
                 raise NoAutorizado(f"ROBLE no autoriza actualizar {tabla}: {exc}") from exc
+            if exc.status_code == 400:
+                # El 400 de una actualización es casi siempre una columna que no
+                # existe, y el mensaje genérico costó una tarde: `canalizar_caso`
+                # enviaba `canalizado_en` y el log sólo decía «ROBLE respondió 400
+                # actualizando casos», que se lee como un problema de permisos.
+                raise ErrorDeDatos(
+                    f"Esquema inesperado actualizando {tabla}"
+                    f" (¿columna que no existe?): {exc}"
+                ) from exc
             raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} actualizando {tabla}") from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió actualizando {tabla}") from exc
