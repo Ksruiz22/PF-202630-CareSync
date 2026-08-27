@@ -140,11 +140,12 @@ Dos cosas más que ahorran una tarde:
 - Los permisos viajan en el token, así que un cambio de rol o de permisos **toma
   efecto en el siguiente inicio de sesión**. Si se cambia algo y no parece cambiar
   nada, hay que salir y volver a entrar.
-- El rol de ROBLE **no es** el rol de CareSync. `register` guarda
-  `extra: { role: 'paciente' }`, pero eso es metadato de la cuenta: quien decide
-  qué ve cada quien es la fila de `perfiles` (ver más abajo), y quien decide si la
-  consulta a la tabla se permite es el rol de ROBLE. Son dos capas distintas y
-  hacen falta las dos.
+- El rol de ROBLE **no es** el rol de CareSync. El rol de CareSync está en la fila
+  de `perfiles` y decide qué ve y qué puede hacer cada quien; el rol de ROBLE
+  (`user`) decide si la consulta a la tabla se permite. Son dos capas distintas y
+  hacen falta las dos. En la consola sólo se toca la segunda: cambiarle a alguien
+  el rol de ROBLE a `admin` no le da el tablero del centro, y quitarle `user` le
+  rompe todas las lecturas.
 
 > **El 2026-08-21 la consola no dejaba entrar, y eso bloqueaba todo lo de arriba.** El
 > login devolvía `401 No se pudo canjear el código de Microsoft con las credenciales
@@ -280,6 +281,25 @@ positivos —el `{"texto": …}` que va dentro del `jsonb` de `eventos.detalle` 
 columna— y hay que seguir los envoltorios de `AccesoRoble`, no sólo los `_crear` y
 `_actualizar`, porque por ahí entraban estas dos. De los envoltorios, el único que
 acepta carga libre es `actualizar_caso`; los demás construyen el payload ellos mismos.
+
+### `El campo extra 'role' no está permitido` al crear cuenta
+
+ROBLE dejó de aceptar el campo `extra` en `register`, y el 2026-08-27 eso rompió el
+registro en la PWA: la pantalla de acceso declaraba ahí `role: 'paciente'`. Se quitó
+el campo en vez de buscar cómo volver a permitirlo, porque el rol declarado en la
+cuenta **no debía existir**: era una segunda fuente de verdad que competía con
+`perfiles`.
+
+Y competía ganando. `_resolver_actor` leía `extra` primero, así que una cuenta
+registrada en la PWA se quedaba en `paciente` para la Lambda aunque su fila de
+`perfiles` dijera `admin_cmu` —la PWA, que sólo mira `perfiles`, sí mostraba el
+tablero del centro—. El resultado era el peor de los dos mundos: la vista
+administrativa a la vista y un 403 en cada botón. Ahora manda `perfiles` y los
+metadatos son sólo el respaldo de una cuenta sin fila; las cuentas que ya traen
+`extra.role` no hay que limpiarlas.
+
+Ojo con el orden de despliegue: quitar el campo es la PWA y cambiar la precedencia
+es la Lambda. Van en el mismo PR, pero se publican por caminos distintos.
 
 ### 401 al usar la aplicación
 
