@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "PWA de CareSync: cuatro vistas por rol sobre ROBLE y el orquestador de agentes.",
+  "description": "PWA de CareSync: cinco vistas por rol sobre ROBLE y el orquestador de agentes.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

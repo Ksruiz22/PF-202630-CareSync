@@ -14,7 +14,7 @@ sería un segundo sitio donde equivocarse.
 
 ```bash
 source scripts/entorno.sh
-scripts/esquema_roble.sh                      # las 13 tablas
+scripts/esquema_roble.sh                      # las 14 tablas
 scripts/esquema_roble.sh --semilla            # + profesionales y horarios de prueba
 ```
 
@@ -33,13 +33,14 @@ La siguiente sección es la salida.
 ### Crear las tablas con la Consola SQL
 
 `createTable` necesita `alter`, y el rol `user` —el que hereda toda cuenta que se
-registre— no lo tiene ni debe tenerlo. Con una cuenta normal las trece fallan con
+registre— no lo tiene ni debe tenerlo. Con una cuenta normal todas fallan con
 «No se pudo determinar el rol del usuario», que es un mensaje engañoso: el rol existe,
 es el permiso el que falta.
 
 La salida es la **Consola SQL** del proyecto (en la navegación de la consola web).
 Ejecuta PostgreSQL arbitrario, acepta varias sentencias por ejecución y descarta los
-comentarios. Fue así como se crearon las trece el 2026-08-27. El detalle que la hace
+comentarios. Fue así como se crearon las trece primeras el 2026-08-27, y es el camino
+para la que se añadió después (`ajustes`, más abajo). El detalle que la hace
 segura de usar aquí: **ROBLE inyecta `_id UUID PRIMARY KEY NOT NULL UNIQUE DEFAULT
 gen_random_uuid()` en todo `CREATE TABLE` que no lo traiga**, que es exactamente la
 columna que espera la aplicación; no hay que declararla y no se corre el riesgo de
@@ -61,7 +62,7 @@ Que exista este camino no convierte al script en código muerto: sigue siendo el
 siembra, el que escribe perfiles y el que documenta el esquema en el repositorio. Lo
 que no puede es crear tablas con las credenciales de una cuenta normal.
 
-### Las trece tablas
+### Las catorce tablas
 
 | Tabla | Para qué |
 |---|---|
@@ -78,6 +79,7 @@ que no puede es crear tablas con las credenciales de una cuenta normal.
 | `evolucion` | la escala de 0 a 10 que reporta el paciente |
 | `eventos` | traza de lo que hizo el sistema (`detalle` en jsonb) |
 | `recordatorios` | lo que la Lambda de reloj tiene pendiente de enviar |
+| `ajustes` | `clave`/`valor` de la configuración de la plataforma. La escribe sólo la vista de plataforma |
 
 No hay claves ajenas: ROBLE no las expone en `createTable`. La integridad la
 sostiene el código, y eso está asumido —ver
@@ -87,6 +89,31 @@ Los tipos que se le pasan a `createTable` son los nombres de ROBLE, no los alias
 de SQL: `int4` y no `integer`, `bool` y no `boolean`. La lista está en
 [`/docs/database/types`](https://roble.test-openlab.uninorte.edu.co/docs/database/types)
 y centralizada en la constante `T` de `app/esquema/bootstrap_roble.mjs`.
+
+### Crear la tabla `ajustes`
+
+Es la última que se añadió, con la vista de plataforma, y **ya está creada** (2026-08-31).
+Queda el `CREATE TABLE` por si hay que reponerla o crear otro contrato. En la
+**Consola SQL**:
+
+```sql
+CREATE TABLE ajustes (
+  clave           text        NOT NULL UNIQUE,
+  valor           text,
+  actualizado_en  timestamp   NOT NULL,
+  actualizado_por text
+);
+```
+
+`UNIQUE` en `clave` no es adorno: `guardarAjuste` decide entre `update` y `create`
+leyendo primero por clave, y sin la restricción dos administradores guardando a la vez
+dejarían dos filas con la misma clave y una configuración que depende de cuál devuelva
+ROBLE primero. Con la restricción, la segunda escritura falla y se ve.
+
+No hay que insertar ninguna fila: una clave que no está en la tabla vale su
+predeterminado de fábrica —el del catálogo de `app/src/ajustes.ts`—, y la primera vez
+que alguien guarda un ajuste se crea su fila. Una instalación sin la tabla también
+funciona: `leerAjustes` avisa por consola y devuelve los valores de fábrica.
 
 ## Permisos en la consola de ROBLE
 
@@ -102,22 +129,53 @@ El contrato nació con cuatro roles —`user`, que es el **predeterminado** y po
 de toda cuenta que se registre en la PWA, más `readonly`, `editor` y `admin`— y siete
 permisos, todos con recurso `all`. `user` traía `all:create`, `all:read` y `all:execute`.
 
-Que el comodín exista cambia la conclusión que este runbook daba antes: **las trece
-tablas nuevas nacieron legibles y escribibles**, porque `all:read` y `all:create` no
+Que el comodín exista cambia la conclusión que este runbook daba antes: **las tablas
+nuevas nacen legibles y escribibles**, porque `all:read` y `all:create` no
 enumeran tablas y no hay que dar de alta nada al crear una. Lo que de verdad faltaba
 era `update`.
 
-Estado a 2026-08-27, ya aplicado: al rol `user` se le añadieron seis permisos de tabla,
-uno por cada tabla que el código actualiza.
+Estado a 2026-08-31, ya aplicado. Hay **dos** roles de la aplicación, y la línea que
+los separa es la única que impide que un paciente se ascienda solo.
+
+#### `user`: el rol predeterminado, el de toda cuenta que se registra
+
+`all:create`, `all:read`, `all:execute` y cinco permisos de tabla, uno por cada tabla
+que el código actualiza **en nombre de quien la usa**:
 
 | Permiso | Quién actualiza |
 |---|---|
-| `perfiles:update` | `bootstrap_roble.mjs --perfil` |
 | `casos:update` | `actualizar_caso` en `roble_acceso.py` y `Profesional.tsx` |
 | `cupos:update` | reservar, confirmar y liberar cupos |
 | `citas:update` | marcar una cita como atendida |
 | `indicaciones:update` | desactivar una indicación |
 | `recordatorios:update` | `marcar_recordatorio` |
+
+#### `plataforma`: el rol de las cuentas administrativas
+
+`all:create`, `all:read`, `all:execute` y los cuatro `update` que sólo usa la vista de
+plataforma. **Ninguno de estos cuatro está en `user`**, y eso es el punto:
+
+| Permiso | Qué botón se rompe sin él |
+|---|---|
+| `perfiles:update` | cambiar el rol o el centro de una cuenta |
+| `profesionales:update` | activar/desactivar un profesional y vincularlo a una cuenta |
+| `horarios:update` | desactivar un horario |
+| `ajustes:update` | guardar un ajuste que ya tenía fila (la primera vez es un `create` y sí funciona) |
+
+Se le pone a una cuenta en *Autenticación → Usuarios → Editar rol*. La cuenta dueña
+del contrato no lo necesita: tiene el rol nativo `admin`, que es `all:all`.
+
+Y **no** se reutilizó `editor`, que ya existía y habría servido: es
+`all:{create,read,update,delete,execute}`, o sea que también podría borrar filas
+clínicas de cualquier tabla. La vista de plataforma no borra nada —los horarios se
+desactivan—, así que un rol con exactamente siete permisos es más barato de auditar que
+uno con cinco comodines.
+
+El síntoma de que falta uno es el de siempre y engaña igual: un 500 que se lee como «no
+me puedo conectar». La pantalla de plataforma lo detecta y, cuando el fallo es un 5xx,
+nombra en el mensaje el permiso que probablemente falta en lugar de dejar el error crudo.
+Si esa pantalla falla al guardar, **lo primero que se mira es el rol de ROBLE de la
+cuenta**, no el código.
 
 **Se hizo por tabla y no con `all:update` a propósito.** El comodín era un clic en vez
 de doce, pero daba permiso para reescribir `conversaciones` y `eventos` —el hilo
@@ -142,10 +200,12 @@ Dos cosas más que ahorran una tarde:
   nada, hay que salir y volver a entrar.
 - El rol de ROBLE **no es** el rol de CareSync. El rol de CareSync está en la fila
   de `perfiles` y decide qué ve y qué puede hacer cada quien; el rol de ROBLE
-  (`user`) decide si la consulta a la tabla se permite. Son dos capas distintas y
-  hacen falta las dos. En la consola sólo se toca la segunda: cambiarle a alguien
-  el rol de ROBLE a `admin` no le da el tablero del centro, y quitarle `user` le
-  rompe todas las lecturas.
+  (`user` o `plataforma`) decide si la consulta a la tabla se permite. Son dos capas
+  distintas y hacen falta las dos. En la consola sólo se toca la segunda: cambiarle a
+  alguien el rol de ROBLE a `admin` no le da el tablero del centro, y quitarle `user` le
+  rompe todas las lecturas. Un `admin_plataforma` necesita **las dos cosas**: el rol de
+  CareSync en `perfiles` y el rol `plataforma` de ROBLE, o la pantalla se abre y falla
+  al guardar.
 
 > **El 2026-08-21 la consola no dejaba entrar, y eso bloqueaba todo lo de arriba.** El
 > login devolvía `401 No se pudo canjear el código de Microsoft con las credenciales
@@ -165,27 +225,121 @@ Dos cosas más que ahorran una tarde:
 
 ## Roles
 
-Cinco: `paciente`, `profesional`, `admin_cmu`, `admin_cae`, `servicio`. Los dos
-centros son `CMU` y `CAE`.
+Seis: `paciente`, `profesional`, `admin_cmu`, `admin_cae`, `admin_plataforma` y
+`servicio`. Los dos centros son `CMU` y `CAE`. La lista está escrita en tres sitios
+—`app/src/tipos.ts`, `app/esquema/bootstrap_roble.mjs` y
+`lambdas/comun/caresync_comun/roble_acceso.py`— porque son tres lenguajes; se cambian
+en el mismo commit.
+
+`admin_plataforma` **no administra un centro**: administra la instalación —cuentas,
+roles, profesionales, horarios y ajustes— y por eso no tiene centro ni ve casos ni
+conversaciones. No tiene ninguna herramienta en el catálogo del orquestador, así que si
+una cuenta con ese rol abre un chat recibe un 403 limpio; es lo correcto, quien reparte
+roles no necesita leer historias clínicas.
 
 **Registrarse en la aplicación da siempre `paciente`, y es deliberado**: la pantalla
-de acceso no permite pedir otro rol. Para dar un rol distinto hay que escribir la
-fila de `perfiles` de esa cuenta, y sólo se puede hacer **entrando con esa cuenta**,
-porque `user_id` tiene que ser el `sub` que devuelve `currentUser()`:
+de acceso no permite pedir otro rol.
+
+### El primer administrador de plataforma
+
+Es el huevo y la gallina: los roles se reparten desde la vista de plataforma, y para
+entrar a esa vista hace falta ya tener el rol. Hay dos formas de romper el ciclo.
+
+**Con el script, si la cuenta conserva `perfiles:update`.** Escribe la fila de
+`perfiles` de la cuenta con la que se entra, porque `user_id` tiene que ser el `sub`
+que devuelve `currentUser()` y ROBLE no da forma de averiguar el `sub` de otra cuenta:
 
 ```bash
 # Con el correo y la contraseña de la persona a la que se le da el rol
+scripts/esquema_roble.sh --perfil admin_plataforma
 scripts/esquema_roble.sh --perfil profesional CMU
 scripts/esquema_roble.sh --perfil admin_cmu
 scripts/esquema_roble.sh --perfil admin_cae
 ```
 
-No hay atajo de administrador para esto, y no es un descuido: ROBLE no da una forma
-de averiguar el `sub` de otra cuenta, así que inventarse el `user_id` produciría un
-perfil que apunta a nadie y una persona que entra y no ve nada.
+Ojo con el orden desde que `perfiles:update` no está en `user`: si la fila **ya
+existe**, `--perfil` hace un `update` y falla con un 500 salvo que la cuenta tenga el
+rol `plataforma` o el `admin` del contrato. Si la fila no existe, es un `create` y
+funciona con cualquier cuenta.
+
+**Desde la Consola SQL, que es como se hizo el 2026-08-31.** Y con una vuelta: la
+consola **sólo admite `SELECT`, `CREATE TABLE`, `INSERT`, `DELETE ... WHERE` y
+`ALTER TABLE ADD COLUMN`** —rechaza `UPDATE` por seguridad—, así que cambiar un rol ahí
+es borrar la fila y volver a insertarla **con el mismo `_id` y el mismo `creado_en`**:
+
+```sql
+SELECT _id, user_id, nombre, email, rol, centro, creado_en FROM perfiles WHERE email = '...';
+
+DELETE FROM perfiles WHERE email = '...';
+INSERT INTO perfiles (_id, user_id, nombre, email, rol, centro, creado_en)
+VALUES ('<el mismo _id>', '<el mismo user_id>', '...', '...', 'admin_plataforma', NULL, '<el mismo creado_en>');
+```
+
+Conservar el `_id` no es superstición: es lo que evita que un `_id` nuevo aparezca en
+una fila que otra pantalla ya tenía cargada. `centro` va a `NULL` porque
+`admin_plataforma` no administra un centro.
+
+Inventarse el `user_id` en cambio produciría un perfil que apunta a nadie y una persona
+que entra y no ve nada.
+
+### Los siguientes, desde la aplicación
+
+Con un `admin_plataforma` ya creado, el resto de los roles se asignan desde la vista de
+plataforma y no hace falta volver a la consola ni pedirle a nadie su contraseña. Lo que
+lo hace posible es que esa pantalla **lee** `perfiles` completa: los `sub` de todas las
+cuentas ya están ahí, escritos por cada quien al registrarse.
+
+Tres consecuencias que conviene tener presentes:
+
+- Una cuenta que se registró pero cuya fila de `perfiles` no se creó **no aparece en la
+  lista**, porque no hay nada que listar. Esa persona tiene que entrar una vez a la
+  aplicación para que su fila exista.
+- Un cambio de rol **se ve en el siguiente inicio de sesión** de esa persona. La
+  pantalla lo dice al guardar; recargar no basta si el token viejo sigue vivo.
+- **Nombrar a otro `admin_plataforma` sí exige volver a la consola**, un paso más:
+  darle también el rol `plataforma` de ROBLE en *Autenticación → Usuarios*. Sin eso la
+  pantalla se le abre —el rol de CareSync ya está— y falla con un 500 al primer guardado.
+  Los demás roles no necesitan nada de esto.
 
 Un rol administrativo **sin centro** no puede trabajar: la vista se lo dice en
-lugar de mostrar una pantalla vacía.
+lugar de mostrar una pantalla vacía. La pantalla de plataforma fuerza el centro al
+elegir `admin_cmu` o `admin_cae`, y lo borra al elegir `paciente` o `admin_plataforma`.
+
+### Cerrado el 2026-08-31: `perfiles:update` ya no lo tiene el rol `user`
+
+Estuvo abierto un tiempo y merece quedar escrito, porque el mecanismo de cierre no es
+evidente en la consola.
+
+**Qué pasaba.** `perfiles` es la fuente del rol en las **dos** capas —la PWA lo lee para
+decidir la pantalla y `_resolver_actor` lo prefiere sobre lo que declara ROBLE—, y
+`perfiles:update` estaba en el rol `user`, que hereda toda cuenta registrada. Lo único
+que impedía que un paciente se pusiera `admin_cmu` desde la consola del navegador era no
+saber cómo.
+
+**Cómo se cerró.** Se creó el rol `plataforma` y se le dio `perfiles:update`; el rol
+`user` se quedó sin él. Se descartó la otra opción —mover las escrituras de `perfiles` a
+la Lambda de herramientas, que ya autoriza por rol— porque cuesta una herramienta nueva
+y deja la pantalla dependiendo del orquestador para algo que un permiso resuelve.
+
+**El truco, porque la consola no tiene «revocar».** En *Configuración → ROLES* los
+permisos de un rol se muestran como etiquetas **sin botón de quitar**: se pueden asignar
+y no desasignar. La única vía es borrar el permiso en *PERMISOS* —lo que lo quita de
+todos los roles a la vez, en cascada— y volver a crearlo, que nace sin asignar. O sea:
+
+1. *PERMISOS* → borrar `perfiles:update`. Avisa de que no se puede deshacer; se puede,
+   es un par *(recurso, acción)* y se vuelve a crear en diez segundos.
+2. Comprobar en *ROLES* que ni `user` ni `plataforma` lo tienen ya.
+3. *PERMISOS* → *Nuevo permiso* → `perfiles` + `update`.
+4. *ROLES* → `plataforma` → asignarlo. **Sólo ahí.**
+
+El panel de detalles no refresca las etiquetas al asignar: hay que cerrarlo y volver a
+abrir el rol para verlo. Si se hace al revés —crear antes de borrar— no sirve de nada,
+porque el permiso es un objeto único y el nuevo colisiona con el viejo.
+
+**Y lo que hay que recordar de por vida:** `bootstrap_roble.mjs --perfil` escribe
+`perfiles`, así que la cuenta con la que se ejecute tiene que conservar el permiso —la
+dueña del contrato (`admin`) o una con rol `plataforma`—. Con una cuenta normal, si la
+fila ya existe, da un 500.
 
 ## Profesionales, horarios y cupos
 
@@ -198,11 +352,41 @@ correos). Se parte de `semilla.example.json`. Tres cosas que se olvidan:
 - `user_id` puede quedar en `null`. La agenda funciona igual, pero ese profesional
   no puede entrar a ver sus citas, porque se buscan por `profesional_user_id`.
 
+La semilla es para arrancar rápido. En operación, los profesionales y sus horarios se
+dan de alta desde la **vista de plataforma**, que también los activa, los desactiva y
+los vincula a una cuenta. Un horario no se borra: se desactiva, porque ningún rol tiene
+permiso de `delete` y no debería tenerlo.
+
+Vincular un profesional a una cuenta es poner en `profesionales.user_id` el `user_id`
+de una fila de `perfiles`; la pantalla ofrece la lista de cuentas con rol
+`profesional` para no teclearlo. Sin ese vínculo la agenda funciona igual, pero esa
+persona no ve sus citas al entrar.
+
 Los `cupos` **no** los crea la semilla ni una Lambda: los publica alguien del
-personal administrativo con el botón «Publicar cupos (14 días)». Abrir dos semanas
-de agenda es una decisión, no un automatismo. La operación es idempotente —no
-duplica un cupo que ya exista para el mismo profesional y hora— y está topada en 400
-cupos por tanda.
+personal administrativo con el botón «Publicar cupos», que dice en su rótulo cuántos
+días abre. Cuántos son sale del ajuste `dias_agenda` (14 de fábrica) y se cambia en la
+vista de plataforma. Abrir dos semanas de agenda es una decisión, no un automatismo. La
+operación es idempotente —no duplica un cupo que ya exista para el mismo profesional y
+hora— y está topada en 400 cupos por tanda.
+
+## Ajustes de la plataforma
+
+La tabla `ajustes` es `clave`/`valor` y el catálogo de claves válidas está cerrado en
+`app/src/ajustes.ts`. **La regla de ese archivo es que un ajuste sólo existe si algo lo
+lee**, y cada definición lleva escrito quién lo consume; la pantalla lo muestra. Una
+pantalla de configuración llena de interruptores desconectados se ve bien en una
+demostración y es mentira.
+
+Hoy son dos:
+
+| Clave | Qué hace | Quién lo lee |
+|---|---|---|
+| `dias_agenda` | días que abre «Publicar cupos» (1 a 60) | `Administrativo.tsx` → `generarCupos()` |
+| `aviso_global` | franja ámbar arriba de todas las pantallas; vacío para no mostrar nada | `App.tsx` → `<AvisoGlobal />` |
+
+Los valores se guardan **siempre como texto** y se convierten al leer. El aviso global
+se lee una vez por sesión, al entrar: no hay sondeo, porque el cubo de 100 peticiones
+por minuto es por IP y en el campus se comparte.
 
 ## La cuenta de servicio
 
@@ -226,7 +410,7 @@ disparo del reloj los recoge.
 
 ## Fallos y qué hacer
 
-### `createTable` falla en las trece con «No se pudo determinar el rol del usuario»
+### `createTable` falla en todas con «No se pudo determinar el rol del usuario»
 
 No es el esquema, y **el mensaje engaña**: el rol existe. `createTable` autoriza antes
 de mirar las columnas y lo que le falta a ese rol es el permiso `alter` —comprobado en
@@ -295,10 +479,16 @@ el 2026-08-27 con `curl -D -`, que devuelve las cabeceras:
 | Todo lo demás: leer, escribir, `refresh-token`, `verify-token` | 100 | 1 minuto |
 
 ```bash
-# Cuánto queda del cubo de esta IP, sin gastar un intento de verdad
+# El cubo de 100/minuto de esta IP. Gratis: un token inválido da 401 y ya.
 curl -s -o /dev/null -D - https://roble-api.test-openlab.uninorte.edu.co/auth/caresync_cab021ce03/verify-token \
   | grep -i ratelimit
 ```
+
+**Ese `curl` no dice nada de los otros dos cubos**: cada ruta lleva el suyo y sólo
+informa del propio. Para saber cómo va el de `login` hay que enviar un `login`, que
+cuesta uno de los diez —un correo inexistente basta, devuelve 401 y sus cabeceras
+dicen cuántos quedan—. Del de `signup` no hay forma de preguntar sin gastar un
+registro, así que ahí se cuenta a mano o se espera la hora.
 
 Lo que hay que hacer es **esperar**: la ventana es fija y reintentar no la acorta.
 `X-Ratelimit-Reset` dice los segundos que faltan. Y son **por IP, no por cuenta**:

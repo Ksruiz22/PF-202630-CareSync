@@ -66,6 +66,9 @@ ADHERENCIA = "adherencia"
 EVOLUCION = "evolucion"
 EVENTOS = "eventos"
 RECORDATORIOS = "recordatorios"
+# La tabla `ajustes` existe en el contrato pero no se declara aquí: la lee y la
+# escribe sólo la pantalla de plataforma, y una constante que nadie usa acabaría
+# invitando a que una Lambda lea configuración que no le corresponde.
 
 # ---------------------------------------------------------------------- roles
 
@@ -73,13 +76,20 @@ PACIENTE = "paciente"
 PROFESIONAL = "profesional"
 ADMIN_CMU = "admin_cmu"
 ADMIN_CAE = "admin_cae"
+# Administra la instalación —cuentas, roles, profesionales, ajustes—, no un centro.
+# Aparece aquí para que `_normalizar_rol` lo reconozca en vez de devolver `None` y
+# dejar al actor sin rol; **no se le da ninguna herramienta en el catálogo**. Si una
+# cuenta con este rol llama al orquestador recibe un `SinPermiso` limpio, que es el
+# comportamiento correcto: quien reparte roles no necesita leer casos clínicos.
+ADMIN_PLATAFORMA = "admin_plataforma"
 SERVICIO = "servicio"
 
-ROLES = {PACIENTE, PROFESIONAL, ADMIN_CMU, ADMIN_CAE, SERVICIO}
+ROLES = {PACIENTE, PROFESIONAL, ADMIN_CMU, ADMIN_CAE, ADMIN_PLATAFORMA, SERVICIO}
 
 # El centro que administra cada rol administrativo. Un admin del CMU no ve la
 # agenda del CAE: son servicios distintos y los datos de salud mental tienen
-# una sensibilidad propia.
+# una sensibilidad propia. `ADMIN_PLATAFORMA` no está aquí a propósito: no
+# administra un centro, y darle uno le abriría los datos de ese centro.
 CENTRO_DE_ROL = {ADMIN_CMU: "CMU", ADMIN_CAE: "CAE"}
 
 CMU = "CMU"
@@ -296,7 +306,24 @@ class AccesoRoble:
         )
 
     def _perfil_de(self, user_id: str) -> dict[str, Any] | None:
+        """La fila de `perfiles` de una cuenta, o `None` si no hay exactamente una.
+
+        Dos filas para el mismo `user_id` no son un empate que haya que resolver: son
+        una anomalía, y devolver una de las dos es elegir a ciegas entre un rol legítimo
+        y uno inventado. El rol `user` de ROBLE ya no puede actualizar `perfiles`, pero
+        conserva `all:create` —lo necesita para que registrarse escriba su propia fila—,
+        así que insertar una segunda es lo único que le queda a quien quiera ascenderse.
+        Aquí eso deja al actor sin perfil y, unas líneas más arriba, en `paciente`.
+
+        No se desempata por «la más antigua» porque `creado_en` lo escribe el cliente.
+        Lo correcto sería un `UNIQUE` sobre `user_id`, pero ROBLE no deja añadir
+        restricciones a una tabla que ya existe. `identidad()` en `app/src/roble.ts`
+        hace lo mismo para que las dos capas coincidan.
+        """
         filas = self._leer(PERFILES, {"user_id": user_id})
+        if len(filas) > 1:
+            evento(log, "perfiles_duplicados", user_id=user_id, filas=len(filas))
+            return None
         return filas[0] if filas else None
 
     def perfil_de(self, user_id: str) -> dict[str, Any] | None:
@@ -768,6 +795,13 @@ def _normalizar_rol(valor: Any) -> str | None:
         "admin_cae": ADMIN_CAE,
         "administrativa_cae": ADMIN_CAE,
         "cae": ADMIN_CAE,
+        "admin_plataforma": ADMIN_PLATAFORMA,
+        "administrador": ADMIN_PLATAFORMA,
+        "admin_de_plataforma": ADMIN_PLATAFORMA,
+        # `admin` a secas **no** se traduce aquí a propósito: es el nombre del rol
+        # nativo de ROBLE que tiene la cuenta dueña del contrato, y esa cuenta se usa
+        # para crear el esquema y sembrar datos. Traducirlo cambiaría en silencio el
+        # rol con el que el orquestador la ve.
         "medico": PROFESIONAL,
         "psicologo": PROFESIONAL,
         "profesional": PROFESIONAL,

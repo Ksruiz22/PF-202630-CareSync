@@ -1,5 +1,5 @@
 /**
- * Piezas de interfaz que se repiten en las cuatro vistas.
+ * Piezas de interfaz que se repiten en las cinco vistas.
  *
  * Están juntas en un archivo porque son pequeñas y no tienen estado: repartirlas
  * en seis archivos de veinte líneas cada uno haría el árbol más difícil de leer,

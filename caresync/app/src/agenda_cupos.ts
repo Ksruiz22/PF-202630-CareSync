@@ -36,7 +36,14 @@ import {
 const DESPLAZAMIENTO = '-05:00';
 
 const MINUTOS_POR_DEFECTO = 30;
-const DIAS_POR_DEFECTO = 14;
+
+/**
+ * Los días que se publican si nadie dice otra cosa.
+ *
+ * Se exporta porque es también el valor de fábrica del ajuste `dias_agenda`: tener el
+ * 14 escrito en dos sitios es tener dos verdades sobre cuánta agenda abre un clic.
+ */
+export const DIAS_POR_DEFECTO = 14;
 
 /** Tope de seguridad: un clic no debe poder escribir miles de filas en ROBLE. */
 const MAX_CUPOS_POR_TANDA = 400;

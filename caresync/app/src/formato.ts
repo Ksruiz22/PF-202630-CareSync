@@ -97,6 +97,35 @@ export function nivelLegible(nivel: unknown): string {
   return NIVELES[clave] ?? 'Sin clasificar';
 }
 
+const ROLES_LEGIBLES: Record<string, string> = {
+  paciente: 'Paciente',
+  profesional: 'Profesional',
+  admin_cmu: 'Administración CMU',
+  admin_cae: 'Administración CAE',
+  admin_plataforma: 'Administración de plataforma',
+};
+
+export function rolLegible(rol: unknown): string {
+  return ROLES_LEGIBLES[String(rol ?? '')] ?? String(rol ?? 'sin rol');
+}
+
+/**
+ * 0 = lunes … 6 = domingo. **No es la convención de `Date.getDay()`**, que empieza
+ * en domingo; es la de la tabla `horarios`, y `agenda_cupos.ts` la corrige al leer.
+ * Tenerla escrita en un solo sitio evita el error de un día de corrimiento.
+ */
+const DIAS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+
+export function diaSemanaLegible(dia: unknown): string {
+  const numero = Number(dia);
+  return DIAS[numero] ?? '—';
+}
+
+/** Los siete días con su número, para poblar un desplegable sin repetir la lista. */
+export function diasDeLaSemana(): Array<{ valor: number; nombre: string }> {
+  return DIAS.map((nombre, valor) => ({ valor, nombre }));
+}
+
 /**
  * En qué franja cae un reporte de evolución.
  *

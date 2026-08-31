@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Crea el esquema de CareSync en ROBLE.
 #
-#   scripts/esquema_roble.sh                        # las 13 tablas
+#   scripts/esquema_roble.sh                        # las 14 tablas
 #   scripts/esquema_roble.sh --semilla              # + profesionales y horarios
 #   scripts/esquema_roble.sh --perfil profesional CMU
 #   scripts/esquema_roble.sh --perfil admin_cmu
+#   scripts/esquema_roble.sh --perfil admin_plataforma
 #
 # El trabajo de verdad lo hace app/esquema/bootstrap_roble.mjs; este envoltorio
 # resuelve tres cosas incómodas:

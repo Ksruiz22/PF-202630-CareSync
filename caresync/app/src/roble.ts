@@ -108,6 +108,16 @@ export interface Identidad {
  * Los dos salen de la tabla `perfiles`, que es la que este proyecto controla y la
  * misma que consulta la Lambda. Si no hay perfil, el rol es `paciente`: el menos
  * privilegiado, igual que en el backend.
+ *
+ * **Y si hay más de uno, también `paciente`.** El rol `user` de ROBLE ya no puede
+ * actualizar `perfiles`, pero conserva `all:create` —lo necesita para que registrarse
+ * escriba su propia fila—, así que una cuenta podría insertar una **segunda** fila con
+ * su mismo `user_id` y un rol inventado. ROBLE no tiene forma de poner una restricción
+ * `UNIQUE` sobre una tabla que ya existe (la Consola SQL sólo admite `ADD COLUMN`), así
+ * que el desempate se hace aquí y se hace **fallando cerrado**: dos filas para un
+ * `user_id` es una anomalía, y ante una anomalía el rol es el menos privilegiado. Elegir
+ * «la primera» o «la más antigua» no serviría: el atacante escribe él el `creado_en`.
+ * `_resolver_actor` en `roble_acceso.py` hace lo mismo, y por el mismo motivo.
  */
 export async function identidad(): Promise<Identidad> {
   const usuario = await roble.currentUser();
@@ -116,7 +126,13 @@ export async function identidad(): Promise<Identidad> {
   let perfil: Perfil | undefined;
   try {
     const filas = (await roble.read('perfiles', { user_id: userId })) as Perfil[];
-    perfil = filas[0];
+    if (filas.length > 1) {
+      console.warn(
+        `Hay ${filas.length} filas de perfiles para el mismo user_id; se entra como paciente`
+      );
+    } else {
+      perfil = filas[0];
+    }
   } catch (error) {
     // Sin permiso de lectura sobre `perfiles` la aplicación sigue, como paciente.
     console.warn('No se pudo leer el perfil', error);
@@ -183,6 +199,19 @@ export function olvidarSesion(): void {
 
 export function esSesionInvalida(error: unknown): boolean {
   return error instanceof RobleApiHttpException && (error.statusCode === 401 || error.statusCode === 403);
+}
+
+/**
+ * Un 5xx de ROBLE, que en este contrato casi siempre es **un permiso de tabla que
+ * falta**.
+ *
+ * ROBLE no responde 403 cuando el rol no puede actualizar una tabla: responde 500, y
+ * eso se lee igual que «el servidor está caído». Está documentado en
+ * docs/runbook-roble.md; quien llama puede usar esto para sugerir el permiso concreto
+ * en lugar de dejar a la persona mirando un error genérico.
+ */
+export function esFalloDeServidor(error: unknown): boolean {
+  return error instanceof RobleApiHttpException && error.statusCode >= 500;
 }
 
 /**

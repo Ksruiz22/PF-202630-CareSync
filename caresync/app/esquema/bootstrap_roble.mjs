@@ -1,9 +1,10 @@
 /**
  * Crea el esquema de CareSync en ROBLE.
  *
- *   scripts/esquema_roble.sh                     # crea las 13 tablas
+ *   scripts/esquema_roble.sh                     # crea las 14 tablas
  *   scripts/esquema_roble.sh --semilla           # + profesionales y horarios de prueba
  *   scripts/esquema_roble.sh --perfil profesional CMU
+ *   scripts/esquema_roble.sh --perfil admin_plataforma   # el primer administrador
  *
  * **Las credenciales no se escriben en ningún archivo.** Salen de `ROBLE_EMAIL` y
  * `ROBLE_PASSWORD` si están en el entorno, y si no, se piden por teclado con la
@@ -15,7 +16,7 @@
  * afina el esquema.
  *
  * **Por qué existe.** `createTable` es el único mecanismo de creación de tablas que
- * documenta el SDK de ROBLE. Hacerlo con trece formularios en la consola web es
+ * documenta el SDK de ROBLE. Hacerlo con catorce formularios en la consola web es
  * media hora de clics, imposible de repetir igual y de revisar en el repositorio.
  * Aquí el esquema es código, que es lo que pide este proyecto.
  *
@@ -200,9 +201,28 @@ const ESQUEMA = {
     ['enviado_en', T.momento, true],
     ['detalle', T.texto, true],
   ],
+
+  // Clave/valor y no una tabla con una columna por ajuste: añadir un ajuste no debe
+  // requerir `alter`, que ninguna cuenta de la aplicación tiene. El catálogo cerrado
+  // de claves válidas vive en `app/src/ajustes.ts`, no aquí: esta tabla es el sitio
+  // donde se guardan, y quién puede leerlas y qué significan es cosa del código.
+  ajustes: [
+    ['clave', T.texto],
+    ['valor', T.texto, true],
+    ['actualizado_en', T.momento],
+    ['actualizado_por', T.texto, true],
+  ],
 };
 
-const ROLES = ['paciente', 'profesional', 'admin_cmu', 'admin_cae'];
+/**
+ * Los roles que `--perfil` sabe escribir.
+ *
+ * Es la misma lista que `ROLES` en `app/src/tipos.ts` y que `ROLES` en
+ * `lambdas/comun/caresync_comun/roble_acceso.py`. Están repetidas porque son tres
+ * lenguajes distintos; si divergen, el síntoma es una cuenta con un rol que una capa
+ * entiende y otra no, así que las tres se cambian en el mismo commit.
+ */
+const ROLES = ['paciente', 'profesional', 'admin_cmu', 'admin_cae', 'admin_plataforma'];
 
 // ------------------------------------------------------------------ argumentos
 
@@ -341,10 +361,16 @@ async function crearTablas(cliente) {
 /**
  * Escribe la fila de `perfiles` de la cuenta con la que se acaba de entrar.
  *
- * Es la única forma honesta de asignar un rol: `user_id` tiene que ser exactamente
- * el `sub` que ROBLE le da a esa cuenta, y ese valor sólo se conoce estando dentro
- * de la sesión. Cada persona del equipo ejecuta esto una vez con sus credenciales,
- * o quien administre el contrato lo hace por cada cuenta.
+ * Es la única forma honesta de asignar un rol desde fuera de la aplicación: `user_id`
+ * tiene que ser exactamente el `sub` que ROBLE le da a esa cuenta, y ese valor sólo se
+ * conoce estando dentro de la sesión. Cada persona del equipo ejecuta esto una vez con
+ * sus credenciales, o quien administre el contrato lo hace por cada cuenta.
+ *
+ * **Cuidado con el segundo caso desde que `perfiles:update` salió del rol `user`.** Si
+ * la fila ya existe esto es un `update`, y sólo lo autoriza una cuenta con el rol
+ * `plataforma` de ROBLE o la dueña del contrato; con una cuenta normal falla con un 500.
+ * Crear la fila la primera vez sigue funcionando con cualquiera, porque es un `create`.
+ * En operación los roles se reparten desde la vista de plataforma, no desde aquí.
  */
 async function fijarPerfil(cliente, rol, centro) {
   if (!ROLES.includes(rol)) {
@@ -357,9 +383,19 @@ async function fijarPerfil(cliente, rol, centro) {
 
   const usuario = await cliente.currentUser();
   const userId = String(usuario.sub);
-  // Los roles administrativos llevan el centro implícito en el nombre del rol, y
+  // Los roles administrativos de centro lo llevan implícito en el nombre del rol, y
   // el backend lo impone; escribirlo aquí es sólo para que la tabla se lea bien.
-  const centroFinal = rol === 'admin_cmu' ? 'CMU' : rol === 'admin_cae' ? 'CAE' : centro ?? null;
+  // `paciente` y `admin_plataforma` se quedan sin centro aunque se pase uno: el
+  // primero no pertenece a un centro y el segundo administra la instalación entera,
+  // y una columna con un valor que nadie lee es una invitación a leerlo mal.
+  const centroFinal =
+    rol === 'admin_cmu'
+      ? 'CMU'
+      : rol === 'admin_cae'
+        ? 'CAE'
+        : rol === 'profesional'
+          ? centro ?? null
+          : null;
 
   const existentes = await cliente.read('perfiles', { user_id: userId });
   const datos = {

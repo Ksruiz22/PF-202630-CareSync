@@ -8,7 +8,23 @@
  * que declarar un tipo estricto que el runtime no cumple.
  */
 
-export const ROLES = ['paciente', 'profesional', 'admin_cmu', 'admin_cae'] as const;
+/**
+ * Los roles, y por qué `admin_plataforma` no es «un admin más».
+ *
+ * `admin_cmu` y `admin_cae` administran **un centro**: su vista no tiene selector
+ * de centro a propósito, porque los datos de salud mental del CAE no son asunto de
+ * quien atiende el CMU. `admin_plataforma` no administra un centro sino la
+ * instalación: cuentas, roles, profesionales y ajustes. Por eso no ve casos ni
+ * conversaciones —no las necesita para su trabajo— y por eso no hereda el tablero
+ * de ninguno de los dos centros.
+ */
+export const ROLES = [
+  'paciente',
+  'profesional',
+  'admin_cmu',
+  'admin_cae',
+  'admin_plataforma',
+] as const;
 export type Rol = (typeof ROLES)[number];
 
 export type Centro = 'CMU' | 'CAE';
@@ -91,6 +107,14 @@ export interface Horario extends Fila {
   minutos_cupo?: number | string;
   modalidad?: string;
   activo?: boolean | string;
+}
+
+/** Una fila de `ajustes`: clave, valor como texto y quién lo tocó por última vez. */
+export interface Ajuste extends Fila {
+  clave?: string;
+  valor?: string | null;
+  actualizado_en?: string;
+  actualizado_por?: string | null;
 }
 
 export interface Indicacion extends Fila {

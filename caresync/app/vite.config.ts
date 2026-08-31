@@ -9,7 +9,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    // Un solo bundle: la aplicación tiene cuatro vistas y dividir en trozos
+    // Un solo bundle: la aplicación tiene cinco vistas y dividir en trozos
     // añadiría peticiones sin ahorrar nada apreciable.
     chunkSizeWarningLimit: 900,
   },

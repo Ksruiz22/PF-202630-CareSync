@@ -8,7 +8,7 @@
 
 resource "aws_amplify_app" "pwa" {
   name        = local.nombre
-  description = "Aplicación web de CareSync: cuatro vistas por rol."
+  description = "Aplicación web de CareSync: cinco vistas por rol."
   platform    = "WEB"
 
   # Sin esto, recargar /paciente en una SPA devuelve 404: Amplify busca un

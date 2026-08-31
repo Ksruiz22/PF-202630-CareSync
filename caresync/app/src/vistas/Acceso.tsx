@@ -177,7 +177,14 @@ async function crearCuenta(email: string, password: string, nombre: string): Pro
   });
 }
 
-/** Escribe la fila de `perfiles` de la cuenta que acaba de entrar. */
+/**
+ * Escribe la fila de `perfiles` de la cuenta que acaba de entrar.
+ *
+ * Es un `create` y no un `update`, y por eso sigue funcionando después de sacar
+ * `perfiles:update` del rol `user`: el rol predeterminado conserva `all:create`. Que
+ * registrarse pueda crear su propia fila pero no reescribirla es exactamente la
+ * separación que se quería.
+ */
 async function crearPerfil(email: string, nombre: string): Promise<boolean> {
   try {
     const usuario = await roble.currentUser();
