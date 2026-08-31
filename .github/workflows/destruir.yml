@@ -133,6 +133,6 @@ jobs:
             echo '- La verificación en SES del remitente y del correo de emergencias.'
             echo '- La confirmación de la suscripción al tema de SNS de los avisos.'
             echo
-            echo 'Los datos y las trece tablas de ROBLE no se han tocado: no están en AWS.'
+            echo 'Los datos y las catorce tablas de ROBLE no se han tocado: no están en AWS.'
             echo 'El arranque (bucket del estado, tabla de bloqueo, proveedor OIDC y roles de CI) sigue intacto.'
           } >> "${GITHUB_STEP_SUMMARY}"

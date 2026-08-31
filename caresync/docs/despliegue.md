@@ -94,7 +94,7 @@ aws ssm put-parameter --overwrite --name /caresync/dev/roble/servicio/email \
 aws ssm put-parameter --overwrite --name /caresync/dev/roble/servicio/password \
   --type SecureString --value '...'
 
-# Las trece tablas de ROBLE. Pide el correo y la contraseña por consola.
+# Las catorce tablas de ROBLE. Pide el correo y la contraseña por consola.
 scripts/esquema_roble.sh
 ```
 
@@ -142,7 +142,7 @@ de qué había cuando se borró.
 | | |
 |---|---|
 | El arranque | bucket del estado, tabla de bloqueo, proveedor OIDC y los dos roles de CI. Están en otro módulo y en otro estado, y el rol de CI tiene un `Deny` sobre ellos. Un destroy no deja la cuenta sin forma de volver a desplegar. |
-| Los datos | viven en ROBLE, que no es AWS. Las trece tablas también: `esquema_roble.sh` no hay que repetirlo. |
+| Los datos | viven en ROBLE, que no es AWS. Las catorce tablas también: `esquema_roble.sh` no hay que repetirlo. |
 
 **Qué hay que reponer** al volver a desplegar: las credenciales de ROBLE en Parameter
 Store (incluida la contraseña, que se borra con el parámetro), la verificación en SES

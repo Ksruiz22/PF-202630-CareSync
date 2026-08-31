@@ -14,7 +14,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { generarCupos, type ResultadoGeneracion } from '../agenda_cupos';
+import { DIAS_POR_DEFECTO, generarCupos, type ResultadoGeneracion } from '../agenda_cupos';
+import { leerAjustes, numeroDeAjuste } from '../ajustes';
 import { Conversacion } from '../componentes/Conversacion';
 import { Aviso, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
 import { fechaHora, hace, soloHora } from '../formato';
@@ -69,10 +70,15 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
   const [error, setError] = useState('');
   const [generando, setGenerando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoGeneracion | null>(null);
+  // Cuántos días abre el botón. Lo fija quien administra la plataforma; aquí sólo se
+  // lee, para que el rótulo del botón diga la verdad antes de pulsarlo.
+  const [dias, setDias] = useState(DIAS_POR_DEFECTO);
 
   const cargar = useCallback(async () => {
     try {
-      setTablero(await leerTablero(centro));
+      const [nuevo, ajustes] = await Promise.all([leerTablero(centro), leerAjustes()]);
+      setTablero(nuevo);
+      setDias(numeroDeAjuste(ajustes, 'dias_agenda'));
       setError('');
     } catch (fallo) {
       setError(mensajeDeError(fallo));
@@ -92,7 +98,7 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
     setError('');
     setResultado(null);
     try {
-      const salida = await generarCupos(centro);
+      const salida = await generarCupos(centro, dias);
       setResultado(salida);
       await cargar();
     } catch (fallo) {
@@ -173,7 +179,7 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
             titulo="Agenda"
             extra={
               <button type="button" className="principal fino" disabled={generando} onClick={() => void publicarCupos()}>
-                {generando ? 'Publicando…' : 'Publicar cupos (14 días)'}
+                {generando ? 'Publicando…' : `Publicar cupos (${dias} días)`}
               </button>
             }
           >

@@ -65,7 +65,7 @@ escribir tres días después cae en seguimiento en lugar de repetir el triaje.
 
 ### Los permisos se comprueban dos veces
 
-Las cuatro vistas de la PWA son presentación: esconder un botón no es un permiso.
+Las cinco vistas de la PWA son presentación: esconder un botón no es un permiso.
 Lo que autoriza de verdad son dos capas independientes:
 
 1. `permitida(nombre, rol)` en el catálogo de herramientas, dentro de la Lambda:

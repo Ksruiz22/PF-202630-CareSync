@@ -21,7 +21,7 @@
 #     intentara, IAM diría no.
 #
 #   * Los datos. Viven en ROBLE, que no es AWS, y siguen ahí después de esto. Las
-#     trece tablas también: `scripts/esquema_roble.sh` no hay que volver a
+#     catorce tablas también: `scripts/esquema_roble.sh` no hay que volver a
 #     ejecutarlo.
 #
 # Lo que sí desaparece y hay que reponer a mano después de un despliegue nuevo está
@@ -130,6 +130,6 @@ cat <<'TXT'
     - La confirmación de la suscripción al tema de SNS de los avisos.
     - La URL de la PWA cambia: Amplify da un dominio nuevo al recrear la app.
 
-    Lo que NO hay que reponer: las trece tablas de ROBLE y sus datos, que no
+    Lo que NO hay que reponer: las catorce tablas de ROBLE y sus datos, que no
     están en AWS. Tampoco el arranque, que sigue intacto.
 TXT

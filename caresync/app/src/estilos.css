@@ -184,7 +184,8 @@ label {
 }
 
 label input,
-label textarea {
+label textarea,
+label select {
   margin-top: 0.3rem;
   font-weight: 400;
   color: var(--tinta);
@@ -697,4 +698,145 @@ label small {
 
 .formulario .aviso {
   margin-top: 0.7rem;
+}
+
+/*
+ * Un formulario de varios campos cortos en una línea: día, desde, hasta, minutos.
+ * `auto-fit` y no un número de columnas fijo porque los mismos campos tienen que
+ * caber en el celular del personal administrativo sin una consulta de medios propia.
+ */
+.formulario.rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.6rem;
+  align-items: end;
+}
+
+.formulario.rejilla label {
+  margin-bottom: 0;
+}
+
+.formulario.rejilla .principal {
+  width: auto;
+  margin-top: 0;
+}
+
+/* -------------------------------------------------------------- aviso global */
+
+/*
+ * Lo pone quien administra la plataforma y lo ve todo el mundo, así que va fuera del
+ * `.panel`: a lo ancho de la pantalla y antes de cualquier cabecera. Ámbar y no rojo
+ * porque el rojo de esta interfaz está reservado al nivel 1 de urgencia.
+ */
+.aviso-global {
+  margin: 0;
+  padding: 0.6rem 1.2rem;
+  background: var(--ambar-claro);
+  color: var(--ambar);
+  border-bottom: 1px solid var(--borde);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ plataforma */
+
+/*
+ * La vista de plataforma no tiene chat ni segunda columna: es una pila de tarjetas.
+ * Por eso apila con `gap` en vez de reutilizar `.columnas`.
+ */
+.plataforma {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.plataforma .pestanas {
+  margin-bottom: 0;
+}
+
+.contador.neutro {
+  background: var(--azul-claro);
+  color: var(--azul);
+}
+
+.filas > li {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--borde);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filas > li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.identidad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+/* Los controles de una fila alineados por su base: el botón queda a la altura del
+   campo y no del rótulo. */
+.controles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.6rem;
+}
+
+.controles label {
+  margin-bottom: 0;
+  min-width: 9rem;
+}
+
+.desplegado {
+  background: var(--papel);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 0.8rem;
+}
+
+.desplegado h3 {
+  margin-top: 0.6rem;
+}
+
+.desplegado h3:first-child {
+  margin-top: 0;
+}
+
+.horarios li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+}
+
+.ajuste {
+  border-top: 1px solid var(--borde);
+  padding-top: 0.9rem;
+}
+
+.ajuste:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* Lo que impide guardar, junto al control que lo impide. */
+.problema {
+  color: var(--rojo);
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: var(--papel);
+  border: 1px solid var(--borde);
+  border-radius: 5px;
+  padding: 0.05rem 0.3rem;
 }

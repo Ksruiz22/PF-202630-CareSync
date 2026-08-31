@@ -16,8 +16,8 @@ permisos. El plan clínico lo escribe el profesional, nunca el modelo.
 | `infra/arranque/` | Lo que hay que crear una vez y a mano: estado, bloqueo, identidad de GitHub |
 | `lambdas/` | Tres funciones en Python 3.12 y el paquete común `caresync_comun` |
 | `protocolos/` | El protocolo de triaje y la ruta de emergencia, en Markdown, versionados con el código |
-| `app/` | PWA en React + Vite + TypeScript: cuatro vistas, una por rol |
-| `app/esquema/` | Creación de las trece tablas de ROBLE |
+| `app/` | PWA en React + Vite + TypeScript: cinco vistas, una por rol |
+| `app/esquema/` | Creación de las catorce tablas de ROBLE |
 | `scripts/` | Entorno, construcción, despliegue, publicación, esquema, CA corporativa |
 | `docs/` | Despliegue, arquitectura y el runbook de ROBLE |
 
@@ -58,4 +58,4 @@ cd app && npm ci && npm run dev
 |---|---|
 | **Alejandro Santiago** | Infraestructura y despliegues: cuenta AWS, Terraform, esquema de ROBLE, CI, observabilidad y costes |
 | **Kevin Ruiz** | Agentes: prompts, catálogo de herramientas, protocolo de triaje, guardarraíles |
-| **Bernardo Álvarez** | Aplicación y experiencia: las cuatro vistas, sesión, accesibilidad |
+| **Bernardo Álvarez** | Aplicación y experiencia: las cinco vistas, sesión, accesibilidad |
