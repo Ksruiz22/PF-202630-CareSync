@@ -6,7 +6,7 @@
 **Docente proponente:** Dadier Jabba  
 **Co-asesor:** Augusto Salazar  
 **Integrantes:** Alejandro Santiago, Kevin Ruiz y Bernardo Álvarez  
-**Fecha:** agosto de 2026
+**Fecha:** agosto de 2026 · versión consolidada del 3 de septiembre de 2026
 
 ---
 
@@ -14,7 +14,7 @@
 
 CareSync Agentic Network es un prototipo funcional de extremo a extremo orientado a demostrar cómo una red de agentes de inteligencia artificial puede sostener la continuidad del cuidado de un miembro de la comunidad universitaria desde el primer síntoma hasta el seguimiento posterior a la atención. La propuesta aborda una situación en la que los servicios de atención concentran carga administrativa en el agendamiento y el seguimiento manual, mientras que para la persona que consulta no siempre resulta evidente cuál es la ruta adecuada entre atención de salud física y salud mental. La solución plantea tres agentes especializados: un Agente de Triaje que evalúa la gravedad y canaliza el caso, un Agente de Agenda y Logística que reserva la cita y entrega el contexto al profesional, y un Agente de Seguimiento que programa recordatorios, registra la evolución y escala anomalías.
 
-La solución se implementará como una PWA con cuatro vistas diferenciadas por rol: paciente, profesional, administrador del Centro Médico Uninorte (CMU) y administrador del Centro de Acompañamiento Estudiantil (CAE). La arquitectura utiliza una infraestructura serverless mínima, con persistencia y autenticación centralizadas en ROBLE y servicios AWS para el razonamiento de los agentes, automatización, correo, observabilidad y despliegue. El prototipo utilizará exclusivamente datos sintéticos y no pretende constituir un sistema clínico de producción ni sustituir la validación de profesionales de la salud.
+La solución se implementa como una PWA con vistas diferenciadas por rol: paciente, profesional, administrador del Centro Médico Uninorte (CMU), administrador del Centro de Acompañamiento Estudiantil (CAE) y administración de plataforma. La arquitectura utiliza una infraestructura serverless mínima, con persistencia y autenticación centralizadas en ROBLE y servicios AWS para el razonamiento de los agentes, automatización, correo, observabilidad y despliegue. El prototipo utilizará exclusivamente datos sintéticos y no pretende constituir un sistema clínico de producción ni sustituir la validación de profesionales de la salud.
 
 El desarrollo seguirá un enfoque de prototipado iterativo y vertical durante 16 semanas. Cada fase debe producir un recorrido funcional y demostrable, con validaciones técnicas, funcionales y de usabilidad. El plan contempla siete fases y siete hitos, desde el encuadre y la arquitectura hasta las pruebas E2E, documentación y sustentación final. La meta principal es demostrar la continuidad técnica del caso y la coordinación entre agentes, manteniendo explícitamente fuera del alcance la validación clínica necesaria para un uso real.
 
@@ -28,7 +28,7 @@ A pesar de la existencia de herramientas de evaluación de síntomas y chatbots 
 
 La necesidad técnica identificada consiste en construir una arquitectura capaz de coordinar diferentes responsabilidades de IA y de aplicación sobre un estado compartido y trazable, sin convertir el prototipo académico en una infraestructura excesivamente costosa o difícil de operar. CareSync plantea una red de tres agentes especializados, con herramientas para consultar, reservar, notificar y escalar, apoyada en persistencia centralizada y controles de acceso por rol. La arquitectura también debe incorporar salvaguardas específicas para el dominio: uso exclusivo de datos sintéticos, guardrails para contenido sensible, una ruta de emergencia ante señales de riesgo, registro de decisiones y pruebas de casos límite. Este enfoque coincide con la necesidad de gestionar explícitamente los riesgos de sistemas de IA en salud señalada por la OMS y con el principio de incorporar consideraciones de confiabilidad y gestión de riesgos durante todo el ciclo de vida de un sistema de IA, como propone el AI Risk Management Framework de NIST [3][4].
 
-Como respuesta a esta necesidad se propone **CareSync Agentic Network**, un prototipo funcional E2E que acompaña el recorrido desde el contacto inicial hasta el seguimiento. El sistema integra una PWA con cuatro vistas por rol, tres agentes especializados, autenticación y persistencia mediante ROBLE, y una capa serverless de AWS basada principalmente en Lambda, Amazon Bedrock, Bedrock Guardrails, EventBridge Scheduler, SES, CloudWatch y AWS CDK. El recorrido esperado comprende contacto, triaje, canalización, agendamiento, atención y seguimiento. El impacto esperado no se plantea como una sustitución del personal de salud, sino como una demostración técnica de que una arquitectura de agentes puede mantener el contexto de un caso y automatizar partes del recorrido administrativo y de seguimiento, dentro de los límites de un prototipo académico.
+Como respuesta a esta necesidad se propone **CareSync Agentic Network**, un prototipo funcional E2E que acompaña el recorrido desde el contacto inicial hasta el seguimiento. El sistema integra una PWA con vistas por rol, tres agentes especializados, autenticación y persistencia mediante ROBLE, y una capa serverless de AWS basada principalmente en Lambda, Amazon Bedrock, Bedrock Guardrails, EventBridge Scheduler, SES, CloudWatch y Terraform como infraestructura como código. El recorrido esperado comprende contacto, triaje, canalización, agendamiento, atención y seguimiento. El impacto esperado no se plantea como una sustitución del personal de salud, sino como una demostración técnica de que una arquitectura de agentes puede mantener el contexto de un caso y automatizar partes del recorrido administrativo y de seguimiento, dentro de los límites de un prototipo académico.
 
 ---
 
@@ -40,7 +40,7 @@ En los servicios de atención en salud de una comunidad universitaria, la contin
 
 Esta situación puede generar consecuencias en dos puntos principales. Primero, la persona puede no llegar oportunamente al servicio que corresponde a su necesidad. Segundo, después de la atención, puede no existir una comprobación automatizada de si siguió las indicaciones o de si presentó un retroceso que requiera informar nuevamente al equipo tratante. En consecuencia, la continuidad del caso queda fragmentada entre etapas que no necesariamente comparten el mismo contexto.
 
-El problema no se formula como la ausencia de una aplicación específica, sino como una **deficiencia en la continuidad y coordinación del recorrido de atención**, particularmente en la transición entre orientación, canalización, agendamiento y seguimiento. La población objetivo del prototipo es la comunidad universitaria que utilizaría los servicios de atención física y de salud mental representados por el CMU y el CAE, junto con los profesionales y administradores que participan en dicho recorrido.
+El problema no se formula como la ausencia de una aplicación específica, sino como una **deficiencia en la continuidad y coordinación del recorrido de atención**, particularmente en la transición entre orientación, canalización, agendamiento y seguimiento. La población objetivo del prototipo es la comunidad universitaria que utilizaría los servicios de atención física y de salud mental representados por el CMU y el CAE, junto con los profesionales y administradores que participan en dicho recorrido. La problemática no es exclusiva de esta institución: es aplicable a cualquier organización que cuente con múltiples servicios de atención y distintos actores involucrados en el mismo recorrido.
 
 La propuesta reconoce además que automatizar decisiones relacionadas con salud introduce riesgos. Un triaje sin validación clínica puede clasificar incorrectamente un caso, los datos de salud requieren protección y las respuestas de un modelo pueden ser inadecuadas, especialmente en salud mental. Por esta razón, el problema tecnológico no se limita a automatizar un flujo, sino que incluye la necesidad de mantener límites claros entre el prototipo y un sistema clínico real.
 
@@ -50,7 +50,7 @@ La atención de esta problemática es pertinente porque la continuidad del cuida
 
 Desde el punto de vista técnico, el proyecto permite estudiar y demostrar una arquitectura de agentes aplicada a un flujo de salud que combina conversación, clasificación, persistencia, agenda, notificaciones y seguimiento. La propuesta también plantea una decisión de ingeniería deliberadamente austera: utilizar ROBLE como plataforma de autenticación y persistencia y reservar AWS principalmente para las capacidades que no aporta ROBLE, particularmente el razonamiento mediante modelos, automatización, correo, observabilidad y despliegue.
 
-La pertinencia académica se encuentra en evaluar si una red de agentes especializados puede sostener un recorrido E2E trazable y verificable dentro de las restricciones de un proyecto final de 16 semanas. El proyecto establece criterios medibles, entre ellos alcanzar al menos 85 % de acierto en la canalización sobre un banco de casos sintéticos, derivar el 100 % de los casos con señal de riesgo hacia emergencias y generar una alerta al profesional en menos de cinco minutos ante un retroceso reportado.
+Desde el punto de vista académico, el proyecto permite evaluar la aplicación de agentes inteligentes en un dominio sensible, considerando explícitamente trazabilidad, privacidad, seguridad y los límites de la automatización. La pertinencia se encuentra en evaluar si una red de agentes especializados puede sostener un recorrido E2E trazable y verificable dentro de las restricciones de un proyecto final de 16 semanas. El proyecto establece criterios medibles, entre ellos alcanzar al menos 85 % de acierto en la canalización sobre un banco de casos sintéticos, derivar el 100 % de los casos con señal de riesgo hacia emergencias y generar una alerta al profesional en menos de cinco minutos ante un retroceso reportado.
 
 Finalmente, la propuesta mantiene una delimitación responsable: el éxito del prototipo no se define por demostrar corrección clínica. La validación clínica de los protocolos por personal de salud calificado queda explícitamente como trabajo futuro.
 
@@ -58,12 +58,14 @@ Finalmente, la propuesta mantiene una delimitación responsable: el éxito del p
 
 Las principales restricciones y supuestos son:
 
-- El proyecto tiene una duración total de **16 semanas**.
+- El proyecto tiene una duración total de **16 semanas**, limitada al periodo académico.
 - El equipo está conformado por **tres integrantes**, con frentes de infraestructura y despliegues, agentes e IA, y aplicación y experiencia.
 - La solución se desarrolla como **prototipo funcional E2E**, no como sistema clínico de producción.
 - Se utilizarán **100 % datos sintéticos** durante el proyecto.
 - La integración real con los servicios institucionales del CMU y CAE queda fuera del alcance; se utilizará un adaptador con contrato definido y backend simulado.
-- El triaje se basa en protocolos deliberadamente básicos y versionados, sin pretender sustituir una valoración clínica.
+- La disponibilidad de profesionales y de cupos de agenda es simulada mediante datos sembrados.
+- El triaje se basa en protocolos deliberadamente básicos y versionados, sin pretender sustituir una valoración clínica, y deberán ser validados profesionalmente antes de cualquier uso real.
+- El sistema no realiza diagnósticos ni prescripciones médicas.
 - La persistencia y autenticación dependen de ROBLE, plataforma de OPENLAB, por lo que su estabilidad, respaldos y evolución constituyen un riesgo identificado.
 - La API de datos utilizada no ofrece escritura condicional documentada; por ello, el control de doble agendamiento se implementará mediante reservar, releer y reconciliar.
 - Las consultas de datos se diseñarán alrededor de filtros de igualdad debido a las limitaciones identificadas en la API de ROBLE.
@@ -89,25 +91,34 @@ El prototipo incluye:
 6. **Agente de Agenda y Logística** para consultar disponibilidad, reservar citas y generar el resumen estructurado del caso.
 7. **Consolas administrativas** para CMU y CAE, incluyendo profesionales, horarios y agenda.
 8. **Vista del profesional** para consultar el caso, registrar el plan de tratamiento por texto o dictado de voz y consultar el progreso.
-9. **Agente de Seguimiento** para programar recordatorios, registrar adherencia y evolución, detectar retrocesos y generar alertas.
-10. **Notificaciones por correo** mediante SES.
-11. **Automatización de recordatorios** mediante EventBridge Scheduler y Lambda.
-12. **Registro y trazabilidad** mediante persistencia en ROBLE y logs en CloudWatch.
-13. **Pruebas E2E**, pruebas de concurrencia, casos límite y pruebas de usabilidad.
-14. **Infraestructura como código** mediante AWS CDK.
+9. **Vista de administración de plataforma** para asignar roles, mantener el directorio de profesionales y horarios, y gestionar los ajustes del sistema.
+10. **Agente de Seguimiento** para programar recordatorios, registrar adherencia y evolución, detectar retrocesos y generar alertas.
+11. **Notificaciones por correo** mediante SES.
+12. **Automatización de recordatorios** mediante EventBridge Scheduler y Lambda.
+13. **Registro y trazabilidad** de las acciones realizadas por los agentes, mediante persistencia en ROBLE y logs en CloudWatch.
+14. **Gestión de usuarios, casos, profesionales, horarios y citas.**
+15. **Pruebas E2E**, pruebas de concurrencia, casos límite y pruebas de usabilidad.
+16. **Infraestructura como código** mediante Terraform.
+
+El flujo principal es:
+
+**Contacto → Triaje → Canalización → Agendamiento → Atención → Seguimiento**
 
 ### Usuarios involucrados
 
-El sistema contempla cuatro roles:
+El sistema contempla cinco roles:
 
 - Paciente o miembro de la comunidad.
 - Profesional de atención.
 - Administrador del CMU.
 - Administrador del CAE.
+- Administración de plataforma.
+
+Los cuatro primeros participan en el recorrido de atención. El quinto es un rol operativo y no clínico: reparte roles y mantiene el directorio, y deliberadamente no puede conversar con los agentes ni acceder a las conversaciones de un caso.
 
 ### Nivel de madurez
 
-La solución corresponde a un **prototipo funcional de extremo a extremo**, orientado a demostración académica. No constituye una implementación productiva ni un sistema clínico validado.
+La solución corresponde a un **prototipo funcional de extremo a extremo (MVP académico)**, orientado a validar el concepto y la arquitectura propuesta mediante demostración. No constituye una implementación productiva ni un sistema clínico validado.
 
 ### Entornos cubiertos
 
@@ -123,10 +134,11 @@ La solución corresponde a un **prototipo funcional de extremo a extremo**, orie
 Quedan fuera del alcance:
 
 - Atención clínica real.
-- Uso de datos reales de pacientes.
+- Uso de datos reales de pacientes e historias clínicas.
 - Validación clínica definitiva de los protocolos de triaje.
 - Integración real con los sistemas institucionales del CMU y CAE.
 - Implementación productiva a escala institucional.
+- Infraestructura de alta disponibilidad.
 - Manejo de archivos o adjuntos.
 - Sustitución del profesional de salud por IA.
 - Diagnóstico o prescripción autónoma.
@@ -155,21 +167,25 @@ Quedan fuera del alcance:
 
 ## 4.2 Objetivos específicos
 
-1. **Diseñar** una arquitectura serverless mínima que permita ejecutar y coordinar tres agentes especializados, persistir el estado del caso y separar los permisos de los cuatro roles del sistema.
+1. **Analizar** los requerimientos asociados al proceso de orientación, canalización, agendamiento y seguimiento de servicios de salud, e identificar los usuarios y casos de uso del recorrido.
 
-2. **Implementar** un Agente de Triaje que conduzca una conversación estructurada, aplique los protocolos definidos, determine un nivel de urgencia y canalice el caso hacia CMU, CAE o emergencias.
+2. **Diseñar** una arquitectura serverless mínima que permita ejecutar y coordinar tres agentes especializados, persistir el estado del caso y separar los permisos de los roles del sistema.
 
-3. **Implementar** un Agente de Agenda y Logística que consulte disponibilidad, gestione la reserva de citas y entregue al profesional un resumen estructurado del caso, incluyendo un mecanismo de reconciliación para evitar dobles agendamientos.
+3. **Implementar** un Agente de Triaje que conduzca una conversación estructurada, aplique los protocolos definidos, determine un nivel de urgencia y canalice el caso hacia CMU, CAE o emergencias.
 
-4. **Implementar** un Agente de Seguimiento que programe recordatorios, registre adherencia y evolución, detecte retrocesos y genere alertas dirigidas al equipo tratante.
+4. **Implementar** un Agente de Agenda y Logística que consulte disponibilidad, gestione la reserva de citas y entregue al profesional un resumen estructurado del caso, incluyendo un mecanismo de reconciliación para evitar dobles agendamientos.
 
-5. **Construir** una PWA con vistas diferenciadas para paciente, profesional, administrador CMU y administrador CAE, con control de acceso basado en roles.
+5. **Implementar** un Agente de Seguimiento que programe recordatorios, registre adherencia y evolución, detecte retrocesos y genere alertas dirigidas al equipo tratante.
 
-6. **Evaluar** el funcionamiento del recorrido E2E mediante casos sintéticos, pruebas de concurrencia, casos límite, pruebas de seguridad y sesiones de usabilidad.
+6. **Construir** una PWA con vistas diferenciadas para paciente, profesional, administrador CMU, administrador CAE y administración de plataforma, con control de acceso basado en roles.
 
-7. **Validar** el desempeño del prototipo mediante criterios verificables, incluyendo un mínimo de 85 % de acierto en el ruteo CMU/CAE sobre el banco de casos sintéticos, derivación del 100 % de los casos con señal de riesgo a emergencias y generación de alertas de retroceso en menos de cinco minutos.
+7. **Integrar** mecanismos de almacenamiento y trazabilidad que mantengan el estado de los casos y registren las acciones realizadas por los agentes.
 
-8. **Documentar** la arquitectura, el despliegue, los resultados de evaluación, las limitaciones y la hoja de ruta necesaria antes de considerar cualquier uso real.
+8. **Evaluar** el funcionamiento del recorrido E2E mediante casos sintéticos, pruebas de concurrencia, casos límite, pruebas de seguridad y sesiones de usabilidad.
+
+9. **Validar** el desempeño del prototipo mediante criterios verificables, incluyendo un mínimo de 85 % de acierto en el ruteo CMU/CAE sobre el banco de casos sintéticos, derivación del 100 % de los casos con señal de riesgo a emergencias y generación de alertas de retroceso en menos de cinco minutos.
+
+10. **Documentar** la arquitectura, el despliegue, los resultados de evaluación, las limitaciones y la hoja de ruta necesaria antes de considerar cualquier uso real.
 
 ---
 
@@ -181,6 +197,10 @@ CareSync Agentic Network propone una red de tres agentes especializados que comp
 - **Agente de Agenda y Logística:** consulta disponibilidad, reserva el cupo correspondiente y entrega al profesional un resumen estructurado del caso.
 - **Agente de Seguimiento:** programa recordatorios, registra adherencia y evolución, detecta anomalías o retrocesos y alerta al equipo tratante.
 
+A estos tres se suma un cuarto componente que no es un agente conversacional sino el que los coordina:
+
+- **Orquestador:** recibe cada mensaje, identifica quién lo envía y con qué rol, decide qué agente debe atender según el estado del caso, ejecuta el bucle de herramientas y mantiene el estado general del caso. El traspaso entre agentes es explícito: ocurre cuando una herramienta concreta tiene éxito, y no por una decisión libre del modelo.
+
 El recorrido E2E se estructura en seis etapas:
 
 1. **Contacto:** el paciente describe su malestar mediante la PWA.
@@ -190,13 +210,41 @@ El recorrido E2E se estructura en seis etapas:
 5. **Atención:** el profesional registra el plan de tratamiento, incluyendo dictado por voz.
 6. **Seguimiento:** se envían recordatorios, se registra la evolución y se escalan retrocesos.
 
-La arquitectura utiliza ROBLE para autenticación, roles, permisos y base de datos PostgreSQL administrada. AWS se utiliza principalmente para la capa de inteligencia y automatización: Amazon Bedrock con Claude Haiku 4.5 y prompt caching, Bedrock Guardrails, funciones Lambda, EventBridge Scheduler, SES, CloudWatch, SSM Parameter Store, Amplify Hosting y AWS CDK. El acceso a ROBLE se concentra en un módulo de datos para evitar que las diferentes partes de la aplicación dependan directamente de la plataforma.
+La arquitectura utiliza ROBLE para autenticación, roles, permisos y base de datos PostgreSQL administrada. AWS se utiliza principalmente para la capa de inteligencia y automatización: Amazon Bedrock con Claude Haiku 4.5 y prompt caching, Bedrock Guardrails, funciones Lambda, EventBridge Scheduler, SES, CloudWatch, SSM Parameter Store, Amplify Hosting y Terraform. El acceso a ROBLE se concentra en un módulo de datos para evitar que las diferentes partes de la aplicación dependan directamente de la plataforma.
 
 Una decisión importante de la propuesta es evitar una arquitectura más compleja cuando no es necesaria para el prototipo. El runtime de los agentes se implementa mediante un bucle de herramientas en Lambda sobre la Converse API de Bedrock, en lugar de utilizar Bedrock AgentCore. Los protocolos se mantienen como documentos versionados e inyectados en el prompt, en lugar de desplegar inicialmente una base vectorial con RAG. La persistencia se mantiene en ROBLE en lugar de DynamoDB o Aurora Serverless. Estas decisiones reducen infraestructura, costos y tiempo de implementación, aunque también implican limitaciones explícitas que deberán revertirse antes de cualquier uso real.
+
+## 5.1 Tecnologías: lo considerado al inicio y lo adoptado
+
+Durante la etapa de definición se consideró un conjunto inicial de tecnologías: Next.js/React, TypeScript, Supabase, PostgreSQL, la API de Anthropic, un SDK de agentes, Figma, GitHub, Postman y Vercel. El análisis de requerimientos y el diseño técnico modificaron varias de esas elecciones. Las sustituciones y su motivo:
+
+| Considerado inicialmente | Adoptado | Motivo del cambio |
+|---|---|---|
+| Next.js | **React + Vite** | El prototipo no necesita renderizado en servidor; la PWA se sirve como estático, lo que simplifica el despliegue y reduce el costo |
+| Supabase | **ROBLE (OPENLAB, Uninorte)** | Cubre la misma función —PostgreSQL administrado más autenticación y permisos por rol— sin costo y dentro de la infraestructura de la propia universidad, que es además donde deben permanecer los datos de salud |
+| API de Anthropic directa | **Amazon Bedrock** con Claude Haiku 4.5 | El mismo modelo, facturado en la cuenta de AWS del proyecto y con Guardrails y prompt caching disponibles como servicio |
+| SDK de agentes / Responses API | **Bucle de herramientas propio sobre la Converse API** | Permite declarar a cada agente sólo sus herramientas y controlar de forma explícita el número de vueltas del bucle, que es el mecanismo de contención de costos |
+| Vercel | **Amplify Hosting** | Mantiene el despliegue del frontend en la misma cuenta e infraestructura como código que el resto del sistema |
+| AWS CDK | **Terraform** | Decisión del equipo por familiaridad y por el manejo del estado compartido en CI |
+
+TypeScript, PostgreSQL y GitHub se mantuvieron sin cambio, este último con GitHub Actions como mecanismo de integración y despliegue continuos.
 
 ---
 
 # 6. Estado del arte / soluciones relacionadas
+
+Existen soluciones que cubren diferentes partes del recorrido de atención, pero no el recorrido completo. La siguiente matriz resume qué etapa cubre cada una:
+
+| Solución | Triaje | Agenda | Seguimiento | Agentes |
+|---|---|---|---|---|
+| Ada Health | ✓ | — | Limitado | — |
+| Buoy Health | ✓ | — | Limitado | — |
+| Zocdoc | — | ✓ | — | — |
+| Microsoft Healthcare Agent Service | ✓ | Integrable | Integrable | ✓ |
+| LangDoc | ✓ | — | — | ✓ |
+| AI Medical Chatbot | ✓ | — | — | — |
+| Health Chatbot | ✓ | ✓ | — | — |
+| **CareSync** | ✓ | ✓ | ✓ | ✓ |
 
 ## 6.1 Productos comerciales
 
@@ -233,6 +281,38 @@ Buoy ofrece un evaluador conversacional de síntomas que hace preguntas, ayuda a
 - El enfoque principal está en el symptom checking y la orientación inicial.
 - No se observa en la solución pública consultada el mismo énfasis que CareSync en integrar un estado compartido entre varios agentes especializados, agenda institucional, interfaz profesional y seguimiento longitudinal del caso.
 - Buoy es una plataforma general, mientras que CareSync está delimitada a un flujo concreto de atención universitaria.
+
+### Zocdoc
+
+Zocdoc es una plataforma comercial enfocada en la búsqueda de profesionales de salud y la gestión de citas: permite localizar prestadores por especialidad, cobertura y disponibilidad, y reservar la cita en línea [11].
+
+**Fortalezas frente a CareSync:**
+
+- Gestión de agenda y disponibilidad a escala comercial.
+- Directorio amplio de profesionales y especialidades.
+- Experiencia de reserva madura y probada con usuarios reales.
+
+**Limitaciones respecto a CareSync:**
+
+- Cubre la etapa de agendamiento, pero no el triaje conversacional que la precede ni el seguimiento posterior a la atención.
+- El contexto del caso no acompaña a la cita: la plataforma coordina la reserva, no la continuidad clínica del recorrido.
+- Es relevante como referencia precisamente porque demuestra que la etapa de agenda es un problema resuelto por separado, lo que refuerza que el aporte de CareSync está en la coordinación entre etapas y no en cada etapa aislada.
+
+### Microsoft Healthcare Agent Service
+
+Microsoft ofrece un servicio para construir agentes orientados a escenarios de salud, con capacidades de interacción conversacional, orquestación entre componentes e integración con otros servicios de su plataforma [12]. Es la solución consultada más cercana al enfoque técnico de CareSync, porque parte explícitamente de la noción de agente y no de la de chatbot.
+
+**Fortalezas frente a CareSync:**
+
+- Plataforma de agentes específica para el dominio de salud.
+- Orquestación e integración provistas como servicio administrado.
+- Capacidades de gobernanza y cumplimiento propias de un proveedor comercial.
+
+**Limitaciones respecto a CareSync:**
+
+- Es una plataforma para construir soluciones, no una solución del recorrido de continuidad: los agentes, los protocolos, el modelo de datos y las reglas del dominio siguen siendo trabajo del implementador.
+- Su adopción implica dependencia de un ecosistema comercial, mientras que la restricción del proyecto es apoyarse en ROBLE, la plataforma de la propia universidad, para la persistencia y la autenticación.
+- El aporte que CareSync busca demostrar —qué agentes, con qué herramientas, con qué traspasos y con qué salvaguardas para un recorrido universitario concreto— es precisamente lo que una plataforma de este tipo deja abierto.
 
 ## 6.2 Soluciones open-source
 
@@ -283,13 +363,15 @@ Este proyecto es especialmente cercano a CareSync porque combina funcionalidades
 - No se encuentra en la descripción pública consultada el mismo énfasis en el control de riesgos de IA para salud mental, protocolos versionados, ruta de emergencia y evaluación sistemática del ruteo.
 - CareSync prioriza demostrar un recorrido E2E trazable y la coordinación entre agentes, mientras que este tipo de proyectos open-source reúne funcionalidades en una aplicación tradicional.
 
-## 6.3 Arquitecturas y enfoques técnicos relevantes
+## 6.3 Arquitecturas, estándares y enfoques técnicos relevantes
 
 El estado actual de la tecnología muestra dos enfoques relevantes para CareSync.
 
 El primero es el **symptom checking conversacional**, representado por Ada y Buoy, en el que el sistema recoge síntomas, formula preguntas y genera orientación. Este enfoque demuestra que la conversación puede utilizarse como interfaz de acceso inicial a servicios de salud [1][2].
 
-El segundo es la **arquitectura agentic**, en la que un modelo puede utilizar herramientas y ejecutar acciones sobre sistemas externos. AWS documenta actualmente arquitecturas de IA generativa para salud que combinan agentes, modelos, herramientas, controles de seguridad y servicios administrados [9][10]. Esto resulta relevante para CareSync porque el proyecto no pretende que el modelo solo genere texto: los agentes deben consultar datos, reservar citas, generar notificaciones y actualizar el estado del caso.
+El segundo es la **arquitectura agentic**, en la que un modelo puede utilizar herramientas y ejecutar acciones sobre sistemas externos. AWS documenta actualmente arquitecturas de IA generativa para salud que combinan agentes, modelos, herramientas, controles de seguridad y servicios administrados [9][10], y Microsoft ofrece un servicio específico para construir agentes de salud [12]. Esto resulta relevante para CareSync porque el proyecto no pretende que el modelo solo genere texto: los agentes deben consultar datos, reservar citas, generar notificaciones y actualizar el estado del caso.
+
+En cuanto al modelado de la información, se considera **HL7 FHIR** como referencia conceptual para los recursos del dominio —paciente, profesional, cita y plan de atención— [13]. El prototipo no implementa el estándar ni expone recursos FHIR, porque la persistencia está sujeta a las capacidades de ROBLE; su valor aquí es orientar el modelo de datos hacia conceptos ya normalizados, de manera que una eventual integración con sistemas institucionales no exija rediseñarlo.
 
 Para el control de riesgos, la propuesta también encuentra respaldo conceptual en la guía de la OMS sobre ética y gobernanza de IA en salud y en el AI RMF de NIST. La OMS recomienda que la IA en salud incorpore consideraciones éticas y de derechos humanos desde su diseño y utilización, mientras que NIST propone un marco para gestionar riesgos y promover sistemas de IA confiables y responsables [3][4].
 
@@ -299,16 +381,18 @@ Para el control de riesgos, la propuesta también encuentra respaldo conceptual 
 |---|---|---|---|---|---|
 | **Ada Health** | Evaluación conversacional de síntomas y orientación | Plataforma comercial de gran escala | Servicio comercial; costos internos no comparables directamente con el prototipo | Alta, orientada al usuario final | No tiene como foco el flujo institucional completo de triaje → agenda → atención → seguimiento planteado por CareSync |
 | **Buoy Health** | Symptom checking, preguntas y orientación de atención | Plataforma comercial | Modelo comercial; costo del producto institucional depende del servicio | Alta, basada en conversación | Se concentra principalmente en orientación/triaje y no en la coordinación del caso completo planteada por CareSync |
-| **LangDoc** | Anamnesis conversacional y resumen de información | Depende de la infraestructura y modelo utilizado | Open-source, pero con costos de infraestructura/modelo según despliegue | Interfaz adaptable; proyecto descrito originalmente con Discord | No ofrece como foco principal agenda institucional, cuatro roles y seguimiento E2E |
+| **Zocdoc** | Búsqueda de profesionales y gestión de citas | Plataforma comercial de gran escala | Modelo comercial, orientado a prestadores | Alta, centrada en la reserva | Cubre únicamente la etapa de agenda; no hay triaje previo ni seguimiento posterior, y el contexto del caso no acompaña a la cita |
+| **Microsoft Healthcare Agent Service** | Plataforma para construir agentes de salud, con orquestación e integración | Servicio administrado de gran escala | Modelo comercial por consumo | Depende de la solución que se construya sobre ella | Es una plataforma, no el recorrido: los agentes, protocolos, modelo de datos y salvaguardas siguen siendo trabajo del implementador, y supone dependencia de un ecosistema comercial |
+| **LangDoc** | Anamnesis conversacional y resumen de información | Depende de la infraestructura y modelo utilizado | Open-source, pero con costos de infraestructura/modelo según despliegue | Interfaz adaptable; proyecto descrito originalmente con Discord | No ofrece como foco principal agenda institucional, separación de roles y seguimiento E2E |
 | **AI Medical Chatbot** | Chat médico, RAG y asistencia conversacional | Depende del modelo e infraestructura elegidos | Open-source; costos dependen del despliegue | Interfaz web disponible | Orientado a conversación/consulta; requiere adaptación para flujo institucional completo |
 | **Health Chatbot** | Citas, disponibilidad, roles, chat y symptom checker | Aplicación web convencional; escalabilidad depende de despliegue | Open-source; infraestructura propia | Reúne varias funciones en una aplicación | Menor énfasis en agentes especializados, guardrails de salud mental, protocolos versionados y evaluación E2E específica |
-| **CareSync** | Triaje + canalización + agenda + contexto profesional + seguimiento + alertas | Prototipo serverless; escalabilidad futura requiere endurecimiento | Objetivo de bajo costo; estimación del prototipo: USD 4–20/mes | PWA única con cuatro vistas y flujo continuo | No es clínicamente validado, usa datos sintéticos, integración institucional simulada y requiere controles de producción antes de datos reales |
+| **CareSync** | Triaje + canalización + agenda + contexto profesional + seguimiento + alertas | Prototipo serverless; escalabilidad futura requiere endurecimiento | Objetivo de bajo costo; estimación del prototipo: USD 4–20/mes | PWA única con vistas por rol y flujo continuo | No es clínicamente validado, usa datos sintéticos, integración institucional simulada y requiere controles de producción antes de datos reales |
 
 ## 6.5 Vacíos y oportunidad identificada
 
-La comparación permite identificar que existe una separación entre dos grupos de soluciones. Por un lado, las herramientas comerciales de symptom checking muestran que la conversación puede utilizarse para recoger síntomas y orientar al usuario. Por otro, los proyectos open-source muestran que es posible construir entrevistas médicas, chatbots, control de roles y agendamiento mediante componentes de software accesibles.
+La comparación permite identificar que existe una separación entre tres grupos de soluciones. Las herramientas comerciales de symptom checking muestran que la conversación puede utilizarse para recoger síntomas y orientar al usuario. Las plataformas de agenda, como Zocdoc, muestran que la reserva de citas es un problema resuelto por separado. Y los proyectos open-source, junto con las plataformas de agentes de los grandes proveedores, muestran que es posible construir entrevistas médicas, chatbots, control de roles y agendamiento mediante componentes accesibles.
 
-La oportunidad de CareSync consiste en **integrar estas capacidades dentro de un único recorrido de continuidad**, utilizando agentes especializados que compartan el estado del caso y ejecuten acciones posteriores al triaje. La diferenciación no pretende ser un nuevo algoritmo clínico ni un nuevo modelo de lenguaje. El aporte técnico propuesto es demostrar una arquitectura de coordinación entre agentes para un flujo universitario específico, con trazabilidad, control por roles, agenda, seguimiento y mecanismos explícitos de seguridad.
+Lo que ninguna de ellas resuelve como foco es la costura entre esas etapas. La oportunidad de CareSync consiste en **integrar estas capacidades dentro de un único recorrido de continuidad**, utilizando agentes especializados que compartan el estado del caso y ejecuten acciones posteriores al triaje. La diferenciación no pretende ser un nuevo algoritmo clínico ni un nuevo modelo de lenguaje. El aporte técnico propuesto es demostrar una arquitectura de coordinación entre agentes para un flujo universitario específico, con trazabilidad, control por roles, agenda, seguimiento y mecanismos explícitos de seguridad.
 
 El estado del arte también evidencia que la propuesta no puede interpretarse como una solución clínica lista para producción. Las recomendaciones de la OMS y los marcos de gestión de riesgos de IA refuerzan la necesidad de validación, supervisión humana y gobernanza antes de utilizar sistemas de IA sobre datos reales de salud [3][4]. Esto coincide directamente con las restricciones declaradas por CareSync.
 
@@ -318,15 +402,15 @@ El estado del arte también evidencia que la propuesta no puede interpretarse co
 
 ## 7.1 Enfoque metodológico
 
-El proyecto utilizará un enfoque de **prototipado iterativo**, organizado en ciclos sucesivos de diseño, construcción, prueba y ajuste.
+El proyecto utilizará un enfoque de **prototipado iterativo**, organizado en ciclos sucesivos de diseño, construcción, prueba, retroalimentación y ajuste.
 
 La estrategia será **vertical y no por capas**. En lugar de construir primero todo el backend y posteriormente las interfaces, cada fase buscará producir un recorrido funcional de punta a punta que pueda ser desplegado y demostrado. De esta manera, si una fase presenta retrasos, se puede reducir la profundidad de funciones secundarias sin perder el recorrido principal que se debe sustentar.
 
 El desarrollo se organizará en tres frentes paralelos:
 
-- **Alejandro Santiago — Infraestructura y despliegues:** AWS, CDK, ROBLE, módulo de acceso a datos, entornos, observabilidad y costos.
+- **Alejandro Santiago — Infraestructura y despliegues:** AWS, Terraform, ROBLE, módulo de acceso a datos, entornos, observabilidad y costos.
 - **Kevin Ruiz — Agentes e inteligencia artificial:** agentes, prompts, herramientas, protocolos de triaje, guardrails, evaluación y lógica de agenda.
-- **Bernardo Álvarez — Aplicación y experiencia:** PWA, cuatro vistas, autenticación desde el cliente, conversación, dictado por voz, consolas administrativas y experiencia de usuario.
+- **Bernardo Álvarez — Aplicación y experiencia:** PWA, vistas por rol, autenticación desde el cliente, conversación, dictado por voz, consolas administrativas y experiencia de usuario.
 
 Los tres integrantes realizarán revisión cruzada de código y convergerán especialmente durante las pruebas de aceptación y el cierre.
 
@@ -365,7 +449,7 @@ Los tres integrantes realizarán revisión cruzada de código y convergerán esp
 - Prueba de humo de autenticación y CRUD en ROBLE.
 - Tablas, tipos y permisos.
 - Módulo único de acceso a datos.
-- Infraestructura como código con CDK.
+- Infraestructura como código con Terraform.
 - Cascarón de PWA.
 - Primer agente mínimo contra Bedrock.
 - CI/CD y entornos dev/demo.
@@ -452,7 +536,7 @@ Los tres integrantes realizarán revisión cruzada de código y convergerán esp
 
 **Actividades:**
 
-- Pruebas E2E de los cuatro roles.
+- Pruebas E2E de todos los roles.
 - Revisión de seguridad.
 - Pruebas de usabilidad con 6–8 personas y datos sintéticos.
 - Ajustes.
@@ -493,7 +577,7 @@ Los tres integrantes realizarán revisión cruzada de código y convergerán esp
 
 ## 7.3 Estrategia de validación
 
-La validación combinará pruebas funcionales, técnicas, de seguridad y de usabilidad.
+La validación combinará pruebas funcionales, técnicas, de seguridad y de usabilidad. Se realizará mediante escenarios controlados que incluyen: caso de salud física, caso de salud mental, caso prioritario, ausencia de disponibilidad, reprogramación de cita, seguimiento favorable y generación de alerta.
 
 ### Validación funcional
 
@@ -501,7 +585,7 @@ Se verificará que:
 
 - Un caso pueda recorrer las seis etapas E2E.
 - Los tres agentes compartan y transfieran un estado trazable.
-- Los cuatro roles tengan permisos separados.
+- Los roles tengan permisos separados.
 - Dos reservas simultáneas sobre un mismo cupo produzcan una sola cita en firme y una alternativa para la segunda persona.
 - El plan de tratamiento pueda dictarse por voz y guardarse después de confirmación.
 - Un retroceso genere una alerta en menos de cinco minutos.
@@ -553,11 +637,38 @@ Se comparará el consumo real con la estimación y se revisarán:
 
 El ritmo de trabajo contempla una reunión semanal de sincronización con los asesores, una demo interna al cierre de cada semana y un despliegue al entorno de demostración al final de cada fase. La semana final proporciona una holgura para el cierre y la sustentación.
 
+## 7.5 Estado de avance
+
+Al 3 de septiembre de 2026, semana 6 del cronograma, las fases 0 y 1 están completadas y la fase 2 está en curso. Los hitos H1 y H2 se cumplieron.
+
+**Lo verificado a la fecha:**
+
+- **Infraestructura aplicada por completo** con Terraform desde GitHub Actions, sin VPC y sin base de datos en AWS.
+- **API desplegado y sano.** El endpoint de salud responde con el modelo Claude Haiku 4.5 en uso, el guardrail activo, el contrato de ROBLE válido y alcanzable.
+- **PWA publicada** en Amplify Hosting, con las cinco vistas por rol.
+- **Persistencia creada:** catorce tablas en ROBLE, con los roles y permisos configurados y la separación entre el rol de plataforma y el rol de usuario que hereda toda cuenta nueva.
+- **Tres funciones Lambda** en operación —orquestador, herramientas y recordatorios— y un catálogo de nueve herramientas con permisos por rol.
+- **Primera prueba de extremo a extremo superada** el 27 de agosto de 2026: se validó la sesión, el agente de triaje respondió y no se produjeron errores de servidor.
+
+**Lo pendiente inmediato:**
+
+- Verificar el correo remitente en SES, que es lo único que hoy impide enviar notificaciones y recordatorios.
+- Cargar las credenciales de la cuenta de servicio de ROBLE en Parameter Store para habilitar el trabajo por reloj.
+- Sembrar profesionales y horarios y publicar los cupos de agenda.
+- Completar el banco de casos sintéticos y el script de evaluación del triaje, que es el entregable central del H3.
+
+**Desviaciones respecto al plan original, ambas deliberadas:**
+
+1. **Terraform en lugar de AWS CDK** como infraestructura como código.
+2. **Un quinto rol y una quinta vista**, la administración de plataforma, que el plan inicial no contemplaba. Surgió de una necesidad operativa concreta: alguien tiene que asignar el rol de profesional o de administrador a una cuenta recién registrada, y hacerlo a mano en la consola de la plataforma de persistencia no es sostenible ni auditable.
+
+Queda como deuda conocida el cierre del ciclo de vida del caso: los estados de caso atendido y cerrado están definidos y se leen, pero ninguna ruta del sistema los escribe todavía, de modo que hoy un caso permanece indefinidamente en seguimiento. Está previsto en la Fase 4, cuyo entregable incluye el ciclo de vida completo.
+
 ---
 
 # 8. Referencias
 
-> **Nota:** Las referencias [1]–[10] corresponden a las fuentes externas consultadas para completar el estado del arte y el contexto técnico. La arquitectura, alcance, cronograma, objetivos y demás decisiones específicas de CareSync se derivan de la propuesta técnica proporcionada por el equipo.
+> **Nota:** Las referencias corresponden a las fuentes externas consultadas para completar el estado del arte y el contexto técnico. La arquitectura, alcance, cronograma, objetivos y demás decisiones específicas de CareSync se derivan de la propuesta técnica proporcionada por el equipo.
 
 [1] Ada Health. (2026). *How do I start a symptom assessment?* Ada. https://ada.com/help/how-do-i-start-a-symptom-assessment/
 
@@ -579,10 +690,16 @@ El ritmo de trabajo contempla una reunión semanal de sincronización con los as
 
 [10] Amazon Web Services. (2026, 14 de agosto). *Architecting HIPAA-compliant AI agents to safeguard health data with AWS*. AWS Public Sector. https://aws.amazon.com/blogs/publicsector/architecting-hipaa-compliant-ai-agents-to-safeguard-health-data-with-aws/
 
+[11] Zocdoc. (s. f.). *Online Healthcare Appointment Platform*. Zocdoc. https://www.zocdoc.com/
+
+[12] Microsoft. (s. f.). *Healthcare Agent Service*. Microsoft Learn. https://learn.microsoft.com/
+
+[13] HL7 International. (s. f.). *FHIR Overview*. HL7 FHIR. https://fhir.hl7.org/
+
 ---
 
 ## Observación sobre las fuentes
 
-Las soluciones comerciales y open-source incluidas en el estado del arte se utilizaron para contextualizar y comparar el problema, no para afirmar que CareSync sea superior en términos clínicos. Las características de Ada, Buoy, LangDoc y los proyectos open-source se tomaron de sus páginas públicas consultadas. Las recomendaciones de gobernanza y gestión de riesgos se sustentan en las publicaciones de la OMS y NIST.
+Las soluciones comerciales y open-source incluidas en el estado del arte se utilizaron para contextualizar y comparar el problema, no para afirmar que CareSync sea superior en términos clínicos. Las características de Ada, Buoy, Zocdoc, Microsoft Healthcare Agent Service, LangDoc y los proyectos open-source se tomaron de sus páginas públicas consultadas. Las recomendaciones de gobernanza y gestión de riesgos se sustentan en las publicaciones de la OMS y NIST, y el estándar HL7 FHIR se cita como referencia conceptual de modelado y no como implementación del prototipo.
 
 La propuesta de CareSync mantiene como condición fundamental que el prototipo utilice datos sintéticos y que cualquier evolución hacia datos reales requiera controles de seguridad adicionales y validación clínica.
