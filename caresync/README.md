@@ -19,7 +19,20 @@ permisos. El plan clínico lo escribe el profesional, nunca el modelo.
 | `app/` | PWA en React + Vite + TypeScript: cinco vistas, una por rol |
 | `app/esquema/` | Creación de las catorce tablas de ROBLE |
 | `scripts/` | Entorno, construcción, despliegue, publicación, esquema, CA corporativa |
-| `docs/` | Despliegue, arquitectura y el runbook de ROBLE |
+| `docs/` | Arquitectura, diagramas, referencia de datos y herramientas, despliegue y el runbook de ROBLE |
+
+## La documentación
+
+| | |
+|---|---|
+| [`docs/arquitectura.md`](docs/arquitectura.md) | **Por qué** el sistema tiene esta forma, y qué compromisos se aceptaron a sabiendas |
+| [`docs/diagramas.md`](docs/diagramas.md) | Contexto, contenedores, el bucle de herramientas, la reserva de un cupo, los estados y las dos capas de permisos |
+| [`docs/datos-y-herramientas.md`](docs/datos-y-herramientas.md) | Las catorce tablas columna por columna, quién escribe cada una, y el catálogo de herramientas por rol |
+| [`docs/despliegue.md`](docs/despliegue.md) | De cero a desplegado, los flujos de CI, cómo destruir |
+| [`docs/runbook-roble.md`](docs/runbook-roble.md) | Operar ROBLE: esquema, permisos, roles, y los fallos indexados por su síntoma literal |
+
+Lo que hace cada archivo está en su propio encabezado; `docs/` guarda lo que no cabe en
+un comentario.
 
 ## Los datos de salud no están en AWS
 

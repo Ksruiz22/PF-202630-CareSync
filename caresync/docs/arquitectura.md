@@ -4,6 +4,10 @@ Este documento explica **por qué** el sistema tiene esta forma y, sobre todo, q
 compromisos se aceptaron a sabiendas. Lo que hace cada archivo está en su
 encabezado; aquí están las decisiones que no caben en un comentario.
 
+Lo descriptivo está al lado y no aquí: los diagramas en
+[`diagramas.md`](diagramas.md), y el esquema de datos con el catálogo de herramientas
+en [`datos-y-herramientas.md`](datos-y-herramientas.md).
+
 ## La división que lo explica todo
 
 **Los datos de salud no están en AWS.** Viven en ROBLE (OPENLAB, Uninorte), que es
