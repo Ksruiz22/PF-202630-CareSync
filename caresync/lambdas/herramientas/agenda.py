@@ -22,7 +22,7 @@ log = registro(__name__)
 
 MINUTOS_RESERVA = int(os.environ.get("MINUTOS_RESERVA", "2"))
 MAX_OPCIONES = 6
-
+DIAS_ALTERNATIVAS = 30
 
 # --------------------------------------------------------------- disponibilidad
 
@@ -102,7 +102,10 @@ def agendar_cita(
             "Este caso es una emergencia: no se agenda una cita, se sigue la ruta de urgencias"
         )
 
-    if acceso.citas_del_caso(caso_id):
+    vigentes = [
+        c for c in acceso.citas_del_caso(caso_id) if c.get("estado") != "cancelada"
+    ]
+    if vigentes:
         raise Conflicto(
             "Este caso ya tiene una cita confirmada. Si la persona quiere cambiarla, "
             "el personal del centro es quien la reprograma."
@@ -128,7 +131,9 @@ def agendar_cita(
             "motivo": "espacio_tomado",
             "alternativas": [
                 _opcion(acceso, c)
-                for c in acceso.cupos_libres(centro=centro, hasta=reloj.mas(dias=7), maximo=3)
+                for c in acceso.cupos_libres(
+                    centro=centro, hasta=reloj.mas(dias=DIAS_ALTERNATIVAS), maximo=3
+                )
             ],
             "instruccion": "Ofrece las alternativas. No vuelvas a intentar el mismo espacio.",
         }
