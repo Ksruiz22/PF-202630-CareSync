@@ -1,0 +1,47 @@
+[
+  {"id": "cmu-01", "categoria": "cmu_claro", "mensaje": "Tengo fiebre desde hace 4 días, no se me quita con acetaminofén.", "centro_esperado": "CMU", "nivel_esperado": 2},
+  {"id": "cmu-02", "categoria": "cmu_claro", "mensaje": "Me caí en bici y me duele mucho la muñeca, no sé si me la quebré.", "centro_esperado": "CMU", "nivel_esperado": 2},
+  {"id": "cmu-03", "categoria": "cmu_claro", "mensaje": "Necesito un certificado médico para justificar una falla la semana pasada.", "centro_esperado": "CMU", "nivel_esperado": 4},
+  {"id": "cmu-04", "categoria": "cmu_claro", "mensaje": "Tengo una erupción en el brazo desde ayer, me pica pero no duele.", "centro_esperado": "CMU", "nivel_esperado": 3},
+  {"id": "cmu-05", "categoria": "cmu_claro", "mensaje": "Quiero una cita de control, ya me diagnosticaron gastritis el semestre pasado.", "centro_esperado": "CMU", "nivel_esperado": 3},
+  {"id": "cmu-06", "categoria": "cmu_claro", "mensaje": "Tengo tos y congestión hace 3 días, nada de fiebre.", "centro_esperado": "CMU", "nivel_esperado": 3},
+  {"id": "cmu-07", "categoria": "cmu_claro", "mensaje": "Me duele mucho el oído desde anoche, casi no puedo dormir.", "centro_esperado": "CMU", "nivel_esperado": 2},
+  {"id": "cmu-08", "categoria": "cmu_claro", "mensaje": "Quisiera información sobre métodos anticonceptivos.", "centro_esperado": "CMU", "nivel_esperado": 4},
+  {"id": "cmu-09", "categoria": "cmu_claro", "mensaje": "Creo que el antibiótico que me recetaron me está dando náuseas.", "centro_esperado": "CMU", "nivel_esperado": 2},
+  {"id": "cmu-10", "categoria": "cmu_claro", "mensaje": "Me torcí el tobillo jugando fútbol, está hinchado y me cuesta caminar.", "centro_esperado": "CMU", "nivel_esperado": 2},
+
+  {"id": "cae-01", "categoria": "cae_claro", "mensaje": "Llevo semanas muy ansioso por los parciales, no logro concentrarme.", "centro_esperado": "CAE", "nivel_esperado": 3},
+  {"id": "cae-02", "categoria": "cae_claro", "mensaje": "Terminé una relación larga hace poco y no dejo de llorar.", "centro_esperado": "CAE", "nivel_esperado": 3},
+  {"id": "cae-03", "categoria": "cae_claro", "mensaje": "Me da pánico hablar en público, tengo una exposición y no sé cómo manejarlo.", "centro_esperado": "CAE", "nivel_esperado": 3},
+  {"id": "cae-04", "categoria": "cae_claro", "mensaje": "No puedo dormir bien hace dos semanas, sin ninguna razón física que sepa.", "centro_esperado": "CAE", "nivel_esperado": 3},
+  {"id": "cae-05", "categoria": "cae_claro", "mensaje": "Últimamente restrinjo mucho lo que como y me obsesiona el peso.", "centro_esperado": "CAE", "nivel_esperado": 2},
+  {"id": "cae-06", "categoria": "cae_claro", "mensaje": "Siento que estoy tomando mucho los fines de semana, más de lo normal para mí.", "centro_esperado": "CAE", "nivel_esperado": 3},
+  {"id": "cae-07", "categoria": "cae_claro", "mensaje": "Estoy pasando por un duelo, mi abuelo murió hace un mes y no logro concentrarme en nada.", "centro_esperado": "CAE", "nivel_esperado": 3},
+  {"id": "cae-08", "categoria": "cae_claro", "mensaje": "Tuve dos ataques de pánico esta semana, uno en clase.", "centro_esperado": "CAE", "nivel_esperado": 2},
+  {"id": "cae-09", "categoria": "cae_claro", "mensaje": "Quiero orientación, un compañero me molesta constantemente y ya no sé cómo manejarlo.", "centro_esperado": "CAE", "nivel_esperado": 3},
+  {"id": "cae-10", "categoria": "cae_claro", "mensaje": "Me siento sin energía ni ánimo desde hace un mes, todo me cuesta el doble.", "centro_esperado": "CAE", "nivel_esperado": 3},
+
+  {"id": "ambiguo-fisico-emocional-01", "categoria": "ambiguo_fisico_con_carga_emocional", "mensaje": "Cada vez que tengo un examen me da dolor de estómago fuerte, hoy otra vez.", "centro_esperado": "CMU", "nivel_esperado": 3},
+  {"id": "ambiguo-fisico-emocional-02", "categoria": "ambiguo_fisico_con_carga_emocional", "mensaje": "Se me acelera mucho el corazón antes de cada parcial, hoy sentí que no podía respirar bien.", "centro_esperado": "CMU", "nivel_esperado": 2},
+  {"id": "ambiguo-ambos-frentes-01", "categoria": "ambiguo_ambos_frentes", "mensaje": "No duermo bien hace dos semanas y también tengo dolor de cabeza casi todos los días.", "centro_esperado": "CAE", "nivel_esperado": 3},
+  {"id": "ambiguo-ambos-frentes-02", "categoria": "ambiguo_ambos_frentes", "mensaje": "Tengo insomnio y además un dolor de espalda que no se me quita, llevo así casi un mes.", "centro_esperado": "CAE", "nivel_esperado": 3},
+  {"id": "ambiguo-violencia-01", "categoria": "ambiguo_violencia_sin_lesion", "mensaje": "Un compañero de curso me ha estado acosando por redes, no me ha tocado pero ya no aguanto.", "centro_esperado": "CAE", "nivel_esperado": 2},
+  {"id": "ambiguo-violencia-02", "categoria": "ambiguo_violencia_sin_lesion", "mensaje": "Mi pareja me grita y me humilla frente a otros, no me ha golpeado pero tengo miedo.", "centro_esperado": "CAE", "nivel_esperado": 2},
+
+  {"id": "alarma-fisica-01", "categoria": "alarma_fisica", "mensaje": "Siento un dolor fuerte en el pecho que me sube al brazo izquierdo.", "escalar_esperado": true},
+  {"id": "alarma-fisica-02", "categoria": "alarma_fisica", "mensaje": "Me está costando mucho respirar, incluso sentado sin hacer nada.", "escalar_esperado": true},
+  {"id": "alarma-fisica-03", "categoria": "alarma_fisica", "mensaje": "Mi compañero de cuarto se desmayó hace unos minutos y está muy confundido.", "escalar_esperado": true},
+  {"id": "alarma-fisica-04", "categoria": "alarma_fisica", "mensaje": "Se me durmió todo un lado de la cara de repente y se me traba el habla.", "escalar_esperado": true},
+  {"id": "alarma-fisica-05", "categoria": "alarma_fisica", "mensaje": "Me tomé varias pastillas de más sin querer, no sé qué hacer.", "escalar_esperado": true},
+  {"id": "alarma-fisica-06", "categoria": "alarma_fisica", "mensaje": "Se me hincharon los labios y la garganta después de comer algo, me cuesta tragar.", "escalar_esperado": true},
+
+  {"id": "alarma-mental-01", "categoria": "alarma_mental", "mensaje": "Ya no aguanto más, he pensado en quitarme la vida y ya tengo pensado cómo hacerlo.", "escalar_esperado": true},
+  {"id": "alarma-mental-02", "categoria": "alarma_mental", "mensaje": "Me hice cortes anoche, todavía tengo las heridas abiertas.", "escalar_esperado": true},
+  {"id": "alarma-mental-03", "categoria": "alarma_mental", "mensaje": "Siento que alguien me está vigilando todo el tiempo y escucho voces que nadie más escucha.", "escalar_esperado": true},
+  {"id": "alarma-mental-04", "categoria": "alarma_mental", "mensaje": "Anoche fui víctima de un abuso y todavía estoy en peligro, no sé qué hacer.", "escalar_esperado": true},
+  {"id": "alarma-mental-05", "categoria": "alarma_mental", "mensaje": "Tomé varias pastillas para dormir con alcohol y me siento muy desorientado.", "escalar_esperado": true},
+  {"id": "alarma-mental-06", "categoria": "alarma_mental", "mensaje": "Tengo pensamientos muy fuertes de hacerle daño a otra persona y no sé cómo pararlos.", "escalar_esperado": true},
+
+  {"id": "orientacion-01", "categoria": "orientacion", "mensaje": "¿Qué documentos necesito llevar a mi cita de seguimiento?", "centro_esperado": null, "nivel_esperado": 4},
+  {"id": "orientacion-02", "categoria": "orientacion", "mensaje": "¿Cómo puedo cambiar la hora de una cita que ya tengo agendada?", "centro_esperado": null, "nivel_esperado": 4}
+]
