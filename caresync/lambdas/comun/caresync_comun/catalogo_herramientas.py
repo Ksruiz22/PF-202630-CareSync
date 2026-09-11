@@ -114,8 +114,8 @@ CATALOGO: dict[str, Herramienta] = {
         nombre="consultar_disponibilidad",
         descripcion=(
             "Lista los espacios libres del centro asignado al caso, del más próximo al más "
-            "lejano. Devuelve el identificador de cada espacio, que es lo que necesita "
-            "agendar_cita."
+            "lejano. De cada espacio devuelve «cuando» para decírselo a la persona e "
+            "«inicio», que es lo que necesita agendar_cita."
         ),
         propiedades={
             "dias_adelante": {
@@ -131,16 +131,30 @@ CATALOGO: dict[str, Herramienta] = {
         nombre="agendar_cita",
         descripcion=(
             "Reserva y confirma uno de los espacios devueltos por consultar_disponibilidad. "
+            "Se identifica por su fecha y hora de inicio, no por un identificador interno: "
+            "si no tienes a mano el resultado de consultar_disponibilidad de esta misma "
+            "vuelta, vuelve a llamarla antes. "
             "Si otra persona lo tomó primero, la respuesta lo dice y trae alternativas: "
             "ofrécelas, no vuelvas a intentar el mismo espacio."
         ),
         propiedades={
-            "cupo_id": {
+            "inicio": {
                 "type": "string",
-                "description": "Identificador del espacio, tal como lo devolvió consultar_disponibilidad.",
-            }
+                "description": (
+                    "Fecha y hora de inicio del espacio, copiada literalmente del campo "
+                    "«inicio» que devolvió consultar_disponibilidad "
+                    "(por ejemplo 2026-09-12T09:00:00-05:00). Hora de Bogotá."
+                ),
+            },
+            "profesional": {
+                "type": "string",
+                "description": (
+                    "Nombre del profesional, sólo si hay varios espacios a la misma hora "
+                    "y la persona eligió uno."
+                ),
+            },
         },
-        requeridos=("cupo_id",),
+        requeridos=("inicio",),
         roles=frozenset({PACIENTE, ADMIN_CMU, ADMIN_CAE}),
         escribe=True,
     ),

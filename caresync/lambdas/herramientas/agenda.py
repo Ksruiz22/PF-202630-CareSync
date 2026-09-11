@@ -24,13 +24,22 @@ MINUTOS_RESERVA = int(os.environ.get("MINUTOS_RESERVA", "2"))
 MAX_OPCIONES = 6
 DIAS_ALTERNATIVAS = 30
 
+# La ventana en la que se busca el espacio que pide el modelo es la misma en la
+# que se ofrecen alternativas, y la misma cota que el catálogo admite en
+# `dias_adelante`: así no se puede ofrecer un espacio que después no se encuentre.
+VENTANA_MAXIMA_DIAS = DIAS_ALTERNATIVAS
+MAX_CANDIDATOS = 200
+
 # --------------------------------------------------------------- disponibilidad
 
 def consultar_disponibilidad(
     acceso: AccesoRoble, caso: dict[str, Any], argumentos: dict[str, Any]
 ) -> dict[str, Any]:
     centro = _centro_del_caso(caso)
-    dias = int(argumentos.get("dias_adelante") or 7)
+    # El `maximum` del esquema es una indicación para el modelo, no una validación:
+    # se recorta aquí para no ofrecer un espacio que después `_coincidencias` no
+    # alcanzaría a encontrar.
+    dias = max(1, min(int(argumentos.get("dias_adelante") or 7), VENTANA_MAXIMA_DIAS))
 
     # Barrido oportunista: un cupo que quedó reservado y sin confirmar no
     # aparecería como libre, así que se recupera antes de listar. La función de
@@ -51,30 +60,27 @@ def consultar_disponibilidad(
         "opciones": [_opcion(acceso, cupo) for cupo in cupos],
         "instruccion": (
             "Ofrece dos o tres opciones como máximo, con el texto de «cuando». "
-            "Nunca le muestres a la persona el cupo_id."
+            "Cuando la persona elija, llama a agendar_cita con el «inicio» de esa "
+            "opción, copiado tal cual. Si ya no lo tienes delante, vuelve a llamar "
+            "a esta herramienta: no reconstruyas la fecha de memoria."
         )
         if cupos
         else (
             "No hay espacios en esa ventana. Amplía los días una vez; si sigue "
-            "vacío, dilo con claridad y explica que el personal del centro la "
-            "contactará. No inventes un espacio."
+            "vacío, dilo con claridad: el caso queda registrado y el centro lo ve "
+            "en su panel, así que puede volver a intentarlo más tarde. No inventes "
+            "un espacio y no prometas que alguien la va a contactar."
         ),
     }
 
 
 def _opcion(acceso: AccesoRoble, cupo: dict[str, Any]) -> dict[str, Any]:
-    profesional = ""
-    try:
-        profesional = str(acceso.profesional(str(cupo.get("profesional_id"))).get("nombre") or "")
-    except NoEncontrado:
-        # Un cupo huérfano no debería existir, pero si existe es mejor ofrecerlo
-        # sin nombre que ocultar el único espacio libre de la semana.
-        evento(log, "cupo_sin_profesional", cupo_id=fila_id(cupo))
-
     return {
-        "cupo_id": fila_id(cupo),
+        # `inicio` y no el `_id` de la fila: el identificador sólo vive dentro de
+        # esta vuelta, la hora sobrevive en la conversación. Ver `_coincidencias`.
+        "inicio": reloj.iso_local(cupo.get("inicio")),
         "cuando": reloj.humano(cupo.get("inicio")),
-        "profesional": profesional,
+        "profesional": _nombre_del_profesional(acceso, cupo),
         "modalidad": cupo.get("modalidad") or "presencial",
     }
 
@@ -83,9 +89,114 @@ def _centro_del_caso(caso: dict[str, Any]) -> str:
     centro = caso.get("centro")
     if not centro:
         raise SolicitudInvalida(
-            "El caso todavía no tiene centro asignado: hay que canalizarlo antes de agendar"
+            "El caso todavía no tiene centro asignado: hay que canalizarlo antes de agendar",
+            publico=(
+                "Este caso todavía no está canalizado a un centro, así que no se puede "
+                "agendar. Completa el triaje primero."
+            ),
         )
     return str(centro)
+
+
+# --------------------------------------------------------- resolver el espacio
+
+def _coincidencias(
+    acceso: AccesoRoble, *, centro: str, argumentos: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Los cupos libres que encajan con lo que el modelo pidió, por hora de inicio.
+
+    Por qué la hora y no un identificador: el `_id` del cupo sólo existe dentro
+    de la vuelta en que se pidió la disponibilidad. Al modelo se le da como
+    historial la conversación con la persona, sin resultados de herramientas
+    (ver `_historial` en el orquestador), así que cuando alguien contesta «sí, la
+    de las nueve» en la petición siguiente el identificador no está en ninguna
+    parte —y el modelo, obligado a rellenar el argumento, se lo inventaba: un
+    texto que no es un uuid hacía fallar a PostgreSQL y la persona acababa
+    oyendo que la base de datos no responde. La hora sí sobrevive, porque es
+    exactamente lo que el agente le dijo.
+
+    Es el patrón de `registrar_adherencia`: resolver lo que dice el modelo contra
+    una lectura fresca y, si no cuadra, devolverle las opciones de verdad.
+    """
+    momento = reloj.desde_local(argumentos.get("inicio"))
+    if not momento:
+        raise SolicitudInvalida(
+            f"«inicio» no es una fecha reconocible: {argumentos.get('inicio')!r}",
+            publico=(
+                "No reconozco esa fecha y hora. Vuelve a llamar a "
+                "consultar_disponibilidad y copia el campo «inicio» de la opción que "
+                "eligió la persona, sin cambiarlo."
+            ),
+        )
+
+    buscado = momento.replace(second=0, microsecond=0)
+    libres = acceso.cupos_libres(
+        centro=centro, hasta=reloj.mas(dias=VENTANA_MAXIMA_DIAS), maximo=MAX_CANDIDATOS
+    )
+    mismos = [
+        cupo
+        for cupo in libres
+        if (inicio := reloj.desde_iso(cupo.get("inicio")))
+        and inicio.replace(second=0, microsecond=0) == buscado
+    ]
+
+    # Un mismo horario puede tener cupo con dos profesionales distintos. Si la
+    # persona ya eligió, el nombre desempata; si no, se le pregunta.
+    nombre = str(argumentos.get("profesional") or "").strip().casefold()
+    if len(mismos) > 1 and nombre:
+        filtrados = [c for c in mismos if nombre in _nombre_del_profesional(acceso, c).casefold()]
+        if filtrados:
+            return filtrados
+    return mismos
+
+
+def _hay_que_reconsultar(
+    acceso: AccesoRoble, *, centro: str, coincidencias: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Lo que se le devuelve al modelo cuando la hora pedida no resuelve a un cupo.
+
+    Va como resultado y no como excepción por lo mismo que el conflicto de
+    reserva: así el modelo tiene las opciones reales en la misma vuelta y puede
+    seguir la conversación en vez de disculparse.
+    """
+    if len(coincidencias) > 1:
+        return {
+            "error": "Hay más de un espacio libre a esa hora.",
+            "motivo": "varios_profesionales",
+            "opciones": [_opcion(acceso, c) for c in coincidencias],
+            "instruccion": (
+                "Pregúntale a la persona con cuál profesional prefiere, y vuelve a "
+                "llamar a agendar_cita con el mismo «inicio» y el nombre elegido."
+            ),
+        }
+
+    alternativas = acceso.cupos_libres(
+        centro=centro, hasta=reloj.mas(dias=DIAS_ALTERNATIVAS), maximo=3
+    )
+    return {
+        "error": "Ese espacio ya no está libre en la agenda.",
+        "motivo": "espacio_no_encontrado",
+        "alternativas": [_opcion(acceso, c) for c in alternativas],
+        "instruccion": (
+            "Ofrécele las alternativas con el texto de «cuando» y agenda con el "
+            "«inicio» de la que elija."
+            if alternativas
+            else (
+                "No queda ningún espacio libre en el centro. Dilo con claridad, sin "
+                "prometer que alguien la contactará, y ofrécele volver a intentarlo."
+            )
+        ),
+    }
+
+
+def _nombre_del_profesional(acceso: AccesoRoble, cupo: dict[str, Any]) -> str:
+    try:
+        return str(acceso.profesional(str(cupo.get("profesional_id"))).get("nombre") or "")
+    except NoEncontrado:
+        # Un cupo huérfano no debería existir, pero si existe es mejor ofrecerlo
+        # sin nombre que ocultar el único espacio libre de la semana.
+        evento(log, "cupo_sin_profesional", cupo_id=fila_id(cupo))
+        return ""
 
 
 # -------------------------------------------------------------------- agendar
@@ -95,11 +206,14 @@ def agendar_cita(
 ) -> dict[str, Any]:
     caso_id = str(fila_id(caso))
     centro = _centro_del_caso(caso)
-    cupo_id = str(argumentos["cupo_id"])
 
     if str(caso.get("nivel_urgencia") or "") == "1":
         raise Conflicto(
-            "Este caso es una emergencia: no se agenda una cita, se sigue la ruta de urgencias"
+            "Este caso es una emergencia: no se agenda una cita, se sigue la ruta de urgencias",
+            publico=(
+                "Este caso está marcado como emergencia: no se agenda una cita, se sigue "
+                "la ruta de urgencias del campus."
+            ),
         )
 
     vigentes = [
@@ -107,17 +221,21 @@ def agendar_cita(
     ]
     if vigentes:
         raise Conflicto(
-            "Este caso ya tiene una cita confirmada. Si la persona quiere cambiarla, "
-            "el personal del centro es quien la reprograma."
+            "Este caso ya tiene una cita confirmada",
+            publico=(
+                "Este caso ya tiene una cita confirmada. Si la persona quiere cambiarla, "
+                "el personal del centro es quien la reprograma."
+            ),
         )
 
-    cupo = acceso.cupo(cupo_id)
-    if cupo.get("centro") != centro:
-        # El modelo pudo tomar un identificador de una vuelta anterior, de otro
-        # centro. Es un caso real y no vale reservarlo para descubrirlo después.
-        raise SolicitudInvalida(
-            f"Ese espacio no pertenece al {centro}. Vuelve a consultar la disponibilidad."
-        )
+    # La búsqueda ya es por centro, así que un espacio de otro centro no puede
+    # colarse: no hay identificador ajeno que arrastrar.
+    coincidencias = _coincidencias(acceso, centro=centro, argumentos=argumentos)
+    if len(coincidencias) != 1:
+        return _hay_que_reconsultar(acceso, centro=centro, coincidencias=coincidencias)
+
+    cupo = coincidencias[0]
+    cupo_id = str(fila_id(cupo))
 
     try:
         acceso.reservar_cupo(cupo_id=cupo_id, caso_id=caso_id)
@@ -208,7 +326,10 @@ def notificar_profesional(
 
     citas = sorted(acceso.citas_del_caso(caso_id), key=lambda c: str(c.get("inicio") or ""))
     if not citas:
-        raise SolicitudInvalida("Todavía no hay cita: agenda primero y después notifica")
+        raise SolicitudInvalida(
+            "Todavía no hay cita: agenda primero y después notifica",
+            publico="Este caso todavía no tiene cita. Agéndala antes de notificar.",
+        )
     cita = citas[-1]
 
     if _ya_notificada(acceso, caso_id, cita):
@@ -274,6 +395,10 @@ def _correo_del_profesional(acceso: AccesoRoble, cita: dict[str, Any]) -> str:
     destino = str(ficha.get("email") or "")
     if not destino:
         raise NoEncontrado(
-            f"El profesional {ficha.get('nombre')} no tiene correo registrado en ROBLE"
+            f"El profesional {ficha.get('nombre')} no tiene correo registrado en ROBLE",
+            publico=(
+                "No pude avisar al profesional porque no tiene correo registrado. La cita "
+                "sigue agendada; dilo así, sin prometer otro aviso."
+            ),
         )
     return destino

@@ -157,6 +157,22 @@ def fila_id(fila: dict[str, Any] | None) -> str | None:
     return None
 
 
+def es_uuid(valor: Any) -> bool:
+    """¿Este texto puede ser un `_id` de ROBLE?
+
+    Las columnas `_id` son `uuid`, así que un filtro con cualquier otra cosa no
+    devuelve cero filas: hace que PostgreSQL falle con `invalid input syntax for
+    type uuid` y ROBLE lo traduzca a un 500. Comprobarlo antes convierte un
+    identificador inventado por el modelo en un error de dominio que se le puede
+    explicar, en vez de en una caída indistinguible de la base fuera de servicio.
+    """
+    try:
+        uuid.UUID(str(valor))
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return True
+
+
 class AccesoRoble:
     """Puerta única a los datos. Se construye con `desde_token` o `como_servicio`."""
 
@@ -343,7 +359,11 @@ class AccesoRoble:
                 raise ErrorDeDatos(f"Esquema inesperado leyendo {tabla}: {exc}") from exc
             if exc.status_code == 429:
                 raise ErrorDeDatos(f"{_DEMASIADAS_PETICIONES}; leyendo {tabla}") from exc
-            raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} leyendo {tabla}") from exc
+            # El cuerpo del 500 trae el error de PostgreSQL, que es lo único que
+            # distingue un fallo del servidor de un valor mal formado nuestro:
+            # sin él, `invalid input syntax for type uuid` se lee igual que una
+            # caída de ROBLE. Costó una tarde de diagnóstico.
+            raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} leyendo {tabla}: {exc}") from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió leyendo {tabla}") from exc
 
@@ -360,7 +380,9 @@ class AccesoRoble:
                 ) from exc
             if exc.status_code == 429:
                 raise ErrorDeDatos(f"{_DEMASIADAS_PETICIONES}; escribiendo en {tabla}") from exc
-            raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} escribiendo en {tabla}") from exc
+            raise ErrorDeDatos(
+                f"ROBLE respondió {exc.status_code} escribiendo en {tabla}: {exc}"
+            ) from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió escribiendo en {tabla}") from exc
 
@@ -383,7 +405,9 @@ class AccesoRoble:
                 ) from exc
             if exc.status_code == 429:
                 raise ErrorDeDatos(f"{_DEMASIADAS_PETICIONES}; actualizando {tabla}") from exc
-            raise ErrorDeDatos(f"ROBLE respondió {exc.status_code} actualizando {tabla}") from exc
+            raise ErrorDeDatos(
+                f"ROBLE respondió {exc.status_code} actualizando {tabla}: {exc}"
+            ) from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió actualizando {tabla}") from exc
         except RobleAuthError as exc:
@@ -392,6 +416,10 @@ class AccesoRoble:
     # ------------------------------------------------------------------- casos
 
     def caso(self, caso_id: str) -> dict[str, Any]:
+        # El `caso_id` puede venir del cuerpo de la petición, así que se comprueba
+        # la forma antes de que PostgreSQL la rechace con un 500. Ver `es_uuid`.
+        if not es_uuid(caso_id):
+            raise NoEncontrado(f"«{caso_id}» no es un identificador de caso")
         filas = self._leer(CASOS, {"_id": caso_id})
         if not filas:
             raise NoEncontrado(f"No existe el caso {caso_id}")
@@ -486,7 +514,7 @@ class AccesoRoble:
             {
                 "caso_id": caso_id,
                 "agente": agente,
-                "autor": autor,  # paciente | agente | herramienta
+                "autor": autor,  # paciente | agente | sistema
                 "contenido": contenido,
                 "creado_en": reloj.iso(),
             },
@@ -542,6 +570,12 @@ class AccesoRoble:
         return [cupo for _, cupo in candidatos[:maximo]]
 
     def cupo(self, cupo_id: str) -> dict[str, Any]:
+        # Este identificador lo pone el modelo, que es exactamente quien puede
+        # inventárselo. Sin esta comprobación el filtro llega a PostgreSQL y
+        # vuelve como un 500 que se le cuenta a la persona como «la base de datos
+        # no respondió». Ver `es_uuid`.
+        if not es_uuid(cupo_id):
+            raise NoEncontrado(f"«{cupo_id}» no es un identificador de cupo")
         filas = self._leer(CUPOS, {"_id": cupo_id})
         if not filas:
             raise NoEncontrado(f"No existe el cupo {cupo_id}")
