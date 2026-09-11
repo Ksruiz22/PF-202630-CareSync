@@ -199,6 +199,9 @@ def _conversar(
         acceso.anotar_mensaje(
             caso_id=caso_id, agente=participantes[-1], autor="agente", contenido=texto_final
         )
+        _dejar_constancia_de_los_fallos(
+            acceso, caso_id=caso_id, agente=participantes[-1], usos=usos_totales
+        )
 
     caso = acceso.caso(caso_id)
     evento(
@@ -262,7 +265,10 @@ def _historial(acceso: AccesoRoble, caso_id: str) -> list[dict[str, Any]]:
         contenido = str(fila.get("contenido") or "").strip()
         if not contenido:
             continue
-        papel = "assistant" if fila.get("autor") == "agente" else "user"
+        # Sólo la persona habla como `user`. Las notas `[sistema]` van del lado del
+        # agente a propósito: son lo último que se escribe en el turno, y un turno
+        # de usuario al final lo descarta el recorte de más abajo.
+        papel = "user" if fila.get("autor") == "paciente" else "assistant"
         if mensajes and mensajes[-1]["role"] == papel:
             # Converse exige alternancia estricta de papeles.
             mensajes[-1]["content"].append({"text": contenido})
@@ -303,6 +309,40 @@ def _contexto_del_traspaso(caso: dict[str, Any]) -> str:
         f"El agente anterior acaba de canalizar este caso al {caso.get('centro')} "
         f"con nivel de urgencia {caso.get('nivel_urgencia')}. Continúas tú, en la misma "
         "conversación: no te presentes de nuevo ni repitas lo que ya se dijo."
+    )
+
+
+def _dejar_constancia_de_los_fallos(
+    acceso: AccesoRoble, *, caso_id: str, agente: str, usos: list[bedrock_conversa.Uso]
+) -> None:
+    """Escribe en el caso qué herramientas fallaron, junto a lo que dijo el agente.
+
+    El texto del agente se guarda tal cual y vuelve como historial en la petición
+    siguiente. Si en esa respuesta prometió algo que la herramienta no hizo, el
+    modelo se lo encuentra después como un hecho suyo y lo defiende: fue así como
+    una cita que nunca se agendó pasó a estar «pendiente de que el centro llame».
+    La nota va al lado para que el historial diga también lo que no ocurrió.
+
+    Se anota como `sistema` y no como una fila más de la conversación: la persona
+    no la ve —la interfaz no lee esta tabla—, y en la bitácora del caso queda
+    distinguible de lo que sí se le dijo.
+    """
+    fallidas = sorted({u.nombre for u in usos if not u.ok})
+    if not fallidas:
+        return
+
+    acceso.anotar_mensaje(
+        caso_id=caso_id,
+        agente=agente,
+        autor="sistema",
+        contenido=(
+            "[sistema] En el turno anterior no se completó: "
+            + ", ".join(fallidas)
+            + ". Nada de lo que dependía de esas herramientas quedó hecho, por mucho "
+            "que la respuesta anterior lo diera por hecho. Si hace falta, vuelve a "
+            "intentarlo ahora; no lo presentes como algo ya resuelto ni pendiente de "
+            "que alguien lo confirme por fuera."
+        ),
     )
 
 

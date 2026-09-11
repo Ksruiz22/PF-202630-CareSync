@@ -167,7 +167,14 @@ def conversar(
             argumentos = peticion.get("input") or {}
             try:
                 salida = ejecutar(nombre, argumentos)
-                correcto = True
+                # Un error de dominio no llega como excepción: la función de
+                # herramientas lo devuelve dentro del propio resultado para que el
+                # modelo pueda explicarlo. Sigue siendo un fallo, y hay que
+                # marcarlo, o el orquestador da por hecho un traspaso que no
+                # ocurrió y escribe como cierto algo que no pasó.
+                correcto = not (isinstance(salida, dict) and salida.get("error"))
+                if not correcto:
+                    evento(log, "herramienta_rechazada", herramienta=nombre)
             except Exception as exc:  # noqa: BLE001 - se le devuelve al modelo
                 salida = {"error": _mensaje_para_el_modelo(exc)}
                 correcto = False
@@ -191,7 +198,12 @@ def conversar(
     evento(log, "vueltas_agotadas", vueltas=max_vueltas)
     cierre = _llamar(
         sistema=sistema
-        + "\n\nCierra ahora: resume en dos frases lo que lograste y qué falta. No pidas más herramientas.",
+        + (
+            "\n\nCierra ahora, en dos frases, con lo que de verdad quedó hecho según"
+            " los resultados de las herramientas de esta conversación. Lo que no"
+            " salió, no salió: no lo des por pendiente de confirmación ni prometas"
+            " que alguien lo va a resolver. No pidas más herramientas."
+        ),
         mensajes=historial,
         herramientas=[],
         temperatura=temperatura,

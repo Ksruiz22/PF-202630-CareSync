@@ -52,9 +52,37 @@ def desde_iso(texto: str | None) -> datetime | None:
     return momento if momento.tzinfo else momento.replace(tzinfo=timezone.utc)
 
 
+def desde_local(texto: str | None) -> datetime | None:
+    """Interpreta una fecha que viene del modelo, no de ROBLE.
+
+    Es el mismo ISO 8601 que `desde_iso` con una diferencia que importa: sin
+    zona explícita se asume **Bogotá** y no UTC. El agente habla en hora local,
+    así que un `2026-09-12T09:00` suyo son las nueve de la mañana de Bogotá, no
+    las cuatro de la madrugada.
+    """
+    if not texto:
+        return None
+    limpio = str(texto).strip().replace("Z", "+00:00").replace(" ", "T", 1)
+    try:
+        momento = datetime.fromisoformat(limpio)
+    except ValueError:
+        return None
+    return momento if momento.tzinfo else momento.replace(tzinfo=BOGOTA)
+
+
 def en_bogota(momento: datetime | str | None) -> datetime | None:
     instante = desde_iso(momento) if isinstance(momento, str) else momento
     return instante.astimezone(BOGOTA) if instante else None
+
+
+def iso_local(momento: datetime | str | None) -> str:
+    """ISO 8601 en hora de Bogotá, para lo que se le devuelve al modelo.
+
+    Con la zona explícita, para que el mismo texto pueda volver como argumento
+    de una herramienta sin depender de qué huso asuma quien lo lea.
+    """
+    local = en_bogota(momento)
+    return local.isoformat() if local else ""
 
 
 def humano(momento: datetime | str | None) -> str:
