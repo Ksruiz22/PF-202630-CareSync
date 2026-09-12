@@ -46,7 +46,8 @@ import {
   type Ajustes,
   type DefinicionDeAjuste,
 } from '../ajustes';
-import { Aviso, Cargando, Tarjeta, Vacio } from '../componentes/Piezas';
+import { Aviso, Cabecera, Cargando, Tarjeta, Vacio } from '../componentes/Piezas';
+import { IconoAjustes, IconoLapiz } from '../componentes/Iconos';
 import { diaSemanaLegible, diasDeLaSemana, rolLegible } from '../formato';
 import { esFalloDeServidor, mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
@@ -138,20 +139,18 @@ export function Plataforma() {
 
   return (
     <div className="panel plataforma">
-      <header className="cabecera">
-        <div>
-          <h1>Plataforma</h1>
-          <p>
+      <Cabecera
+        titulo="Plataforma"
+        subtitulo={
+          <>
             {quien?.nombre} · {resumen.cuentas} cuenta{resumen.cuentas === 1 ? '' : 's'} ·{' '}
             {resumen.profesionalesActivos} profesional
             {resumen.profesionalesActivos === 1 ? '' : 'es'} activo
             {resumen.profesionalesActivos === 1 ? '' : 's'} · {resumen.conHorario} con horario
-          </p>
-        </div>
-        <button type="button" className="secundario" onClick={() => void salir()}>
-          Salir
-        </button>
-      </header>
+          </>
+        }
+        onSalir={() => void salir()}
+      />
 
       <div className="pestanas" role="tablist">
         <button
@@ -534,12 +533,75 @@ function FilaDeProfesional({
   const vivos = horarios.filter((horario) => horario.activo === undefined || esVerdad(horario.activo));
   const [vinculo, setVinculo] = useState(userId);
 
+  const especialidadGuardada = String(profesional.especialidad ?? '');
+  const claveEspecialidad = `especialidad:${id}`;
+  const [editandoEspecialidad, setEditandoEspecialidad] = useState(false);
+  const [especialidad, setEspecialidad] = useState(especialidadGuardada);
+
+  function empezarEdicionDeEspecialidad() {
+    setEspecialidad(especialidadGuardada);
+    setEditandoEspecialidad(true);
+  }
+
+  function cancelarEdicionDeEspecialidad() {
+    setEspecialidad(especialidadGuardada);
+    setEditandoEspecialidad(false);
+  }
+
+  function guardarEspecialidad() {
+    const valor = especialidad.trim();
+    setEditandoEspecialidad(false);
+    if (valor === especialidadGuardada.trim()) return;
+    void ejecutar(
+      claveEspecialidad,
+      'profesionales',
+      () => roble.update('profesionales', id, { especialidad: valor || null }),
+      `Especialidad de ${String(profesional.nombre ?? 'el profesional')} actualizada.`
+    );
+  }
+
   return (
     <li className="fila-profesional">
       <div className="identidad">
         <span className="quien">{String(profesional.nombre ?? '(sin nombre)')}</span>
         <span className="etiqueta e-agendado">{String(profesional.centro ?? '—')}</span>
-        <span className="fino">{String(profesional.especialidad ?? 'sin especialidad')}</span>
+        {editandoEspecialidad ? (
+          <span className="campo-en-linea">
+            <input
+              type="text"
+              value={especialidad}
+              autoFocus
+              placeholder="Medicina general, Psicología…"
+              onChange={(evento) => setEspecialidad(evento.target.value)}
+              onKeyDown={(evento) => {
+                if (evento.key === 'Enter') {
+                  evento.preventDefault();
+                  guardarEspecialidad();
+                }
+                if (evento.key === 'Escape') cancelarEdicionDeEspecialidad();
+              }}
+            />
+            <button type="button" className="fino" onClick={guardarEspecialidad}>
+              Guardar
+            </button>
+            <button type="button" className="enlace fino" onClick={cancelarEdicionDeEspecialidad}>
+              Cancelar
+            </button>
+          </span>
+        ) : (
+          <span className="fino especialidad">
+            {especialidadGuardada || 'sin especialidad'}
+            <button
+              type="button"
+              className="icono-boton"
+              onClick={empezarEdicionDeEspecialidad}
+              title="Editar especialidad"
+              aria-label="Editar especialidad"
+            >
+              <IconoLapiz />
+            </button>
+          </span>
+        )}
         {!activo && <span className="etiqueta">inactivo</span>}
         <span className="fino">
           {vivos.length} horario{vivos.length === 1 ? '' : 's'}
@@ -920,7 +982,7 @@ function SeccionAjustes({
 
   return (
     <>
-      <Tarjeta titulo="Ajustes de la plataforma">
+      <Tarjeta titulo="Ajustes de la plataforma" icono={<IconoAjustes />}>
         <p className="fino">
           Cada ajuste dice quién lo lee. No hay ninguno que no esté conectado a algo:
           un interruptor que no hace nada es peor que no tenerlo.

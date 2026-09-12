@@ -28,9 +28,18 @@
   --ambar-claro: #fdf1dc;
   --rojo: #a51f1f;
   --rojo-claro: #fbe8e8;
-  --radio: 10px;
-  --sombra: 0 1px 2px rgba(18, 33, 46, 0.06), 0 4px 12px rgba(18, 33, 46, 0.04);
+  --radio: 12px;
+  --sombra: 0 2px 4px rgba(18, 33, 46, 0.07), 0 8px 20px rgba(18, 33, 46, 0.05);
   --ancho: 1180px;
+
+  /* Escala de espaciado: nombra los valores que ya se usaban sueltos por toda la
+     hoja, para que el siguiente ajuste tenga de dónde agarrarse. */
+  --e-1: 0.3rem;
+  --e-2: 0.5rem;
+  --e-3: 0.7rem;
+  --e-4: 1rem;
+  --e-5: 1.2rem;
+  --e-6: 1.6rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -48,7 +57,7 @@
     --ambar-claro: #2c2415;
     --rojo: #f08a8a;
     --rojo-claro: #33191a;
-    --sombra: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --sombra: 0 2px 6px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -67,12 +76,18 @@ body {
 }
 
 h1 {
-  font-size: 1.4rem;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 h2 {
   font-size: 1.05rem;
+  font-weight: 600;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
 }
 h3 {
   font-size: 0.9rem;
@@ -100,6 +115,18 @@ ul {
   white-space: nowrap;
 }
 
+/* Los cuatro iconos de Iconos.tsx: siempre heredan el color del texto que los
+   acompaña y nunca se salen de línea con él, sea en un botón, una etiqueta o un
+   título de tarjeta. */
+.icono {
+  flex: none;
+  vertical-align: -0.15em;
+}
+
+button .icono {
+  margin-right: 0.35em;
+}
+
 /* ------------------------------------------------------------------ controles */
 
 button {
@@ -110,10 +137,17 @@ button {
   background: var(--papel-alto);
   color: var(--tinta);
   padding: 0.5rem 0.9rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 button:hover:not(:disabled) {
   border-color: var(--azul);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button {
+    transition: none;
+  }
 }
 
 button:disabled {
@@ -133,6 +167,11 @@ button.principal {
   border-color: var(--azul);
   color: #fff;
   font-weight: 600;
+  box-shadow: 0 1px 2px rgba(18, 33, 46, 0.12);
+}
+
+button.principal:hover:not(:disabled) {
+  box-shadow: 0 2px 6px rgba(18, 33, 46, 0.18);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -219,6 +258,14 @@ label small {
   text-align: center;
 }
 
+.acceso .marca img {
+  filter: drop-shadow(0 2px 6px rgba(18, 33, 46, 0.15));
+}
+
+.acceso .marca h1 {
+  margin-top: 0.5rem;
+}
+
 .acceso .marca p {
   color: var(--tinta-suave);
   font-size: 0.9rem;
@@ -278,7 +325,9 @@ label small {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: var(--e-5);
+  padding-bottom: var(--e-4);
+  border-bottom: 1px solid var(--borde);
 }
 
 .cabecera p {
@@ -326,7 +375,9 @@ label small {
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
-  margin-bottom: 0.7rem;
+  margin-bottom: var(--e-4);
+  padding-bottom: var(--e-3);
+  border-bottom: 1px solid var(--borde);
 }
 
 .contador {
@@ -388,6 +439,10 @@ label small {
   align-self: flex-end;
   background: var(--azul-claro);
   border-color: var(--azul-claro);
+}
+
+.burbuja.agente {
+  border-left: 3px solid var(--azul-claro);
 }
 
 .burbuja.sistema {
@@ -480,6 +535,10 @@ label small {
   border: 1px solid transparent;
 }
 
+.aviso .icono {
+  margin-right: 0.4em;
+}
+
 .aviso.info {
   background: var(--azul-claro);
   color: var(--azul);
@@ -496,26 +555,57 @@ label small {
   font-weight: 600;
 }
 
-.cargando,
+.cargando {
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+  margin: 0;
+  animation: aparecer 0.3s ease;
+}
+
 .vacio {
   color: var(--tinta-suave);
   font-size: 0.9rem;
   margin: 0;
+  padding: var(--e-4);
+  text-align: center;
+  border: 1px dashed var(--borde);
+  border-radius: var(--radio);
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cargando {
+    animation: none;
+  }
 }
 
 /* ------------------------------------------------------------- estado y nivel */
 
 .etiqueta,
 .nivel {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
-  padding: 0.1rem 0.55rem;
+  padding: 0.15rem 0.6rem;
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
   background: var(--papel);
   border: 1px solid var(--borde);
   color: var(--tinta-suave);
+}
+
+.etiqueta .icono,
+.nivel .icono {
+  margin-right: 0.25em;
 }
 
 .etiqueta.e-canalizado,
@@ -645,6 +735,11 @@ label small {
   border-color: transparent;
   background: transparent;
   padding: 0.4rem 0.5rem;
+}
+
+.citas button.fila:hover:not(.activa) {
+  background: var(--papel);
+  border-color: transparent;
 }
 
 .citas button.fila.activa {
@@ -778,6 +873,43 @@ label small {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
+}
+
+/* Un dato de sólo texto con un lápiz al lado que lo vuelve editable, en vez de
+   un formulario aparte. El lápiz es el único botón sin borde ni fondo de toda
+   la hoja: cualquier otro tratamiento (subrayado, color de enlace) se confunde
+   con navegación, y esto no navega a ningún sitio. */
+.especialidad {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.icono-boton {
+  border: 0;
+  background: none;
+  padding: 0.1rem;
+  display: inline-flex;
+  color: var(--tinta-suave);
+}
+
+.icono-boton:hover:not(:disabled) {
+  color: var(--azul);
+}
+
+.icono-boton .icono {
+  margin-right: 0;
+}
+
+.campo-en-linea {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.campo-en-linea input {
+  width: 11rem;
+  padding: 0.2rem 0.5rem;
 }
 
 /* Los controles de una fila alineados por su base: el botón queda a la altura del
