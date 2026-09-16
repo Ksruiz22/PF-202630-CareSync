@@ -42,9 +42,10 @@ __pycache__/
 # documentación propone este nombre, así que se excluye antes de que exista.
 tokens.txt
 evaluacion/tokens*.txt
-# Las transcripciones completas de una corrida: artefacto intermedio para rehacer
-# el informe con `--desde-crudo`, no un entregable. El informe sí se versiona.
-evaluacion/resultados_crudos.json
+# Las respuestas completas de una corrida: artefacto intermedio para rehacer el
+# informe con `--desde-crudo`, no un entregable. Los informes sí se versionan.
+# El patrón cubre el del triaje y el de los guardarraíles.
+evaluacion/resultados_*.json
 
 # --- desechables -------------------------------------------------------------
 # Todo lo temporal vive aquí, con su marca `generated-by`.
