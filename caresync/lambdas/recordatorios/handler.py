@@ -32,7 +32,7 @@ from typing import Any
 
 from caresync_comun import correo, reloj
 from caresync_comun.errores import ErrorDeCareSync
-from caresync_comun.registro import evento, registro
+from caresync_comun.registro import evento, excepcion, registro
 from caresync_comun.roble_acceso import (
     CASO_CERRADO,
     AccesoRoble,
@@ -79,7 +79,7 @@ def manejar(entrada: dict[str, Any] | None = None, contexto: Any = None) -> dict
             try:
                 resumen["tareas"][nombre] = tarea(acceso)
             except Exception as exc:  # noqa: BLE001 - una tarea no arrastra a las otras
-                log.exception("tarea_fallida", extra={"caresync": {"tarea": nombre}})
+                excepcion(log, "tarea_fallida", tarea=nombre)
                 resumen["tareas"][nombre] = {"error": type(exc).__name__}
     finally:
         acceso.cerrar()

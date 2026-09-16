@@ -71,3 +71,16 @@ def evento(log: logging.Logger, nombre: str, *, nivel: int = logging.INFO, **dat
     cambiarlo rompe una alarma: `ESCALAMIENTO` alimenta la de urgencias.
     """
     log.log(nivel, nombre, extra={"datos": _saneado(datos)})
+
+
+def excepcion(log: logging.Logger, nombre: str, **datos: Any) -> None:
+    """Como `evento`, pero adjuntando la traza de la excepción en curso.
+
+    Existe porque `log.exception(nombre, extra={...})` no hace lo que parece: el
+    formateador de aquí arriba sólo lee la clave `datos`, así que un `extra` con
+    cualquier otro nombre queda en el `LogRecord` y **no sale en el JSON**. Se
+    perdieron así el nombre de la herramienta que reventaba y el de la tarea del
+    reloj que fallaba —justo los dos campos por los que se mira ese log— mientras
+    la traza sí aparecía, que es lo que hacía el fallo difícil de ver.
+    """
+    log.error(nombre, exc_info=True, extra={"datos": _saneado(datos)})
