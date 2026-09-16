@@ -36,6 +36,16 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# --- evaluación ---------------------------------------------------------------
+# Los tokens de los pacientes de prueba son credenciales de ROBLE, aunque sean de
+# cuentas sintéticas. `evaluar_triaje.py` los lee de CARESYNC_TOKENS_FILE y la
+# documentación propone este nombre, así que se excluye antes de que exista.
+tokens.txt
+evaluacion/tokens*.txt
+# Las transcripciones completas de una corrida: artefacto intermedio para rehacer
+# el informe con `--desde-crudo`, no un entregable. El informe sí se versiona.
+evaluacion/resultados_crudos.json
+
 # --- desechables -------------------------------------------------------------
 # Todo lo temporal vive aquí, con su marca `generated-by`.
 _scratch/
