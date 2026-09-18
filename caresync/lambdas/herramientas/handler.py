@@ -29,7 +29,7 @@ from caresync_comun.errores import (
     SinPermiso,
     SolicitudInvalida,
 )
-from caresync_comun.registro import evento, registro
+from caresync_comun.registro import evento, excepcion, registro
 from caresync_comun.roble_acceso import AccesoRoble, fila_id
 
 import agenda
@@ -85,7 +85,7 @@ def manejar(entrada: dict[str, Any], contexto_lambda: Any = None) -> dict[str, A
         # Lo que va al modelo es el mensaje público, nunca el de ROBLE.
         return {"error": exc.publico, "herramienta": nombre}
     except Exception:  # noqa: BLE001
-        log.exception("herramienta_reventada", extra={"caresync": {"herramienta": nombre}})
+        excepcion(log, "herramienta_reventada", herramienta=nombre)
         return {
             "error": "La operación no se pudo completar por un problema técnico.",
             "herramienta": nombre,
