@@ -17,7 +17,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DIAS_POR_DEFECTO, generarCupos, type ResultadoGeneracion } from '../agenda_cupos';
 import { leerAjustes, numeroDeAjuste } from '../ajustes';
 import { Conversacion } from '../componentes/Conversacion';
-import { Aviso, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
+import { Aviso, Cabecera, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
+import { IconoCalendario } from '../componentes/Iconos';
 import { fechaHora, hace, soloHora } from '../formato';
 import { mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
@@ -45,12 +46,7 @@ export function Administrativo() {
   if (!centro) {
     return (
       <div className="panel administrativo">
-        <header className="cabecera">
-          <h1>Sin centro asignado</h1>
-          <button type="button" className="secundario" onClick={() => void salir()}>
-            Salir
-          </button>
-        </header>
+        <Cabecera titulo="Sin centro asignado" onSalir={() => void salir()} />
         <Aviso tipo="error">
           Tu cuenta tiene un rol administrativo pero no un centro. Quien administre el
           contrato de ROBLE tiene que poner CMU o CAE en tu fila de «perfiles».
@@ -110,20 +106,18 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
 
   return (
     <div className="panel administrativo">
-      <header className="cabecera">
-        <div>
-          <h1>{centro}</h1>
-          <p>
+      <Cabecera
+        titulo={centro}
+        subtitulo={
+          <>
             {quien?.nombre} · {vista.porAtender.length} caso
             {vista.porAtender.length === 1 ? '' : 's'} por atender ·{' '}
             {vista.libres.length} cupo{vista.libres.length === 1 ? '' : 's'} libre
             {vista.libres.length === 1 ? '' : 's'}
-          </p>
-        </div>
-        <button type="button" className="secundario" onClick={() => void salir()}>
-          Salir
-        </button>
-      </header>
+          </>
+        }
+        onSalir={() => void salir()}
+      />
 
       {error && <Aviso tipo="error">{error}</Aviso>}
 
@@ -143,7 +137,7 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
 
       <div className="columnas">
         <section className="lista">
-          <Tarjeta titulo="Citas de hoy">
+          <Tarjeta titulo="Citas de hoy" icono={<IconoCalendario />}>
             {cargando ? (
               <Cargando que="Cargando el tablero" />
             ) : vista.hoy.length === 0 ? (
@@ -177,6 +171,7 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
 
           <Tarjeta
             titulo="Agenda"
+            icono={<IconoCalendario />}
             extra={
               <button type="button" className="principal fino" disabled={generando} onClick={() => void publicarCupos()}>
                 {generando ? 'Publicando…' : `Publicar cupos (${dias} días)`}

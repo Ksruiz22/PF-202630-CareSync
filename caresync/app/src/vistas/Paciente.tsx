@@ -15,7 +15,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Conversacion } from '../componentes/Conversacion';
-import { Aviso, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
+import { Aviso, Cabecera, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
+import { IconoCalendario } from '../componentes/Iconos';
 import { bandaDeEscala, escalaVisible, fechaHora, hace, soloFecha } from '../formato';
 import { mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
@@ -78,15 +79,11 @@ export function Paciente() {
 
   return (
     <div className="panel paciente">
-      <header className="cabecera">
-        <div>
-          <h1>Hola, {primerNombre(quien?.nombre)}</h1>
-          <p>Cuéntale al asistente qué te pasa y él te acompaña desde ahí.</p>
-        </div>
-        <button type="button" className="secundario" onClick={() => void salir()}>
-          Salir
-        </button>
-      </header>
+      <Cabecera
+        titulo={`Hola, ${primerNombre(quien?.nombre)}`}
+        subtitulo="Cuéntale al asistente qué te pasa y él te acompaña desde ahí."
+        onSalir={() => void salir()}
+      />
 
       {error && <Aviso tipo="error">{error}</Aviso>}
       {nivel === 1 && (
@@ -132,7 +129,7 @@ export function Paciente() {
                 )}
               </Tarjeta>
 
-              <Tarjeta titulo="Tu cita">
+              <Tarjeta titulo="Tu cita" icono={<IconoCalendario />}>
                 {datos.cita ? (
                   <>
                     <p className="destacado">{fechaHora(datos.cita.inicio)}</p>

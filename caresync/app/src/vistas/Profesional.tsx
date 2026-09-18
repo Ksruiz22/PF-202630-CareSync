@@ -14,7 +14,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Aviso, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
+import { Aviso, Cabecera, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
+import { IconoCalendario } from '../componentes/Iconos';
 import { bandaDeEscala, escalaVisible, fechaHora, hace, soloFecha } from '../formato';
 import { mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
@@ -66,24 +67,22 @@ export function Profesional() {
 
   return (
     <div className="panel profesional">
-      <header className="cabecera">
-        <div>
-          <h1>{quien?.nombre}</h1>
-          <p>
+      <Cabecera
+        titulo={quien?.nombre}
+        subtitulo={
+          <>
             Tu agenda en {quien?.centro ?? 'tu centro'}. {proximas.length} cita
             {proximas.length === 1 ? '' : 's'} por atender.
-          </p>
-        </div>
-        <button type="button" className="secundario" onClick={() => void salir()}>
-          Salir
-        </button>
-      </header>
+          </>
+        }
+        onSalir={() => void salir()}
+      />
 
       {error && <Aviso tipo="error">{error}</Aviso>}
 
       <div className="columnas">
         <section className="lista">
-          <Tarjeta titulo="Por atender">
+          <Tarjeta titulo="Por atender" icono={<IconoCalendario />}>
             {cargando ? (
               <Cargando que="Cargando tu agenda" />
             ) : proximas.length === 0 ? (
