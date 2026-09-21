@@ -195,6 +195,204 @@ export function olvidarSesion(): void {
   localStorage.removeItem(CLAVE_SESION);
 }
 
+// ------------------------------------------------- inicio de sesion con Google
+
+/**
+ * Entrar con Google, escrito a mano con `fetch`.
+ *
+ * El SDK `roble-client` **no tiene nada de inicio de sesión social** (comprobado en
+ * la versión 3.0: ni un método, ni un tipo), así que las dos llamadas se hacen
+ * directas contra las mismas rutas del contrato que usa el SDK para todo lo demás.
+ * No están documentadas; se descubrieron probando contra la API el 2026-09-21:
+ *
+ * | paso | petición |
+ * |---|---|
+ * | arrancar | `POST /auth/<contrato>/auth/google/start` con `{ redirect }` → `{ url, state }` |
+ * | volver | ROBLE redirige al destino con `?code=…` o `?error=…&error_description=…` |
+ * | canjear | `POST /auth/<contrato>/auth/token` con `{ code }` → los dos tokens |
+ *
+ * Cuatro detalles que no se adivinan:
+ *
+ * - **`redirect` es el *nombre* de un destino registrado en la consola**, no una URL.
+ *   Mandar una URL no funciona, y es lo correcto: si el servidor aceptara cualquier
+ *   dirección, sería un redirector abierto con el código de sesión en la mano.
+ * - **El `code` sirve una sola vez**; el segundo canje responde 400 «Código inválido
+ *   o expirado». De ahí que se lea al importar el módulo y se memorice la promesa:
+ *   `StrictMode` monta los efectos dos veces en desarrollo.
+ * - **Google devuelve a ROBLE**, no a la PWA: la URI registrada en la consola de
+ *   Google es `https://roble-api.test-openlab.uninorte.edu.co/google/callback` —sin
+ *   `/auth`, al contrario que la de GitHub en la misma pantalla—, y el intercambio
+ *   con el secreto ocurre del lado de ROBLE. La PWA nunca ve el `client_secret`.
+ * - **Google afirma si el correo está verificado**, así que ROBLE vincula la entrada
+ *   a la cuenta que ya tenga ese correo en vez de crear una segunda. Entrar y
+ *   registrarse son el mismo acto: no hay «cuenta de Google» aparte.
+ */
+
+interface Regreso {
+  code: string | null;
+  /** Mensaje ya decible, si Google o ROBLE rechazaron la entrada. */
+  fallo: string | null;
+}
+
+/**
+ * El regreso se lee **al importar el módulo** y se borra de la barra de direcciones
+ * en el mismo acto.
+ *
+ * Borrarlo no es cosmética: el `code` queda si no en el historial y en cualquier
+ * `Referer`, y recargar la página reintentaría un código ya gastado y mostraría un
+ * error que no existe.
+ */
+const regreso: Regreso = leerRegreso();
+
+function leerRegreso(): Regreso {
+  const parametros = new URLSearchParams(location.search);
+  const code = parametros.get('code');
+  const error = parametros.get('error');
+  const descripcion = parametros.get('error_description');
+  if (!code && !error) return { code: null, fallo: null };
+
+  for (const clave of ['code', 'state', 'error', 'error_description']) {
+    parametros.delete(clave);
+  }
+  const consulta = parametros.toString();
+  history.replaceState(null, '', location.pathname + (consulta ? `?${consulta}` : '') + location.hash);
+
+  return {
+    code,
+    fallo: error ? descripcion || `Google no autorizó la entrada (${error}).` : null,
+  };
+}
+
+/** ¿Esta carga de la página es la vuelta de Google? */
+export function hayRegresoDeGoogle(): boolean {
+  return regreso.code !== null || regreso.fallo !== null;
+}
+
+/**
+ * Manda la pestaña a Google. No devuelve nada porque, cuando funciona, ya no hay
+ * aplicación aquí: la siguiente carga es el regreso.
+ */
+export async function iniciarConGoogle(): Promise<void> {
+  const datos = await pedir<{ url?: string }>('auth/google/start', {
+    redirect: destinoDeRetorno(),
+  });
+  if (!datos.url) throw new Error('ROBLE no dijo a dónde mandar a la persona para entrar con Google.');
+  location.assign(datos.url);
+}
+
+let canje: Promise<Identidad> | null = null;
+
+/** Canjea el código del regreso por una sesión. Una sola vez, aunque se llame dos. */
+export function completarGoogle(): Promise<Identidad> {
+  canje ??= canjear();
+  return canje;
+}
+
+async function canjear(): Promise<Identidad> {
+  if (regreso.fallo) throw new Error(regreso.fallo);
+  if (!regreso.code) throw new Error('Esta página no es un regreso de Google.');
+
+  const datos = await pedir<{ accessToken?: string; refreshToken?: string }>('auth/token', {
+    code: regreso.code,
+  });
+  if (!datos.accessToken || !datos.refreshToken) {
+    throw new Error('ROBLE aceptó el código pero no devolvió la sesión.');
+  }
+  roble.setTokens({ accessToken: datos.accessToken, refreshToken: datos.refreshToken });
+  guardar(roble);
+
+  const quien = await identidad();
+  return quien.perfilId ? quien : crearPerfilDeGoogle(quien);
+}
+
+/**
+ * La fila de `perfiles` que una cuenta de Google no trae.
+ *
+ * Al registrarse con correo y contraseña la escribe `Acceso.tsx`; una cuenta que
+ * llega por Google nunca pasa por ese formulario, así que sin esto entraría sin
+ * nombre —se mostraría el correo— y el personal administrativo no la vería en
+ * ninguna lista. El rol es `paciente`, el mismo que da el registro: un rol
+ * administrativo lo asigna quien administra el contrato, nunca el proveedor.
+ *
+ * El nombre sale de `GET /auth/<contrato>/me`, que es lo único que lo devuelve:
+ * `currentUser()` habla con `/verify-token` y ese sólo trae `sub` y `email`.
+ */
+async function crearPerfilDeGoogle(quien: Identidad): Promise<Identidad> {
+  try {
+    await roble.create('perfiles', {
+      user_id: quien.userId,
+      nombre: (await nombreEnRoble()) || quien.email,
+      email: quien.email,
+      rol: 'paciente',
+      centro: null,
+      creado_en: new Date().toISOString(),
+    });
+  } catch (fallo) {
+    // Sin fila se entra igual y las dos capas tratan la cuenta como paciente, que es
+    // el rol que le tocaba. Lo que falta es el nombre, y se arregla con `--perfil`.
+    console.warn('No se pudo crear el perfil de la cuenta de Google', fallo);
+    return quien;
+  }
+  // Se relee para que salgan el `perfilId` —lo necesita editar el perfil— y el nombre.
+  return identidad();
+}
+
+async function nombreEnRoble(): Promise<string> {
+  try {
+    const respuesta = await fetch(`${BASE_URL}/auth/${CONTRACT_ID}/me`, {
+      headers: { Authorization: `Bearer ${tokenActual()}` },
+    });
+    if (!respuesta.ok) return '';
+    const datos = (await respuesta.json()) as { name?: unknown };
+    return String(datos.name ?? '').trim();
+  } catch {
+    // El nombre es un adorno; su ausencia no puede impedir entrar.
+    return '';
+  }
+}
+
+/**
+ * Cuál de los destinos registrados en la consola pedir.
+ *
+ * Son dos, y los nombres son los que están dados de alta en el proyecto
+ * `caresync_cab021ce03`: `default` apunta a la PWA publicada en Amplify y `local` a
+ * `http://localhost:5173/`, para poder probar con `npm run dev`. Se elige por el
+ * host y no por una variable de compilación porque el servidor de desarrollo no pasa
+ * por `publicar_app.sh`, que es quien inyecta las variables.
+ */
+function destinoDeRetorno(): string {
+  return location.hostname === 'localhost' ? 'local' : 'default';
+}
+
+async function pedir<T>(ruta: string, cuerpo: unknown): Promise<T> {
+  const respuesta = await fetch(`${BASE_URL}/auth/${CONTRACT_ID}/${ruta}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cuerpo),
+  });
+
+  const texto = await respuesta.text();
+  let datos: unknown = null;
+  try {
+    datos = texto ? JSON.parse(texto) : null;
+  } catch {
+    // Un cuerpo que no es JSON sólo importa para el mensaje de error.
+  }
+
+  if (!respuesta.ok) {
+    throw new Error(mensajeDeCuerpo(datos) || `ROBLE respondió ${respuesta.status} al entrar con Google.`);
+  }
+  return datos as T;
+}
+
+/** ROBLE responde `{ message }`, y a veces una lista de mensajes. */
+function mensajeDeCuerpo(datos: unknown): string {
+  if (!datos || typeof datos !== 'object') return '';
+  const mensaje = (datos as { message?: unknown }).message;
+  if (Array.isArray(mensaje)) return mensaje.map(String).join('. ');
+  return mensaje ? String(mensaje) : '';
+}
+
 // ---------------------------------------------------------------------- errores
 
 export function esSesionInvalida(error: unknown): boolean {
