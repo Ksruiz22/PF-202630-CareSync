@@ -341,6 +341,51 @@ porque el permiso es un objeto único y el nuevo colisiona con el viejo.
 dueña del contrato (`admin`) o una con rol `plataforma`—. Con una cuenta normal, si la
 fila ya existe, da un 500.
 
+## Inicio de sesión con Google
+
+Lo configura ROBLE, no la PWA: el intercambio del código por los tokens lo hace el
+servidor de ROBLE con el secreto de Google, y la aplicación sólo pide una URL y canja
+un código. Cómo funciona el flujo está en `arquitectura.md`; aquí está cómo se deja
+puesto, que es lo que hay que repetir si alguien crea otro contrato.
+
+**En Google Cloud.** Un proyecto propio (`caresync-509321`, nombre visible «CareSync»):
+la pantalla de consentimiento muestra el nombre del proyecto, y reutilizar el de otra
+aplicación le dice a la persona que está entrando a otra cosa. Dentro, *Clientes* →
+*Aplicación web*, y como URI de redirección autorizada **la de ROBLE, no la de la PWA**:
+
+```
+https://roble-api.test-openlab.uninorte.edu.co/google/callback
+```
+
+Sin `/auth`. Esto es una trampa verificada: en la misma pantalla de la consola de
+ROBLE, el `callback` de GitHub sí lleva `/auth/github/callback` y el de Google no. La
+consola lo muestra en un campo de sólo lectura; se copia de ahí y no se deduce. Están
+registradas las dos formas por seguro, pero la que usa el backend de la instancia de
+pruebas es la de arriba.
+
+**En la consola de ROBLE** (*Autenticación → Proveedores*, proyecto
+`caresync_cab021ce03`): el ID de cliente, el secreto y los destinos de retorno. El
+secreto **lo pega una persona**; Google lo muestra una sola vez y no se guarda en el
+repositorio ni en ningún archivo del proyecto. Los destinos son dos, y sus nombres son
+los que pide la PWA por su host:
+
+| nombre | URL |
+|---|---|
+| `default` | `https://main.d1ndsh656qxmj8.amplifyapp.com/` |
+| `local` | `http://localhost:5173/` |
+
+Un destino es un *nombre*, y la PWA manda el nombre. No acepta URLs sueltas, y está
+bien que no lo haga: sería un redirector abierto con el código de sesión dentro.
+
+Mientras la aplicación de Google siga en modo **«Prueba»**, sólo pueden entrar las
+cuentas dadas de alta como usuarios de prueba (y la dueña del proyecto). Si a alguien
+del equipo le rebota Google antes de llegar a ROBLE, eso es lo primero que hay que
+mirar.
+
+No hace falta tocar roles ni permisos: la cuenta que entra por Google es una cuenta
+normal de ROBLE con el rol `user`, y su fila de `perfiles` la escribe la PWA con rol
+`paciente`, igual que el registro con contraseña.
+
 ## Profesionales, horarios y cupos
 
 `--semilla` lee `app/esquema/semilla.json` (que **no** se versiona: lleva nombres y
@@ -528,6 +573,30 @@ metadatos son sólo el respaldo de una cuenta sin fila; las cuentas que ya traen
 
 Ojo con el orden de despliegue: quitar el campo es la PWA y cambiar la precedencia
 es la Lambda. Van en el mismo PR, pero se publican por caminos distintos.
+
+### `El inicio de sesión con Google no está habilitado en este proyecto`
+
+Lo responde `auth/google/start` con un 400, y aparece incluso con el ID de cliente y
+el secreto ya guardados. Dos causas, y las dos son de la pantalla *Autenticación →
+Proveedores*:
+
+- **El interruptor del proveedor está apagado.** Es el que está al lado del título
+  «Google», no el chip de «Vinculación automática», que es sólo informativo. Guardar
+  las credenciales no lo enciende.
+- **Los destinos de retorno se perdieron al guardar.** El formulario los pierde si el
+  campo no se rellenó escribiendo en él; hay que verlos listados después de *Guardar*,
+  no antes.
+
+Para comprobarlo sin adivinar, con la consola de ROBLE abierta y sesión iniciada, en
+la consola del navegador:
+
+```js
+await fetch('https://roble-api.test-openlab.uninorte.edu.co/auth/caresync_cab021ce03/settings/providers',
+  { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).then(r => r.json())
+```
+
+Interesan tres campos del proveedor `google`: `enabled`, `hasSecret` y `redirects`.
+Con `enabled: true`, `hasSecret: true` y los dos nombres en `redirects`, el 400 se va.
 
 ### 401 al usar la aplicación
 
