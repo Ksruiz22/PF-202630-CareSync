@@ -307,6 +307,55 @@ label small {
   margin-top: 0.2rem;
 }
 
+/* La «o» entre entrar con contraseña y entrar con Google, con la línea partida por
+   el texto. Es un `<p>` y no un `<hr>` con `::after` porque la palabra se lee: un
+   separador decorativo dejaría los dos botones pareciendo una sola pila de opciones
+   obligatorias. */
+.acceso .separador {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.9rem 0;
+  font-size: 0.8rem;
+  color: var(--tinta-suave);
+}
+
+.acceso .separador::before,
+.acceso .separador::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--borde);
+}
+
+.acceso .google {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  font-weight: 600;
+}
+
+/* La marca dibujada a mano y no el logotipo de Google: las condiciones de su
+   identidad de marca piden el archivo oficial sin alterar, y traerlo obligaría a
+   servir un recurso más en una PWA que se abre desde datos móviles. Un círculo con
+   la letra cumple lo que tiene que cumplir —que el botón se reconozca de un
+   vistazo— sin usar mal una marca ajena. */
+.marca-google {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #4285f4;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .acceso > .descargo {
   max-width: 22rem;
   text-align: center;

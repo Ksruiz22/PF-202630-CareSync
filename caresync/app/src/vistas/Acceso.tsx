@@ -16,6 +16,12 @@
  * deliberado: si la pantalla de registro dejara elegir «admin_cmu», cualquiera
  * con un correo vería la agenda del centro.
  *
+ * **Con Google no hay cuenta que crear.** El botón es el mismo en las dos pestañas
+ * porque ROBLE vincula la entrada a la cuenta que ya tenga ese correo —Google afirma
+ * que está verificado—, así que «entrar» y «registrarse» son un solo acto. La fila de
+ * `perfiles` que esa cuenta necesita no la escribe este formulario, que nunca la ve:
+ * la escribe `crearPerfilDeGoogle` en `roble.ts`, con el mismo rol `paciente`.
+ *
  * **Los intentos son un recurso escaso y esta pantalla es la que los gasta.** ROBLE
  * permite 5 registros por hora y 10 inicios de sesión cada 15 minutos **por IP**;
  * pasado eso responde `ThrottlerException: Too Many Requests` y no hay forma de
@@ -34,7 +40,7 @@ import { Aviso } from '../componentes/Piezas';
 type Modo = 'entrar' | 'registrar';
 
 export function Acceso() {
-  const { entrar, refrescar, cargando, error } = useSesion();
+  const { entrar, entrarConGoogle, refrescar, cargando, error } = useSesion();
   const [modo, setModo] = useState<Modo>('entrar');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -75,6 +81,16 @@ export function Acceso() {
       if (modo === 'registrar') setPropio(mensajeDeError(fallo));
     } finally {
       setOcupado(false);
+    }
+  }
+
+  async function conGoogle() {
+    setPropio('');
+    try {
+      await entrarConGoogle();
+    } catch {
+      // El mensaje lo publica el contexto de sesión; aquí sólo se evita que el
+      // rechazo quede sin atender y llegue a la consola como error no capturado.
     }
   }
 
@@ -153,6 +169,19 @@ export function Acceso() {
 
         <button type="submit" className="principal" disabled={trabajando}>
           {trabajando ? 'Un momento…' : modo === 'entrar' ? 'Entrar' : 'Crear cuenta y entrar'}
+        </button>
+
+        {/* El mismo botón en las dos pestañas, con el mismo texto: con Google no hay
+            nada que «crear», entrar y registrarse son el mismo acto. */}
+        <p className="separador">
+          <span>o</span>
+        </p>
+
+        <button type="button" className="google" onClick={conGoogle} disabled={trabajando}>
+          <span className="marca-google" aria-hidden="true">
+            G
+          </span>
+          Continuar con Google
         </button>
 
         {(propio || error) && <Aviso tipo="error">{propio || error}</Aviso>}

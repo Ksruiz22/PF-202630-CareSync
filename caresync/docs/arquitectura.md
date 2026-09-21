@@ -157,6 +157,50 @@ punto que escribe en el DOM a mano (`main.tsx`, cuando el arranque falla) usa
 `textContent` y no `innerHTML`, y en `localStorage` no vive nada más que los dos
 tokens— y dejarlo escrito aquí en lugar de dejarlo pasar.
 
+### Entrar con Google
+
+ROBLE sabe hablar con Google, pero **el SDK no**: `roble-client` 3.0 no tiene ni un
+método de inicio de sesión social. Las dos llamadas están escritas a mano con `fetch`
+en `app/src/roble.ts`, contra las mismas rutas del contrato que usa el SDK para todo
+lo demás. No están documentadas; se descubrieron probando contra la API de la
+instancia de pruebas el 21 de septiembre de 2026.
+
+1. `POST /auth/<contrato>/auth/google/start` con `{ redirect }` devuelve `{ url, state }`.
+2. La persona autoriza en Google, que devuelve el código **a ROBLE**, no a la PWA.
+3. ROBLE redirige al destino con `?code=…` (o `?error=…&error_description=…`).
+4. `POST /auth/<contrato>/auth/token` con `{ code }` devuelve los dos tokens, que se
+   guardan igual que los del inicio de sesión con contraseña.
+
+Cuatro cosas de ese flujo condicionan el código:
+
+- **`redirect` es el *nombre* de un destino registrado en la consola de ROBLE**, no
+  una URL. Están dados de alta dos, `default` (la PWA de Amplify) y `local`
+  (`http://localhost:5173/`), y la PWA elige por el host porque el servidor de
+  desarrollo no pasa por `publicar_app.sh`, que es quien inyecta las variables. Que
+  el servidor no acepte URLs arbitrarias es lo correcto: si las aceptara, sería un
+  redirector abierto con el código de sesión en la mano.
+- **El código sirve una sola vez** —el segundo canje responde 400 «Código inválido o
+  expirado»—. Por eso el regreso se lee al importar el módulo y la promesa del canje
+  está memorizada: `StrictMode` monta los efectos dos veces en desarrollo, y sin eso
+  el segundo intento mostraría un error que no existe. En la misma lectura se borran
+  los parámetros de la barra de direcciones, para que el código no quede en el
+  historial ni en un `Referer` y recargar no reintente nada.
+- **La PWA nunca ve el `client_secret`.** El intercambio con Google lo hace ROBLE
+  desde su propio `callback`; en el navegador sólo hay un código de un solo uso.
+- **Google afirma si el correo está verificado**, así que ROBLE vincula la entrada a
+  la cuenta que ya tenga ese correo en lugar de crear una segunda. Entrar y
+  registrarse son el mismo acto y el botón es el mismo en las dos pestañas: no hay
+  «cuenta de Google» aparte de la de contraseña.
+
+Lo que sí falta y hay que poner: la fila de `perfiles`. Una cuenta que llega por
+Google no pasa por el formulario de registro, así que `roble.ts` la crea con rol
+`paciente` —nunca uno administrativo, que lo asigna quien administra el contrato— y
+con el nombre de `GET /auth/<contrato>/me`, el único sitio que lo devuelve:
+`currentUser()` consulta `/verify-token`, y ese sólo trae `sub` y `email`.
+
+La configuración del proveedor (cliente de Google, secreto, destinos) está en
+`runbook-roble.md`.
+
 ## Decisiones de infraestructura
 
 - **Los grupos de logs se declaran en Terraform**, no se dejan crear a Lambda. Si
