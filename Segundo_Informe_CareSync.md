@@ -766,11 +766,11 @@ sequenceDiagram
     B-->>O: toolUse escalar_urgencia (Paso 0, sin clasificar)
     O->>T: escalar_urgencia
     T->>CW: log ESCALAMIENTO → métrica → alarma SNS
-    T->>R: caso → escalado; evento de severidad alta
+    T->>R: caso → escalado, evento de severidad alta
     T->>S: correo de escalamiento
     Note over T: Nunca lanza excepción: aunque fallen R o S,<br/>devuelve el texto de la ruta de emergencia
     T-->>O: texto de ruta-emergencia.md
-    O-->>P: ruta de emergencia primero; el agente sigue acompañando sin agendar
+    O-->>P: ruta de emergencia primero, el agente sigue acompañando sin agendar
 ```
 
 ### Secuencia 4 — Seguimiento por reloj
