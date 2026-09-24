@@ -18,6 +18,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ErrorDelAgente, hablar } from '../agente';
 import { nombreDeAgente } from '../formato';
+import { IconoAlerta, IconoCheck, IconoChispas, IconoEnviar, IconoEscudo } from './Iconos';
 import type { RespuestaAgente, Turno } from '../tipos';
 
 const LIMITE = 2000;
@@ -92,6 +93,14 @@ export function Conversacion({ casoId, agente, saludo, alResponder, alVencerSesi
 
   return (
     <section className="conversacion" aria-label="Conversación con el asistente">
+      <header className="conversacion-cabecera">
+        <h2>
+          <span className="icono-titulo">
+            <IconoChispas />
+          </span>
+          Asistente CareSync
+        </h2>
+      </header>
       <div className="hilo">
         {turnos.map((turno, indice) => (
           <Burbuja key={indice} turno={turno} />
@@ -128,14 +137,18 @@ export function Conversacion({ casoId, agente, saludo, alResponder, alVencerSesi
           }}
           disabled={esperando}
         />
-        <button type="submit" disabled={esperando || !borrador.trim()}>
+        <button type="submit" className="principal" disabled={esperando || !borrador.trim()}>
+          <IconoEnviar />
           {esperando ? 'Enviando…' : 'Enviar'}
         </button>
       </form>
 
       <p className="descargo">
-        Esto es un prototipo académico. No reemplaza una consulta con personal de
-        salud. Si es una urgencia, llama a la línea de emergencias del campus o al 123.
+        <IconoEscudo />
+        <span>
+          Esto es un prototipo académico. No reemplaza una consulta con personal de
+          salud. Si es una urgencia, llama a la línea de emergencias del campus o al 123.
+        </span>
       </p>
     </section>
   );
@@ -157,9 +170,22 @@ function Burbuja({ turno }: { turno: Turno }) {
       <p>{turno.texto}</p>
       {turno.acciones && turno.acciones.length > 0 && (
         <ul className="acciones" aria-label="Lo que hizo el asistente">
-          {turno.acciones.map((accion, indice) => (
-            <li key={indice}>{describir(accion.herramienta)}</li>
-          ))}
+          {turno.acciones.map((accion, indice) =>
+            // La urgencia escalada se ve distinta de las demás acciones: es la única
+            // que significa «alguien ya viene», y no puede perderse entre «se revisó
+            // tu plan» y «se registró cómo te sientes».
+            accion.herramienta === 'escalar_urgencia' ? (
+              <li key={indice} className="urgente">
+                <IconoAlerta />
+                {describir(accion.herramienta)}
+              </li>
+            ) : (
+              <li key={indice}>
+                <IconoCheck />
+                {describir(accion.herramienta)}
+              </li>
+            )
+          )}
         </ul>
       )}
     </div>

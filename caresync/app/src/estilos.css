@@ -5,35 +5,54 @@
  * librería de componentes habrían pesado más que todo lo que hay aquí, y en una
  * PWA que se va a abrir desde el celular en el campus, el peso se nota.
  *
- * Dos cosas están pensadas y no salieron así por defecto:
+ * La línea visual —verde azulado, tarjetas redondeadas, barra superior con la
+ * marca— sale del rediseño hecho en v0. De él se tomó el aspecto, no el código: la
+ * maqueta era Next.js con datos fijos, y aquí se tradujo a estas mismas clases.
+ *
+ * Tres cosas están pensadas y no salieron así por defecto:
  *
  * - **El nivel 1 es el único color agresivo de la interfaz.** Si todo grita, nada
- *   grita. Los demás estados usan grises y azules apagados para que el rojo de una
- *   emergencia se encuentre sin leer.
+ *   grita. El rojo lleno está reservado a la emergencia; los errores usan un rojo
+ *   claro, y los avisos generales, ámbar.
  * - **Todo escala con `rem` y respeta el tamaño de letra del sistema.** Parte de
  *   quien usa esto lo hace con el texto agrandado.
+ * - **Nada se oculta en pantallas pequeñas.** Un dato que desaparece en el celular
+ *   es una función que se pierde en el celular; en angosto, las filas se apilan.
  */
 
 :root {
-  --tinta: #12212e;
-  --tinta-suave: #5a6b7a;
-  --papel: #f4f7f9;
+  color-scheme: light;
+
+  --tinta: #12302f;
+  --tinta-suave: #52706f;
+  --papel: #f1f8f5;
   --papel-alto: #ffffff;
-  --borde: #dde5ea;
-  --azul: #12609a;
-  --azul-claro: #e6f0f8;
-  --verde: #1c7a54;
-  --verde-claro: #e4f4ec;
-  --ambar: #8a5a00;
-  --ambar-claro: #fdf1dc;
+  --borde: #d4e6e1;
+  --campo: #d0e3de;
+
+  --primario: #0f7470;
+  --primario-suave: #e6f2ef;
+  --primario-medio: #cfe8e4;
+  --sobre-primario: #ffffff;
+
+  --verde: #1f6b45;
+  --verde-claro: #e2f4ea;
+  --ambar: #7a5410;
+  --ambar-claro: #fbf0d6;
+  --ambar-borde: #efd9a4;
+  --coral: #a4492c;
+  --coral-claro: #fbe6dc;
+  --coral-borde: #f2c9b6;
   --rojo: #a51f1f;
   --rojo-claro: #fbe8e8;
-  --radio: 12px;
-  --sombra: 0 2px 4px rgba(18, 33, 46, 0.07), 0 8px 20px rgba(18, 33, 46, 0.05);
+
+  --radio: 20px;
+  --radio-control: 10px;
+  --sombra: 0 10px 30px rgba(18, 60, 58, 0.06);
   --ancho: 1180px;
 
-  /* Escala de espaciado: nombra los valores que ya se usaban sueltos por toda la
-     hoja, para que el siguiente ajuste tenga de dónde agarrarse. */
+  /* Escala de espaciado: nombra los valores que se repiten por toda la hoja, para
+     que el siguiente ajuste tenga de dónde agarrarse. */
   --e-1: 0.3rem;
   --e-2: 0.5rem;
   --e-3: 0.7rem;
@@ -44,20 +63,32 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --tinta: #e8eef3;
-    --tinta-suave: #9fb0bd;
-    --papel: #101a22;
-    --papel-alto: #17232d;
-    --borde: #27363f;
-    --azul: #6cb2e8;
-    --azul-claro: #1a2b3a;
-    --verde: #6cc79b;
-    --verde-claro: #162b23;
-    --ambar: #e0b45f;
+    color-scheme: dark;
+
+    --tinta: #e3efec;
+    --tinta-suave: #9bb5b0;
+    --papel: #0d1a19;
+    --papel-alto: #142524;
+    --borde: #24403d;
+    --campo: #2b4a46;
+
+    --primario: #5cc8bf;
+    --primario-suave: #183230;
+    --primario-medio: #1f413e;
+    --sobre-primario: #062220;
+
+    --verde: #74cf9c;
+    --verde-claro: #152a20;
+    --ambar: #e3b863;
     --ambar-claro: #2c2415;
+    --ambar-borde: #4a3b1d;
+    --coral: #f0a283;
+    --coral-claro: #34211a;
+    --coral-borde: #57342a;
     --rojo: #f08a8a;
     --rojo-claro: #33191a;
-    --sombra: 0 2px 6px rgba(0, 0, 0, 0.35);
+
+    --sombra: 0 2px 8px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -76,25 +107,28 @@ body {
 }
 
 h1 {
-  font-size: 1.55rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: clamp(1.6rem, 3vw, 2.3rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
   margin: 0;
 }
 h2 {
-  font-size: 1.05rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0;
   display: flex;
   align-items: center;
-  gap: var(--e-2);
+  gap: 0.6rem;
 }
 h3 {
-  font-size: 0.9rem;
-  margin: 1rem 0 0.4rem;
-  color: var(--tinta-suave);
+  font-size: 0.72rem;
+  margin: 1.2rem 0 0.5rem;
+  color: var(--primario);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.12em;
+  font-weight: 800;
 }
 p {
   margin: 0 0 0.6rem;
@@ -115,16 +149,11 @@ ul {
   white-space: nowrap;
 }
 
-/* Los cuatro iconos de Iconos.tsx: siempre heredan el color del texto que los
-   acompaña y nunca se salen de línea con él, sea en un botón, una etiqueta o un
-   título de tarjeta. */
+/* Los iconos de Iconos.tsx: siempre heredan el color del texto que los acompañan y
+   nunca se salen de línea con él. El espacio lo pone el `gap` del contenedor. */
 .icono {
   flex: none;
   vertical-align: -0.15em;
-}
-
-button .icono {
-  margin-right: 0.35em;
 }
 
 /* ------------------------------------------------------------------ controles */
@@ -132,52 +161,45 @@ button .icono {
 button {
   font: inherit;
   cursor: pointer;
-  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: var(--radio-control);
   border: 1px solid var(--borde);
   background: var(--papel-alto);
   color: var(--tinta);
-  padding: 0.5rem 0.9rem;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.88rem;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 button:hover:not(:disabled) {
-  border-color: var(--azul);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  button {
-    transition: none;
-  }
+  border-color: var(--primario);
 }
 
 button:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: default;
 }
 
 button:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--azul);
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--primario);
   outline-offset: 1px;
 }
 
 button.principal {
-  background: var(--azul);
-  border-color: var(--azul);
-  color: #fff;
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(18, 33, 46, 0.12);
+  background: var(--primario);
+  border-color: var(--primario);
+  color: var(--sobre-primario);
+  font-weight: 700;
 }
 
 button.principal:hover:not(:disabled) {
-  box-shadow: 0 2px 6px rgba(18, 33, 46, 0.18);
-}
-
-@media (prefers-color-scheme: dark) {
-  button.principal {
-    color: #0b1219;
-  }
+  box-shadow: 0 4px 12px rgba(15, 116, 112, 0.25);
 }
 
 button.secundario {
@@ -188,26 +210,66 @@ button.enlace {
   border: 0;
   background: none;
   padding: 0;
-  color: var(--azul);
+  color: var(--primario);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+button.enlace:hover:not(:disabled) {
   text-decoration: underline;
-  font-size: 0.85rem;
 }
 
 button.fino {
-  padding: 0.3rem 0.7rem;
-  font-size: 0.85rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+/* Acción de texto con icono: «Horarios y cuenta», «Desactivar». Sin caja, para que
+   la fila no se llene de botones que compiten con el botón principal. */
+button.boton-texto {
+  border: 0;
+  background: none;
+  padding: 0.3rem 0;
+  color: var(--primario);
+  font-weight: 800;
+  font-size: 0.8rem;
+}
+
+button.boton-texto:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+button.boton-texto.peligro {
+  color: var(--coral);
+}
+
+.girado {
+  transform: rotate(180deg);
 }
 
 input,
 textarea,
 select {
   font: inherit;
+  font-size: 0.88rem;
   color: var(--tinta);
   background: var(--papel-alto);
-  border: 1px solid var(--borde);
-  border-radius: 8px;
-  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--campo);
+  border-radius: var(--radio-control);
+  padding: 0.6rem 0.75rem;
   width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--primario);
+  box-shadow: 0 0 0 3px rgba(15, 116, 112, 0.15);
+}
+
+select:disabled {
+  opacity: 0.55;
 }
 
 textarea {
@@ -217,15 +279,15 @@ textarea {
 label {
   display: block;
   margin-bottom: 0.8rem;
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 800;
   color: var(--tinta-suave);
 }
 
 label input,
 label textarea,
 label select {
-  margin-top: 0.3rem;
+  margin-top: 0.35rem;
   font-weight: 400;
   color: var(--tinta);
 }
@@ -236,9 +298,18 @@ label select {
 label small {
   display: block;
   margin-top: 0.3rem;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 400;
   color: var(--tinta-suave);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  input,
+  textarea,
+  select {
+    transition: none;
+  }
 }
 
 /* --------------------------------------------------------------------- acceso */
@@ -252,6 +323,8 @@ label small {
   justify-content: center;
   gap: 1rem;
   padding: 1.5rem;
+  background: radial-gradient(circle at 90% 0%, var(--primario-medio), transparent 30rem),
+    var(--papel);
 }
 
 .acceso .marca {
@@ -278,28 +351,7 @@ label small {
   border: 1px solid var(--borde);
   border-radius: var(--radio);
   box-shadow: var(--sombra);
-  padding: 1.2rem;
-}
-
-.pestanas {
-  display: flex;
-  gap: 0.4rem;
-  margin-bottom: 1.1rem;
-}
-
-.pestanas button {
-  flex: 1;
-  background: transparent;
-  border-color: transparent;
-  color: var(--tinta-suave);
-  font-size: 0.9rem;
-}
-
-.pestanas button[aria-selected='true'] {
-  background: var(--azul-claro);
-  border-color: var(--azul);
-  color: var(--azul);
-  font-weight: 600;
+  padding: 1.4rem;
 }
 
 .acceso .principal {
@@ -359,36 +411,270 @@ label small {
 .acceso > .descargo {
   max-width: 22rem;
   text-align: center;
+  background: none;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------- pestañas */
+
+.pestanas {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--borde);
+  overflow-x: auto;
+}
+
+.pestanas button {
+  flex: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--tinta-suave);
+  padding: 0.8rem 1.1rem;
+  font-weight: 700;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.pestanas button:hover:not(:disabled) {
+  color: var(--primario);
+  border-color: transparent;
+  border-bottom-color: var(--primario-medio);
+}
+
+.pestanas button[aria-selected='true'] {
+  color: var(--primario);
+  border-bottom-color: var(--primario);
+}
+
+/* En la pantalla de acceso las dos pestañas se reparten el ancho del formulario. */
+.acceso .pestanas button {
+  flex: 1;
+}
+
+.pestanas .cuenta {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  background: var(--primario-suave);
+}
+
+.pestanas button[aria-selected='true'] .cuenta {
+  background: var(--primario-medio);
+}
+
+/* ------------------------------------------------------------- barra y pie */
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(circle at 90% 0%, var(--primario-medio), transparent 30rem),
+    var(--papel);
+}
+
+.barra {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--papel-alto) 88%, transparent);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--borde);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.barra-interior,
+.pie-interior {
+  width: min(var(--ancho), calc(100% - 2.5rem));
+  margin-inline: auto;
+}
+
+.barra-interior {
+  min-height: 4.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.marca-app {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-size: 1.25rem;
+  white-space: nowrap;
+}
+
+.marca-acento {
+  color: var(--primario);
+}
+
+.marca-sello {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  color: #fff;
+  background: var(--primario);
+  border-radius: 12px;
+  transform: rotate(-6deg);
+}
+
+.marca-sello .icono {
+  transform: rotate(6deg);
+}
+
+.usuario-barra {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.avatar,
+.mini-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  font-weight: 800;
+}
+
+.avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 0.72rem;
+  background: var(--coral-claro);
+  color: var(--coral);
+}
+
+.usuario-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.usuario-texto strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usuario-texto span {
+  color: var(--tinta-suave);
+}
+
+.boton-icono {
+  border: 0;
+  background: transparent;
+  color: var(--tinta-suave);
+  padding: 0.5rem 0.6rem;
+}
+
+.boton-icono:hover:not(:disabled) {
+  background: var(--primario-suave);
+  color: var(--tinta);
+}
+
+.salir-texto {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.pie {
+  margin-top: auto;
+  border-top: 1px solid var(--borde);
+  background: color-mix(in srgb, var(--papel-alto) 60%, transparent);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pie-interior {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.2rem;
+  padding-block: 1.6rem;
+}
+
+.pie .marca-app {
+  font-size: 1rem;
+}
+
+.pie .marca-sello {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 9px;
+}
+
+.pie p {
+  color: var(--tinta-suave);
+  margin: 0.45rem 0 0;
+  font-size: 0.74rem;
+}
+
+.pie-enlaces {
+  display: flex;
+  gap: 1.4rem;
+  color: var(--tinta-suave);
+  font-size: 0.74rem;
+}
+
+.pie-enlaces span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 /* ---------------------------------------------------------------- estructura */
 
 .panel {
-  max-width: var(--ancho);
+  width: min(var(--ancho), calc(100% - 2.5rem));
   margin: 0 auto;
-  padding: 1.2rem;
+  padding-block: 2.6rem 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
 }
 
 .cabecera {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: var(--e-5);
-  padding-bottom: var(--e-4);
-  border-bottom: 1px solid var(--borde);
+  gap: 1.2rem;
+  margin-bottom: 0.8rem;
+  animation: subir 0.5s ease both;
 }
 
-.cabecera p {
+.antetitulo {
+  margin: 0 0 0.5rem;
+  color: var(--primario);
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  font-weight: 800;
+  font-size: 0.68rem;
+}
+
+.cabecera .subtitulo {
   color: var(--tinta-suave);
-  font-size: 0.9rem;
-  margin: 0.2rem 0 0;
+  font-size: 0.95rem;
+  margin: 0.55rem 0 0;
 }
 
 .columnas {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 0.7fr);
+  gap: 1.1rem;
   align-items: start;
 }
 
@@ -396,19 +682,26 @@ label small {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
 }
 
-@media (max-width: 900px) {
-  .columnas {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .lateral,
 .lista,
-.detalle {
+.detalle,
+.pila {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.1rem;
   min-width: 0;
+}
+
+.pila.angosta {
+  max-width: 56rem;
+}
+
+/* Contenido principal a la izquierda y una columna de apoyo a la derecha. */
+.rejilla-contenido {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: 1.1rem;
+  align-items: start;
 }
 
 .tarjeta {
@@ -416,7 +709,9 @@ label small {
   border: 1px solid var(--borde);
   border-radius: var(--radio);
   box-shadow: var(--sombra);
-  padding: 1rem;
+  padding: 1.4rem;
+  min-width: 0;
+  animation: subir 0.5s ease both;
 }
 
 .tarjeta > header {
@@ -425,17 +720,45 @@ label small {
   justify-content: space-between;
   gap: 0.8rem;
   margin-bottom: var(--e-4);
-  padding-bottom: var(--e-3);
+  padding-bottom: 1rem;
   border-bottom: 1px solid var(--borde);
+}
+
+.icono-titulo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 11px;
+  color: var(--primario);
+  background: var(--primario-suave);
 }
 
 .contador {
   background: var(--rojo-claro);
   color: var(--rojo);
   border-radius: 999px;
-  padding: 0.1rem 0.6rem;
-  font-weight: 700;
-  font-size: 0.85rem;
+  padding: 0.25rem 0.65rem;
+  font-weight: 800;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.contador.neutro {
+  background: var(--primario-suave);
+  color: var(--primario);
+}
+
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ---------------------------------------------------------------- conversación */
@@ -448,77 +771,100 @@ label small {
   border-radius: var(--radio);
   box-shadow: var(--sombra);
   overflow: hidden;
+  min-width: 0;
+  animation: subir 0.5s ease both;
+}
+
+.conversacion > .cargando {
+  padding: 1.4rem;
+}
+
+.conversacion-cabecera {
+  padding: 1.1rem 1.4rem;
+  border-bottom: 1px solid var(--borde);
 }
 
 .hilo {
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
-  padding: 1rem;
+  gap: 0.9rem;
+  padding: 1.4rem;
   /* Alto fijo y no `flex: 1`: el chat vive dentro de una rejilla y sin un alto
      propio crecería con la conversación hasta empujar el resto fuera de vista. */
-  height: min(60vh, 30rem);
+  height: min(60vh, 32rem);
   overflow-y: auto;
 }
 
 .burbuja {
-  max-width: 85%;
-  padding: 0.6rem 0.8rem;
-  border-radius: var(--radio);
-  border: 1px solid var(--borde);
-  background: var(--papel);
+  max-width: 80%;
+  padding: 0.85rem 1rem;
+  border-radius: 5px 17px 17px 17px;
+  background: var(--primario-suave);
 }
 
 .burbuja p {
-  margin: 0;
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .burbuja .autor {
   display: block;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--tinta-suave);
-  margin-bottom: 0.2rem;
+  letter-spacing: 0.1em;
+  font-weight: 800;
+  opacity: 0.72;
 }
 
 .burbuja.yo {
   align-self: flex-end;
-  background: var(--azul-claro);
-  border-color: var(--azul-claro);
-}
-
-.burbuja.agente {
-  border-left: 3px solid var(--azul-claro);
+  border-radius: 17px 5px 17px 17px;
+  background: var(--primario);
+  color: var(--sobre-primario);
 }
 
 .burbuja.sistema {
   align-self: center;
   max-width: 100%;
+  border-radius: 12px;
   background: var(--ambar-claro);
-  border-color: var(--ambar-claro);
+  border: 1px solid var(--ambar-borde);
   color: var(--ambar);
-  font-size: 0.88rem;
 }
 
 .burbuja .acciones {
-  margin-top: 0.5rem;
-  padding-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
   border-top: 1px dashed var(--borde);
   font-size: 0.8rem;
   color: var(--verde);
 }
 
-.burbuja .acciones li::before {
-  content: '✓ ';
+.burbuja .acciones li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.burbuja .acciones li .icono {
+  margin-top: 0.15em;
+}
+
+.burbuja .acciones li.urgente {
+  color: var(--rojo);
+  font-weight: 800;
 }
 
 .pensando {
   display: flex;
   gap: 0.25rem;
   align-items: center;
+  margin: 0;
 }
 
 .punto {
@@ -547,50 +893,65 @@ label small {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .punto {
-    animation: none;
-    opacity: 0.6;
-  }
-}
-
 .redactor {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.6rem;
   align-items: flex-end;
-  padding: 0.7rem;
+  padding: 1rem 1.4rem;
   border-top: 1px solid var(--borde);
+}
+
+.redactor textarea {
+  resize: none;
 }
 
 .redactor button {
   white-space: nowrap;
+  height: 2.7rem;
 }
 
 .descargo {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
   margin: 0;
-  padding: 0.5rem 0.8rem;
-  font-size: 0.75rem;
+  padding: 0 1.4rem 1.1rem;
+  font-size: 0.74rem;
+  line-height: 1.45;
   color: var(--tinta-suave);
-  background: var(--papel);
-  border-top: 1px solid var(--borde);
+}
+
+.descargo .icono {
+  color: var(--primario);
+  margin-top: 0.1em;
 }
 
 /* ------------------------------------------------------------------- avisos */
 
 .aviso {
-  border-radius: 8px;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.88rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  border-radius: 13px;
+  padding: 0.75rem 1rem;
+  font-size: 0.86rem;
   border: 1px solid transparent;
 }
 
 .aviso .icono {
-  margin-right: 0.4em;
+  margin-top: 0.15em;
 }
 
 .aviso.info {
-  background: var(--azul-claro);
-  color: var(--azul);
+  background: var(--primario-suave);
+  color: var(--primario);
+}
+
+.aviso.exito {
+  background: var(--verde-claro);
+  color: var(--verde);
+  border-color: color-mix(in srgb, var(--verde) 25%, transparent);
 }
 
 .aviso.error {
@@ -601,7 +962,13 @@ label small {
 .aviso.urgente {
   background: var(--rojo);
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+@media (prefers-color-scheme: dark) {
+  .aviso.urgente {
+    color: #1a0808;
+  }
 }
 
 .cargando {
@@ -613,12 +980,12 @@ label small {
 
 .vacio {
   color: var(--tinta-suave);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   margin: 0;
   padding: var(--e-4);
   text-align: center;
   border: 1px dashed var(--borde);
-  border-radius: var(--radio);
+  border-radius: 14px;
 }
 
 @keyframes aparecer {
@@ -630,10 +997,32 @@ label small {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .cargando {
-    animation: none;
-  }
+/* -------------------------------------------------------------- aviso global */
+
+/*
+ * Lo pone quien administra la plataforma y lo ve todo el mundo, así que va fuera del
+ * `.panel`: a lo ancho de la pantalla, bajo la barra. Ámbar y no rojo porque el rojo
+ * de esta interfaz está reservado al nivel 1 de urgencia.
+ */
+.aviso-global,
+.aviso-bienestar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.7rem max(1.25rem, calc((100% - var(--ancho)) / 2));
+  font-size: 0.85rem;
+  background: var(--ambar-claro);
+  color: var(--ambar);
+  border-bottom: 1px solid var(--ambar-borde);
+}
+
+/* El recordatorio fijo del paciente: coral, cálido, y distinto del aviso global
+   para que no se lean como el mismo mensaje. */
+.aviso-bienestar {
+  background: var(--coral-claro);
+  color: var(--coral);
+  border-color: var(--coral-borde);
 }
 
 /* ------------------------------------------------------------- estado y nivel */
@@ -642,25 +1031,21 @@ label small {
 .nivel {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
   border-radius: 999px;
-  padding: 0.15rem 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
   white-space: nowrap;
   background: var(--papel);
   border: 1px solid var(--borde);
   color: var(--tinta-suave);
 }
 
-.etiqueta .icono,
-.nivel .icono {
-  margin-right: 0.25em;
-}
-
 .etiqueta.e-canalizado,
 .etiqueta.e-agendado {
-  background: var(--azul-claro);
-  color: var(--azul);
+  background: var(--primario-suave);
+  color: var(--primario);
   border-color: transparent;
 }
 
@@ -689,9 +1074,16 @@ label small {
   border-color: transparent;
 }
 .nivel.n-3 {
-  background: var(--azul-claro);
-  color: var(--azul);
+  background: var(--primario-suave);
+  color: var(--primario);
   border-color: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  .etiqueta.e-urgencia_escalada,
+  .nivel.n-1 {
+    color: #1a0808;
+  }
 }
 
 /* --------------------------------------------------------------------- listas */
@@ -699,9 +1091,9 @@ label small {
 .datos {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0.3rem 0.8rem;
+  gap: 0.4rem 0.9rem;
   margin: 0 0 0.7rem;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
 .datos dt {
@@ -715,17 +1107,24 @@ label small {
 .resumen {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  font-size: 0.9rem;
 }
 
 .destacado {
   font-size: 1.05rem;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 0.2rem;
 }
 
 .fino {
   font-size: 0.8rem;
   color: var(--tinta-suave);
+}
+
+.ayuda {
+  color: var(--tinta-suave);
+  font-size: 0.82rem;
+  line-height: 1.55;
 }
 
 .citas li,
@@ -737,7 +1136,7 @@ label small {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
-  padding: 0.55rem 0;
+  padding: 0.65rem 0;
   border-bottom: 1px solid var(--borde);
 }
 
@@ -751,14 +1150,14 @@ label small {
 
 .cuando {
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  font-size: 0.9rem;
+  font-weight: 700;
+  font-size: 0.88rem;
 }
 
 .quien {
   flex: 1;
   min-width: 8rem;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
 .marcas {
@@ -770,7 +1169,7 @@ label small {
 .texto {
   flex: 1;
   min-width: 10rem;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
 /* La agenda del profesional: cada cita es un botón que abre el detalle. */
@@ -779,21 +1178,22 @@ label small {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: baseline;
+  justify-content: flex-start;
   width: 100%;
   text-align: left;
   border-color: transparent;
   background: transparent;
-  padding: 0.4rem 0.5rem;
+  padding: 0.5rem 0.6rem;
 }
 
 .citas button.fila:hover:not(.activa) {
-  background: var(--papel);
+  background: var(--primario-suave);
   border-color: transparent;
 }
 
 .citas button.fila.activa {
-  background: var(--azul-claro);
-  border-color: var(--azul);
+  background: var(--primario-suave);
+  border-color: var(--primario);
 }
 
 .citas li:has(button.fila) {
@@ -802,14 +1202,14 @@ label small {
 
 /* La escala de evolución va de 0 a 10; las franjas son las de `bandaDeEscala`. */
 .escala {
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.7rem;
+  height: 1.7rem;
   flex: none;
   display: inline-grid;
   place-items: center;
   border-radius: 50%;
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 800;
   background: var(--papel);
   border: 1px solid var(--borde);
   color: var(--tinta-suave);
@@ -833,6 +1233,72 @@ label small {
   border-color: transparent;
 }
 
+/* ------------------------------------------------------------------- paciente */
+
+.caso-vacio {
+  text-align: center;
+  padding: 1.4rem 0.6rem 0.4rem;
+}
+
+.icono-vacio {
+  display: grid;
+  place-items: center;
+  margin: 0 auto 0.8rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--primario);
+  background: var(--primario-suave);
+  border-radius: 15px;
+}
+
+.caso-vacio strong {
+  font-size: 0.9rem;
+}
+
+.caso-vacio p {
+  color: var(--tinta-suave);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 0.4rem 0 0.6rem;
+}
+
+.fila-vacia {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0;
+  color: var(--tinta-suave);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.fila-vacia .icono {
+  color: var(--primario);
+}
+
+.tarjeta.privacidad {
+  display: flex;
+  gap: 0.7rem;
+  background: var(--primario-suave);
+  color: var(--primario);
+  box-shadow: none;
+}
+
+.tarjeta.privacidad .icono {
+  margin-top: 0.1em;
+}
+
+.tarjeta.privacidad strong {
+  font-size: 0.82rem;
+}
+
+.tarjeta.privacidad p {
+  color: var(--tinta-suave);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  margin: 0.3rem 0 0;
+}
+
 /* ---------------------------------------------------------------- formularios */
 
 .formulario .principal {
@@ -852,7 +1318,7 @@ label small {
 .formulario.rejilla {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-  gap: 0.6rem;
+  gap: 0.7rem;
   align-items: end;
 }
 
@@ -863,102 +1329,274 @@ label small {
 .formulario.rejilla .principal {
   width: auto;
   margin-top: 0;
+  height: 2.6rem;
 }
 
-/* -------------------------------------------------------------- aviso global */
+.formulario.rejilla .problema {
+  grid-column: 1 / -1;
+}
 
-/*
- * Lo pone quien administra la plataforma y lo ve todo el mundo, así que va fuera del
- * `.panel`: a lo ancho de la pantalla y antes de cualquier cabecera. Ámbar y no rojo
- * porque el rojo de esta interfaz está reservado al nivel 1 de urgencia.
- */
-.aviso-global {
-  margin: 0;
-  padding: 0.6rem 1.2rem;
-  background: var(--ambar-claro);
-  color: var(--ambar);
-  border-bottom: 1px solid var(--borde);
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-align: center;
+.rejilla-formulario {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.8rem;
+}
+
+.rejilla-formulario label,
+.final-formulario label {
+  margin-bottom: 0;
+}
+
+.final-formulario {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+}
+
+.final-formulario label {
+  flex: 1 1 14rem;
+}
+
+.final-formulario button {
+  height: 2.65rem;
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------------ plataforma */
 
-/*
- * La vista de plataforma no tiene chat ni segunda columna: es una pila de tarjetas.
- * Por eso apila con `gap` en vez de reutilizar `.columnas`.
- */
-.plataforma {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+.buscador {
+  position: relative;
+  margin-top: 0.35rem;
 }
 
-.plataforma .pestanas {
-  margin-bottom: 0;
+.buscador .icono {
+  position: absolute;
+  left: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--tinta-suave);
+  pointer-events: none;
 }
 
-.contador.neutro {
-  background: var(--azul-claro);
-  color: var(--azul);
+.buscador input {
+  padding-left: 2.4rem;
 }
 
 .filas > li {
-  padding: 0.7rem 0;
-  border-bottom: 1px solid var(--borde);
+  padding: 1.05rem 0;
+  border-top: 1px solid var(--borde);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.7rem;
 }
 
 .filas > li:last-child {
-  border-bottom: 0;
   padding-bottom: 0;
 }
 
 .identidad {
   display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.mini-avatar {
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.66rem;
+  background: var(--primario-suave);
+  color: var(--primario);
+}
+
+.identidad-texto,
+.pro-nombre {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.identidad-texto strong,
+.pro-nombre strong {
+  font-size: 0.88rem;
+}
+
+.identidad-texto > span {
+  color: var(--tinta-suave);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.cuenta-propia {
+  display: flex;
+  align-items: flex-start;
   flex-wrap: wrap;
-  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0;
+  color: var(--tinta-suave);
+  font-size: 0.8rem;
+}
+
+.pildora {
+  flex: none;
+  color: var(--primario);
+  background: var(--primario-suave);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-weight: 800;
+  font-size: 0.7rem;
+}
+
+.controles-usuario {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9.5rem auto;
   gap: 0.5rem;
+  align-items: center;
+}
+
+.lista-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.lista-roles li {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.vineta {
+  display: grid;
+  place-items: center;
+  flex: 0 0 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  color: var(--primario);
+  background: var(--primario-suave);
+}
+
+.lista-roles strong {
+  font-size: 0.82rem;
+}
+
+.lista-roles p {
+  margin: 0.25rem 0 0;
+  color: var(--tinta-suave);
+  font-size: 0.77rem;
+  line-height: 1.45;
+}
+
+.pro-principal {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.pro-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 2.4rem;
+  height: 2.4rem;
+  border-radius: 13px;
+  font-weight: 800;
+}
+
+.pro-avatar.verde,
+.etiqueta-centro.verde {
+  color: var(--primario);
+  background: var(--primario-suave);
+}
+
+.pro-avatar.coral,
+.etiqueta-centro.coral {
+  color: var(--coral);
+  background: var(--coral-claro);
+}
+
+.pro-nombre {
+  flex: 1 1 12rem;
 }
 
 /* Un dato de sólo texto con un lápiz al lado que lo vuelve editable, en vez de
-   un formulario aparte. El lápiz es el único botón sin borde ni fondo de toda
-   la hoja: cualquier otro tratamiento (subrayado, color de enlace) se confunde
-   con navegación, y esto no navega a ningún sitio. */
+   un formulario aparte. El lápiz es el único botón sin borde ni fondo de la fila:
+   cualquier otro tratamiento (subrayado, color de enlace) se confunde con
+   navegación, y esto no navega a ningún sitio. */
 .especialidad {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
+  color: var(--tinta-suave);
+  font-size: 0.8rem;
 }
 
 .icono-boton {
   border: 0;
   background: none;
-  padding: 0.1rem;
-  display: inline-flex;
+  padding: 0.15rem;
   color: var(--tinta-suave);
 }
 
 .icono-boton:hover:not(:disabled) {
-  color: var(--azul);
-}
-
-.icono-boton .icono {
-  margin-right: 0;
+  color: var(--primario);
 }
 
 .campo-en-linea {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
 }
 
 .campo-en-linea input {
-  width: 11rem;
-  padding: 0.2rem 0.5rem;
+  width: 13rem;
+  max-width: 100%;
+  padding: 0.35rem 0.6rem;
+}
+
+.pro-datos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  color: var(--tinta-suave);
+  font-size: 0.76rem;
+}
+
+.etiqueta-centro {
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.horas {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.pro-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-left: 3.1rem;
+}
+
+.desplegado {
+  margin-left: 3.1rem;
+  background: var(--primario-suave);
+  border-radius: 14px;
+  padding: 1.1rem;
+  font-size: 0.86rem;
+}
+
+.desplegado .antetitulo {
+  margin-bottom: 0.3rem;
 }
 
 /* Los controles de una fila alineados por su base: el botón queda a la altura del
@@ -972,40 +1610,98 @@ label small {
 
 .controles label {
   margin-bottom: 0;
-  min-width: 9rem;
+  min-width: 12rem;
+  flex: 1 1 14rem;
 }
 
-.desplegado {
-  background: var(--papel);
-  border: 1px solid var(--borde);
-  border-radius: var(--radio);
-  padding: 0.8rem;
-}
-
-.desplegado h3 {
-  margin-top: 0.6rem;
-}
-
-.desplegado h3:first-child {
-  margin-top: 0;
+.controles button {
+  height: 2.6rem;
 }
 
 .horarios li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem;
-  padding: 0.35rem 0;
+  display: grid;
+  grid-template-columns: 6.5rem 7.5rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--borde);
+}
+
+.horarios li.inactivo {
+  opacity: 0.7;
+}
+
+.horarios .dia {
+  font-weight: 700;
+  font-size: 0.86rem;
+  text-transform: capitalize;
+}
+
+.horarios li > .etiqueta {
+  justify-self: start;
+}
+
+.horarios li > button {
+  grid-column: -2;
+  justify-self: end;
+}
+
+.limites {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1.1rem;
+}
+
+.limites strong {
+  font-size: 0.86rem;
+}
+
+.limites p {
+  color: var(--tinta-suave);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 0.4rem 0 0;
 }
 
 .ajuste {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 17rem;
+  gap: 1.6rem;
+  padding: 1.3rem 0;
   border-top: 1px solid var(--borde);
-  padding-top: 0.9rem;
 }
 
-.ajuste:first-of-type {
-  border-top: 0;
-  padding-top: 0;
+.ajuste:last-child {
+  padding-bottom: 0;
+}
+
+.ajuste-texto label {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--tinta);
+}
+
+.ajuste-texto p {
+  color: var(--tinta-suave);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 0.4rem 0 0;
+}
+
+.ajuste-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-content: flex-start;
+}
+
+.ajuste-control input {
+  max-width: 7rem;
+}
+
+.ajuste-control textarea {
+  min-height: 5rem;
 }
 
 /* Lo que impide guardar, junto al control que lo impide. */
@@ -1013,11 +1709,120 @@ label small {
   color: var(--rojo);
 }
 
+.ajuste-control .problema {
+  flex-basis: 100%;
+}
+
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.85em;
-  background: var(--papel);
-  border: 1px solid var(--borde);
+  font-size: 0.78em;
+  color: var(--primario);
+  background: var(--primario-suave);
   border-radius: 5px;
-  padding: 0.05rem 0.3rem;
+  padding: 0.12rem 0.4rem;
+}
+
+/* ------------------------------------------------------------------ responsive */
+
+@media (max-width: 900px) {
+  .columnas,
+  .profesional .columnas,
+  .rejilla-contenido {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ajuste {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.8rem;
+  }
+
+  .cabecera {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 600px) {
+  .barra-interior,
+  .pie-interior,
+  .panel {
+    width: calc(100% - 2rem);
+  }
+
+  .panel {
+    padding-top: 1.8rem;
+  }
+
+  .usuario-texto,
+  .salir-texto {
+    display: none;
+  }
+
+  .tarjeta {
+    padding: 1.05rem;
+    border-radius: 16px;
+  }
+
+  .hilo,
+  .redactor,
+  .conversacion-cabecera {
+    padding-inline: 1rem;
+  }
+
+  .descargo {
+    padding-inline: 1rem;
+  }
+
+  .burbuja {
+    max-width: 92%;
+  }
+
+  .redactor {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .redactor button {
+    width: 100%;
+  }
+
+  .controles-usuario {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pro-acciones,
+  .desplegado {
+    margin-left: 0;
+  }
+
+  .horarios li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .horarios li > button {
+    grid-column: auto;
+  }
+
+  .pie-interior {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pie-enlaces {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .punto {
+    opacity: 0.6;
+  }
 }

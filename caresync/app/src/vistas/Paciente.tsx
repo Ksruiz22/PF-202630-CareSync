@@ -16,7 +16,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Conversacion } from '../componentes/Conversacion';
 import { Aviso, Cabecera, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
-import { IconoCalendario } from '../componentes/Iconos';
+import {
+  IconoAlerta,
+  IconoCalendario,
+  IconoDocumento,
+  IconoEscudo,
+  IconoFlechaDerecha,
+  IconoMensaje,
+  IconoPlan,
+  IconoReloj,
+  IconoTendencia,
+} from '../componentes/Iconos';
 import { bandaDeEscala, escalaVisible, fechaHora, hace, soloFecha } from '../formato';
 import { mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
@@ -76,125 +86,183 @@ export function Paciente() {
 
   const casoId = idDe(datos.caso);
   const nivel = Number(datos.caso?.nivel_urgencia ?? 0);
+  const nombre = primerNombre(quien?.nombre);
 
   return (
-    <div className="panel paciente">
-      <Cabecera
-        titulo={`Hola, ${primerNombre(quien?.nombre)}`}
-        subtitulo="Cuéntale al asistente qué te pasa y él te acompaña desde ahí."
-        onSalir={() => void salir()}
-      />
+    <>
+      <div className="aviso-bienestar" role="note">
+        <IconoAlerta width={18} height={18} />
+        <span>
+          <strong>Tu bienestar es lo primero.</strong> Si estás en peligro inmediato,
+          llama a la línea de emergencias del campus o al 123.
+        </span>
+      </div>
 
-      {error && <Aviso tipo="error">{error}</Aviso>}
-      {nivel === 1 && (
-        <Aviso tipo="urgente">
-          Tu caso está marcado como emergencia. Si aún no has recibido ayuda, llama
-          ya a la línea de emergencias del campus o al 123.
-        </Aviso>
-      )}
-
-      <div className="columnas">
-        <Conversacion
-          {...(casoId ? { casoId } : {})}
-          saludo={saludoSegun(datos.caso)}
-          alResponder={() => void cargar()}
-          alVencerSesion={() => void salir()}
+      <div className="panel paciente">
+        <Cabecera
+          antetitulo="Acompañamiento CareSync"
+          titulo={nombre ? `Hola, ${nombre}` : 'Hola'}
+          subtitulo="Cuéntale al asistente qué te pasa y él te acompaña desde ahí."
         />
 
-        <aside className="lateral">
+        {error && <Aviso tipo="error">{error}</Aviso>}
+        {nivel === 1 && (
+          <Aviso tipo="urgente">
+            Tu caso está marcado como emergencia. Si aún no has recibido ayuda, llama
+            ya a la línea de emergencias del campus o al 123.
+          </Aviso>
+        )}
+
+        <div className="columnas">
+          {/* El chat espera a que cargue el caso: el saludo y el caso sobre el que se
+              conversa se fijan al montarlo, y montarlo antes hacía que todo paciente
+              viera el saludo de «sin caso» aunque estuviera en seguimiento. */}
           {cargando ? (
-            <Cargando que="Buscando tu caso" />
-          ) : !datos.caso ? (
-            <Tarjeta titulo="Todavía no hay caso">
-              <Vacio>
-                Cuando le escribas al asistente se abre un caso y aquí verás en qué
-                va.
-              </Vacio>
-            </Tarjeta>
+            <section className="conversacion">
+              <Cargando que="Preparando la conversación" />
+            </section>
           ) : (
-            <>
-              <Tarjeta titulo="Tu caso" extra={<Etiqueta estado={datos.caso.estado} />}>
-                <dl className="datos">
-                  <dt>Urgencia</dt>
-                  <dd>
-                    <Nivel valor={datos.caso.nivel_urgencia} />
-                  </dd>
-                  <dt>Centro</dt>
-                  <dd>{nombreDeCentro(datos.caso.centro)}</dd>
-                  <dt>Abierto</dt>
-                  <dd>{hace(datos.caso.creado_en)}</dd>
-                </dl>
-                {datos.caso.resumen_triaje && (
-                  <p className="resumen">{String(datos.caso.resumen_triaje)}</p>
-                )}
-              </Tarjeta>
+            <Conversacion
+              {...(casoId ? { casoId } : {})}
+              saludo={saludoSegun(datos.caso)}
+              alResponder={() => void cargar()}
+              alVencerSesion={() => void salir()}
+            />
+          )}
 
-              <Tarjeta titulo="Tu cita" icono={<IconoCalendario />}>
-                {datos.cita ? (
-                  <>
-                    <p className="destacado">{fechaHora(datos.cita.inicio)}</p>
+          <aside className="lateral">
+            {cargando ? (
+              <Cargando que="Buscando tu caso" />
+            ) : !datos.caso ? (
+              <>
+                <Tarjeta titulo="Tu caso" icono={<IconoDocumento />}>
+                  <div className="caso-vacio">
+                    <span className="icono-vacio">
+                      <IconoMensaje width={21} height={21} />
+                    </span>
+                    <strong>Todavía no hay caso</strong>
                     <p>
-                      {String(datos.cita.profesional_nombre ?? 'Profesional por asignar')} ·{' '}
-                      {nombreDeCentro(datos.cita.centro)}
+                      Cuando le escribas al asistente se abre un caso y aquí verás en
+                      qué va.
                     </p>
-                    <Etiqueta estado={datos.cita.estado} />
-                  </>
-                ) : (
-                  <Vacio>
-                    Sin cita agendada. Pídele al asistente que te busque un espacio.
-                  </Vacio>
-                )}
-              </Tarjeta>
+                    <button
+                      type="button"
+                      className="boton-texto"
+                      onClick={() => document.getElementById('mensaje')?.focus()}
+                    >
+                      Comenzar conversación <IconoFlechaDerecha />
+                    </button>
+                  </div>
+                </Tarjeta>
+                <TarjetaDePrivacidad />
+              </>
+            ) : (
+              <>
+                <Tarjeta
+                  titulo="Tu caso"
+                  icono={<IconoDocumento />}
+                  extra={<Etiqueta estado={datos.caso.estado} />}
+                >
+                  <dl className="datos">
+                    <dt>Urgencia</dt>
+                    <dd>
+                      <Nivel valor={datos.caso.nivel_urgencia} />
+                    </dd>
+                    <dt>Centro</dt>
+                    <dd>{nombreDeCentro(datos.caso.centro)}</dd>
+                    <dt>Abierto</dt>
+                    <dd>{hace(datos.caso.creado_en)}</dd>
+                  </dl>
+                  {datos.caso.resumen_triaje && (
+                    <p className="resumen">{String(datos.caso.resumen_triaje)}</p>
+                  )}
+                </Tarjeta>
 
-              {datos.plan && (
-                <Tarjeta titulo="Tu plan">
-                  <p className="resumen">{String(datos.plan.resumen ?? '')}</p>
-                  <p className="fino">
-                    {String(datos.plan.profesional_nombre ?? 'Tu profesional')} ·{' '}
-                    {soloFecha(datos.plan.creado_en)}
-                  </p>
-                  {datos.indicaciones.length === 0 ? (
-                    <Vacio>Sin indicaciones activas.</Vacio>
+                <Tarjeta titulo="Tu cita" icono={<IconoCalendario />}>
+                  {datos.cita ? (
+                    <>
+                      <p className="destacado">{fechaHora(datos.cita.inicio)}</p>
+                      <p>
+                        {String(datos.cita.profesional_nombre ?? 'Profesional por asignar')} ·{' '}
+                        {nombreDeCentro(datos.cita.centro)}
+                      </p>
+                      <Etiqueta estado={datos.cita.estado} />
+                    </>
                   ) : (
-                    <ul className="indicaciones">
-                      {datos.indicaciones.map((indicacion) => (
-                        <li key={idDe(indicacion)}>
-                          <span className="texto">{String(indicacion.texto ?? '')}</span>
-                          <span className="fino">
-                            {String(indicacion.frecuencia ?? 'sin frecuencia')} ·{' '}
-                            {resumenDeAdherencia(datos.adherencias, idDe(indicacion))}
+                    <p className="fila-vacia">
+                      <IconoReloj width={18} height={18} />
+                      <span>Sin cita agendada. Pídele al asistente que te busque un espacio.</span>
+                    </p>
+                  )}
+                </Tarjeta>
+
+                {datos.plan && (
+                  <Tarjeta titulo="Tu plan" icono={<IconoPlan />}>
+                    <p className="resumen">{String(datos.plan.resumen ?? '')}</p>
+                    <p className="fino">
+                      {String(datos.plan.profesional_nombre ?? 'Tu profesional')} ·{' '}
+                      {soloFecha(datos.plan.creado_en)}
+                    </p>
+                    {datos.indicaciones.length === 0 ? (
+                      <Vacio>Sin indicaciones activas.</Vacio>
+                    ) : (
+                      <ul className="indicaciones">
+                        {datos.indicaciones.map((indicacion) => (
+                          <li key={idDe(indicacion)}>
+                            <span className="texto">{String(indicacion.texto ?? '')}</span>
+                            <span className="fino">
+                              {String(indicacion.frecuencia ?? 'sin frecuencia')} ·{' '}
+                              {resumenDeAdherencia(datos.adherencias, idDe(indicacion))}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </Tarjeta>
+                )}
+
+                {datos.evoluciones.length > 0 && (
+                  <Tarjeta titulo="Cómo has ido" icono={<IconoTendencia />}>
+                    <ul className="evolucion">
+                      {datos.evoluciones.map((fila) => (
+                        <li key={idDe(fila)}>
+                          <span className={`escala ${bandaDeEscala(fila.escala)}`}>
+                            {escalaVisible(fila.escala)}
                           </span>
+                          <span className="texto">{String(fila.nota ?? '')}</span>
+                          <span className="fino">{hace(fila.reportado_en)}</span>
                         </li>
                       ))}
                     </ul>
-                  )}
-                </Tarjeta>
-              )}
+                    <p className="fino">
+                      De 0 (peor que nunca) a 10 (como antes de todo esto). Lo registra
+                      el asistente con lo que tú le cuentas.
+                    </p>
+                  </Tarjeta>
+                )}
 
-              {datos.evoluciones.length > 0 && (
-                <Tarjeta titulo="Cómo has ido">
-                  <ul className="evolucion">
-                    {datos.evoluciones.map((fila) => (
-                      <li key={idDe(fila)}>
-                        <span className={`escala ${bandaDeEscala(fila.escala)}`}>
-                          {escalaVisible(fila.escala)}
-                        </span>
-                        <span className="texto">{String(fila.nota ?? '')}</span>
-                        <span className="fino">{hace(fila.reportado_en)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="fino">
-                    De 0 (peor que nunca) a 10 (como antes de todo esto). Lo registra
-                    el asistente con lo que tú le cuentas.
-                  </p>
-                </Tarjeta>
-              )}
-            </>
-          )}
-        </aside>
+                <TarjetaDePrivacidad />
+              </>
+            )}
+          </aside>
+        </div>
       </div>
-    </div>
+    </>
+  );
+}
+
+function TarjetaDePrivacidad() {
+  return (
+    <section className="tarjeta privacidad">
+      <IconoEscudo width={18} height={18} />
+      <div>
+        <strong>Tus datos, bajo cuidado</strong>
+        <p>
+          Lo que cuentas se usa para orientarte y conectarte con el centro que
+          corresponde.
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -287,13 +355,14 @@ function saludoSegun(caso: Caso | null): string {
   return 'Sigo aquí. Cuéntame en qué vamos.';
 }
 
+/** El primer nombre, o cadena vacía si no hay: el título dice entonces sólo «Hola». */
 function primerNombre(nombre: string | undefined): string {
   const limpio = String(nombre ?? '').trim();
-  if (!limpio) return 'hola';
+  if (!limpio) return '';
   const primero = limpio.split(/\s+/)[0] ?? limpio;
   // Si el «nombre» es en realidad el correo —pasa cuando no hay fila en
   // `perfiles`—, se corta en la arroba para no saludar a «juan.perez@uninorte».
-  return (primero.split('@')[0] ?? primero) || 'hola';
+  return primero.split('@')[0] ?? primero;
 }
 
 function nombreDeCentro(centro: unknown): string {
