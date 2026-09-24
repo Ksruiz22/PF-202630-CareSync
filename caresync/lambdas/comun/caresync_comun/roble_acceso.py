@@ -514,7 +514,10 @@ class AccesoRoble:
             {
                 "caso_id": caso_id,
                 "agente": agente,
-                "autor": autor,  # paciente | agente | sistema
+                # El rol de quien escribió —`paciente`, `admin_cmu`, `profesional`—, o
+                # bien `agente` o `sistema`. Quién habló importa al reconstruir el hilo:
+                # sobre un caso no conversa sólo el paciente.
+                "autor": autor,
                 "contenido": contenido,
                 "creado_en": reloj.iso(),
             },

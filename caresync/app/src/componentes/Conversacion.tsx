@@ -28,12 +28,30 @@ interface Props {
   casoId?: string;
   agente?: 'triaje' | 'agenda' | 'seguimiento';
   saludo: string;
+  /**
+   * Qué falta antes de poder escribir. Si viene, el redactor queda deshabilitado y se
+   * muestra este texto.
+   *
+   * Existe porque el orquestador sólo le resuelve el caso a un paciente: a un rol
+   * administrativo le exige `caso_id` en la petición y, si no viene, la rechaza con un
+   * 400 que en pantalla se lee como «No entendí la solicitud» —como si el agente no
+   * hubiera comprendido la pregunta, cuando en realidad nunca llegó a verla—. Es mejor
+   * decir qué falta antes de mandar la petición.
+   */
+  bloqueo?: string;
   /** Se llama tras cada turno para que la vista recargue lo que cambió en ROBLE. */
   alResponder?: (respuesta: RespuestaAgente) => void;
   alVencerSesion?: () => void;
 }
 
-export function Conversacion({ casoId, agente, saludo, alResponder, alVencerSesion }: Props) {
+export function Conversacion({
+  casoId,
+  agente,
+  saludo,
+  bloqueo,
+  alResponder,
+  alVencerSesion,
+}: Props) {
   const [turnos, setTurnos] = useState<Turno[]>([{ quien: 'agente', texto: saludo }]);
   const [borrador, setBorrador] = useState('');
   const [esperando, setEsperando] = useState(false);
@@ -47,7 +65,7 @@ export function Conversacion({ casoId, agente, saludo, alResponder, alVencerSesi
   async function enviar(evento: FormEvent) {
     evento.preventDefault();
     const mensaje = borrador.trim();
-    if (!mensaje || esperando) return;
+    if (!mensaje || esperando || bloqueo) return;
 
     setBorrador('');
     setTurnos((previos) => [...previos, { quien: 'yo', texto: mensaje }]);
@@ -116,6 +134,12 @@ export function Conversacion({ casoId, agente, saludo, alResponder, alVencerSesi
         <div ref={fondo} />
       </div>
 
+      {bloqueo && (
+        <p className="pendiente" aria-live="polite">
+          {bloqueo}
+        </p>
+      )}
+
       <form className="redactor" onSubmit={enviar}>
         <label className="lectores" htmlFor="mensaje">
           Escribe tu mensaje
@@ -135,9 +159,13 @@ export function Conversacion({ casoId, agente, saludo, alResponder, alVencerSesi
               void enviar(e as unknown as FormEvent);
             }
           }}
-          disabled={esperando}
+          disabled={esperando || Boolean(bloqueo)}
         />
-        <button type="submit" className="principal" disabled={esperando || !borrador.trim()}>
+        <button
+          type="submit"
+          className="principal"
+          disabled={esperando || !borrador.trim() || Boolean(bloqueo)}
+        >
           <IconoEnviar />
           {esperando ? 'Enviando…' : 'Enviar'}
         </button>
