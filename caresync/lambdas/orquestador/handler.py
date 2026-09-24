@@ -199,9 +199,14 @@ def _conversar(
         acceso.anotar_mensaje(
             caso_id=caso_id, agente=participantes[-1], autor="agente", contenido=texto_final
         )
-        _dejar_constancia_de_los_fallos(
-            acceso, caso_id=caso_id, agente=participantes[-1], usos=usos_totales
-        )
+
+    # La constancia de los fallos va fuera de ese `if`: un turno puede salir sin
+    # texto —el modelo se queda callado— y es precisamente cuando más falta hace
+    # que la bitácora diga qué no se hizo. Colgada del texto, el turno siguiente
+    # arrancaba sin saber que la herramienta había fallado.
+    _dejar_constancia_de_los_fallos(
+        acceso, caso_id=caso_id, agente=participantes[-1], usos=usos_totales
+    )
 
     caso = acceso.caso(caso_id)
     evento(
@@ -321,7 +326,8 @@ def _dejar_constancia_de_los_fallos(
     siguiente. Si en esa respuesta prometió algo que la herramienta no hizo, el
     modelo se lo encuentra después como un hecho suyo y lo defiende: fue así como
     una cita que nunca se agendó pasó a estar «pendiente de que el centro llame».
-    La nota va al lado para que el historial diga también lo que no ocurrió.
+    La nota va al lado para que el historial diga también lo que no ocurrió. Si el
+    agente no dijo nada, la nota va sola: el fallo se registra igual.
 
     Se anota como `sistema` y no como una fila más de la conversación: la persona
     no la ve —la interfaz no lee esta tabla—, y en la bitácora del caso queda
