@@ -37,7 +37,7 @@
  * ------------------------------------------------------------------------------
  */
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
   CATALOGO,
   guardarAjuste,
@@ -46,8 +46,21 @@ import {
   type Ajustes,
   type DefinicionDeAjuste,
 } from '../ajustes';
-import { Aviso, Cabecera, Cargando, Tarjeta, Vacio } from '../componentes/Piezas';
-import { IconoAjustes, IconoLapiz } from '../componentes/Iconos';
+import { Aviso, Cabecera, Cargando, iniciales, Tarjeta, Vacio } from '../componentes/Piezas';
+import {
+  IconoAjustes,
+  IconoAyuda,
+  IconoBuscar,
+  IconoCalendario,
+  IconoCheck,
+  IconoEscudo,
+  IconoEstetoscopio,
+  IconoFlechaAbajo,
+  IconoLapiz,
+  IconoMas,
+  IconoReloj,
+  IconoUsuarios,
+} from '../componentes/Iconos';
 import { diaSemanaLegible, diasDeLaSemana, rolLegible } from '../formato';
 import { esFalloDeServidor, mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
@@ -85,16 +98,20 @@ const VACIO: Datos = { perfiles: [], profesionales: [], horarios: [], ajustes: {
  * `accion` devuelve `Promise<unknown>` y no `Promise<void>`: los métodos del SDK
  * devuelven la fila escrita, y aquí no se mira. Pedir `void` obligaría a envolver cada
  * llamada en una función asíncrona que descarta el resultado, que es ruido.
+ *
+ * Resuelve `true` si la escritura salió bien. Casi nadie lo mira —el mensaje ya lo
+ * dice—, pero la edición en línea de la especialidad lo necesita para no cerrarse
+ * y perder lo escrito cuando ROBLE falla.
  */
 type Ejecutar = (
   clave: string,
   tabla: string,
   accion: () => Promise<unknown>,
   exito: string
-) => Promise<void>;
+) => Promise<boolean>;
 
 export function Plataforma() {
-  const { quien, salir } = useSesion();
+  const { quien } = useSesion();
   const [datos, setDatos] = useState<Datos>(VACIO);
   const [pestana, setPestana] = useState<Pestana>('usuarios');
   const [cargando, setCargando] = useState(true);
@@ -126,8 +143,10 @@ export function Plataforma() {
         await accion();
         setNota(exito);
         await cargar();
+        return true;
       } catch (fallo) {
         setError(explicarFallo(fallo, tabla));
+        return false;
       } finally {
         setOcupado('');
       }
@@ -140,7 +159,8 @@ export function Plataforma() {
   return (
     <div className="panel plataforma">
       <Cabecera
-        titulo="Plataforma"
+        antetitulo="Centro de control"
+        titulo="Administración de plataforma"
         subtitulo={
           <>
             {quien?.nombre} · {resumen.cuentas} cuenta{resumen.cuentas === 1 ? '' : 's'} ·{' '}
@@ -149,7 +169,6 @@ export function Plataforma() {
             {resumen.profesionalesActivos === 1 ? '' : 's'} · {resumen.conHorario} con horario
           </>
         }
-        onSalir={() => void salir()}
       />
 
       <div className="pestanas" role="tablist">
@@ -159,7 +178,8 @@ export function Plataforma() {
           aria-selected={pestana === 'usuarios'}
           onClick={() => setPestana('usuarios')}
         >
-          Usuarios y roles
+          <IconoUsuarios width={17} height={17} /> Usuarios y roles
+          {!cargando && <span className="cuenta">{datos.perfiles.length}</span>}
         </button>
         <button
           type="button"
@@ -167,7 +187,8 @@ export function Plataforma() {
           aria-selected={pestana === 'profesionales'}
           onClick={() => setPestana('profesionales')}
         >
-          Profesionales
+          <IconoEstetoscopio width={17} height={17} /> Profesionales
+          {!cargando && <span className="cuenta">{datos.profesionales.length}</span>}
         </button>
         <button
           type="button"
@@ -175,12 +196,12 @@ export function Plataforma() {
           aria-selected={pestana === 'ajustes'}
           onClick={() => setPestana('ajustes')}
         >
-          Ajustes
+          <IconoAjustes width={17} height={17} /> Ajustes
         </button>
       </div>
 
       {error && <Aviso tipo="error">{error}</Aviso>}
-      {nota && <Aviso>{nota}</Aviso>}
+      {nota && <Aviso tipo="exito">{nota}</Aviso>}
 
       {cargando ? (
         <Cargando que="Leyendo cuentas, profesionales y ajustes" />
@@ -244,12 +265,17 @@ function SeccionUsuarios({
   }, [perfiles]);
 
   return (
-    <>
+    <div className="rejilla-contenido">
       <Tarjeta
-        titulo="Usuarios"
-        extra={<span className="contador neutro">{perfiles.length}</span>}
+        titulo="Usuarios y roles"
+        icono={<IconoUsuarios />}
+        extra={
+          <span className="contador neutro">
+            {perfiles.length} cuenta{perfiles.length === 1 ? '' : 's'}
+          </span>
+        }
       >
-        <p className="fino">
+        <p className="ayuda">
           {ROLES.filter((rol) => porRol[rol]).map((rol, indice) => (
             <span key={rol}>
               {indice > 0 ? ' · ' : ''}
@@ -258,17 +284,19 @@ function SeccionUsuarios({
           ))}
         </p>
 
-        <label>
-          Buscar
+        <label htmlFor="buscar-cuentas">Buscar cuentas</label>
+        <div className="buscador">
+          <IconoBuscar width={17} height={17} />
           <input
+            id="buscar-cuentas"
             type="search"
             value={filtro}
             onChange={(evento) => setFiltro(evento.target.value)}
-            placeholder="nombre, correo o rol"
+            placeholder="Nombre, correo o rol"
           />
-        </label>
+        </div>
 
-        <p className="fino">
+        <p className="ayuda">
           Aquí sólo aparecen las cuentas que tienen fila en «perfiles». Si a alguien le
           falló la escritura del perfil al registrarse, entra como paciente y no se ve
           en esta lista: que vuelva a entrar a la aplicación o que corra
@@ -297,23 +325,40 @@ function SeccionUsuarios({
         )}
       </Tarjeta>
 
-      <Tarjeta titulo="Qué hace cada rol">
-        <dl className="datos">
-          <dt>Paciente</dt>
-          <dd>Triaje, su caso y su seguimiento. Es el rol que da el registro.</dd>
-          <dt>Profesional</dt>
-          <dd>
+      <Tarjeta titulo="Qué hace cada rol" icono={<IconoAyuda />}>
+        <ul className="lista-roles">
+          <EntradaDeRol nombre="Paciente">
+            Triaje, su caso y su seguimiento. Es el rol que da el registro.
+          </EntradaDeRol>
+          <EntradaDeRol nombre="Profesional">
             Su agenda y el plan de sus pacientes. Necesita <strong>centro</strong>, y
             además una fila en «Profesionales» vinculada a su cuenta para que le
             aparezcan citas.
-          </dd>
-          <dt>Administración CMU / CAE</dt>
-          <dd>El tablero de su centro y el agente de agenda. El centro sale del rol.</dd>
-          <dt>Administración de plataforma</dt>
-          <dd>Esta pantalla. No ve casos ni conversaciones.</dd>
-        </dl>
+          </EntradaDeRol>
+          <EntradaDeRol nombre="Administración CMU / CAE">
+            El tablero de su centro y el agente de agenda. El centro sale del rol.
+          </EntradaDeRol>
+          <EntradaDeRol nombre="Administración de plataforma">
+            Esta pantalla. No ve casos ni conversaciones.
+          </EntradaDeRol>
+        </ul>
       </Tarjeta>
-    </>
+    </div>
+  );
+}
+
+/** Una entrada de «Qué hace cada rol». */
+function EntradaDeRol({ nombre, children }: { nombre: string; children: ReactNode }) {
+  return (
+    <li>
+      <span className="vineta">
+        <IconoCheck width={13} height={13} />
+      </span>
+      <div>
+        <strong>{nombre}</strong>
+        <p>{children}</p>
+      </div>
+    </li>
   );
 }
 
@@ -339,6 +384,7 @@ function FilaDeUsuario({
   const necesitaCentro = editado.rol === 'profesional';
   const problema = necesitaCentro && !editado.centro ? 'Un profesional necesita centro.' : '';
   const clave = `perfil:${id}`;
+  const nombre = String(perfil.nombre ?? '(sin nombre)');
 
   function elegirRol(rol: Rol) {
     // El centro de un rol administrativo va implícito en el nombre del rol y el
@@ -358,50 +404,54 @@ function FilaDeUsuario({
   return (
     <li className="fila-usuario">
       <div className="identidad">
-        <span className="quien">{String(perfil.nombre ?? '(sin nombre)')}</span>
-        <span className="fino">{String(perfil.email ?? 'sin correo')}</span>
-        {esMiCuenta && <span className="etiqueta e-agendado">tu cuenta</span>}
+        <span className="mini-avatar" aria-hidden="true">
+          {iniciales(perfil.nombre ?? perfil.email)}
+        </span>
+        <span className="identidad-texto">
+          <strong>{nombre}</strong>
+          <span>{String(perfil.email ?? 'sin correo')}</span>
+        </span>
       </div>
 
       {esMiCuenta ? (
-        <p className="fino">
-          {rolLegible(actual.rol)}
-          {actual.centro ? ` · ${actual.centro}` : ''}. Tu propio rol no se cambia aquí:
-          quitártelo te dejaría sin esta pantalla y sin forma de volver salvo el script.
+        <p className="cuenta-propia">
+          <span className="pildora">Tu cuenta</span>
+          <span>
+            {rolLegible(actual.rol)}
+            {actual.centro ? ` · ${actual.centro}` : ''}. Tu propio rol no se cambia
+            aquí: quitártelo te dejaría sin esta pantalla y sin forma de volver salvo el
+            script.
+          </span>
         </p>
       ) : (
-        <div className="controles">
-          <label>
-            Rol
-            <select
-              value={editado.rol}
-              onChange={(evento) => elegirRol(evento.target.value as Rol)}
-            >
-              {ROLES.map((rol) => (
-                <option key={rol} value={rol}>
-                  {rolLegible(rol)}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="controles-usuario">
+          <select
+            aria-label={`Rol de ${nombre}`}
+            value={editado.rol}
+            onChange={(evento) => elegirRol(evento.target.value as Rol)}
+          >
+            {ROLES.map((rol) => (
+              <option key={rol} value={rol}>
+                {rolLegible(rol)}
+              </option>
+            ))}
+          </select>
 
-          <label>
-            Centro
-            <select
-              value={editado.centro}
-              disabled={!necesitaCentro}
-              onChange={(evento) =>
-                alCambiar({ ...editado, centro: evento.target.value as Centro | '' })
-              }
-            >
-              <option value="">Sin centro</option>
-              {CENTROS.map((centro) => (
-                <option key={centro} value={centro}>
-                  {centro}
-                </option>
-              ))}
-            </select>
-          </label>
+          <select
+            aria-label={`Centro de ${nombre}`}
+            value={editado.centro}
+            disabled={!necesitaCentro}
+            onChange={(evento) =>
+              alCambiar({ ...editado, centro: evento.target.value as Centro | '' })
+            }
+          >
+            <option value="">Sin centro</option>
+            {CENTROS.map((centro) => (
+              <option key={centro} value={centro}>
+                {centro}
+              </option>
+            ))}
+          </select>
 
           <button
             type="button"
@@ -465,12 +515,13 @@ function SeccionProfesionales({
   );
 
   return (
-    <>
+    <div className="pila">
       <Tarjeta
         titulo="Profesionales"
-        extra={<span className="contador neutro">{profesionales.length}</span>}
+        icono={<IconoEstetoscopio />}
+        extra={<span className="contador neutro">{profesionales.length} en total</span>}
       >
-        <p className="fino">
+        <p className="ayuda">
           Una fila aquí es alguien que <em>atiende</em>: de esto salen los cupos. El rol
           de la cuenta se cambia en la otra pestaña y son cosas distintas —se puede
           tener agenda sin cuenta, y cuenta sin agenda—.
@@ -503,7 +554,7 @@ function SeccionProfesionales({
       </Tarjeta>
 
       <FormularioDeProfesional candidatos={candidatos} ocupado={ocupado} ejecutar={ejecutar} />
-    </>
+    </div>
   );
 }
 
@@ -532,6 +583,15 @@ function FilaDeProfesional({
   const cuenta = perfiles.find((perfil) => String(perfil.user_id ?? '') === userId);
   const vivos = horarios.filter((horario) => horario.activo === undefined || esVerdad(horario.activo));
   const [vinculo, setVinculo] = useState(userId);
+  const nombre = String(profesional.nombre ?? '(sin nombre)');
+  const centro = String(profesional.centro ?? '');
+  const tono = centro === 'CAE' ? 'coral' : 'verde';
+
+  // La cuenta vinculada hoy va siempre entre las opciones, aunque ya no tenga rol
+  // profesional: si no, el selector mostraría «Sin cuenta» mientras la fila sigue
+  // vinculada, y el botón quedaría deshabilitado sin forma de entender por qué.
+  const vinculadaFueraDeLista =
+    userId !== '' && !candidatos.some((perfil) => String(perfil.user_id ?? '') === userId);
 
   const especialidadGuardada = String(profesional.especialidad ?? '');
   const claveEspecialidad = `especialidad:${id}`;
@@ -548,73 +608,102 @@ function FilaDeProfesional({
     setEditandoEspecialidad(false);
   }
 
-  function guardarEspecialidad() {
+  async function guardarEspecialidad() {
     const valor = especialidad.trim();
-    setEditandoEspecialidad(false);
-    if (valor === especialidadGuardada.trim()) return;
-    void ejecutar(
+    if (valor === especialidadGuardada.trim()) {
+      setEditandoEspecialidad(false);
+      return;
+    }
+    // El editor se cierra sólo si ROBLE aceptó el cambio: si falla, lo escrito
+    // sigue ahí para reintentar en vez de perderse.
+    const bien = await ejecutar(
       claveEspecialidad,
       'profesionales',
       () => roble.update('profesionales', id, { especialidad: valor || null }),
       `Especialidad de ${String(profesional.nombre ?? 'el profesional')} actualizada.`
     );
+    if (bien) setEditandoEspecialidad(false);
   }
 
+  const guardandoEspecialidad = ocupado === claveEspecialidad;
+
   return (
-    <li className="fila-profesional">
-      <div className="identidad">
-        <span className="quien">{String(profesional.nombre ?? '(sin nombre)')}</span>
-        <span className="etiqueta e-agendado">{String(profesional.centro ?? '—')}</span>
-        {editandoEspecialidad ? (
-          <span className="campo-en-linea">
-            <input
-              type="text"
-              value={especialidad}
-              autoFocus
-              placeholder="Medicina general, Psicología…"
-              onChange={(evento) => setEspecialidad(evento.target.value)}
-              onKeyDown={(evento) => {
-                if (evento.key === 'Enter') {
-                  evento.preventDefault();
-                  guardarEspecialidad();
-                }
-                if (evento.key === 'Escape') cancelarEdicionDeEspecialidad();
-              }}
-            />
-            <button type="button" className="fino" onClick={guardarEspecialidad}>
-              Guardar
-            </button>
-            <button type="button" className="enlace fino" onClick={cancelarEdicionDeEspecialidad}>
-              Cancelar
-            </button>
-          </span>
-        ) : (
-          <span className="fino especialidad">
-            {especialidadGuardada || 'sin especialidad'}
-            <button
-              type="button"
-              className="icono-boton"
-              onClick={empezarEdicionDeEspecialidad}
-              title="Editar especialidad"
-              aria-label="Editar especialidad"
-            >
-              <IconoLapiz />
-            </button>
-          </span>
-        )}
-        {!activo && <span className="etiqueta">inactivo</span>}
-        <span className="fino">
-          {vivos.length} horario{vivos.length === 1 ? '' : 's'}
+    <li className={`fila-profesional${abierto ? ' abierta' : ''}`}>
+      <div className="pro-principal">
+        <span className={`pro-avatar ${tono}`} aria-hidden="true">
+          {iniciales(profesional.nombre, 1)}
         </span>
+        <div className="pro-nombre">
+          <strong>{nombre}</strong>
+          {editandoEspecialidad ? (
+            <span className="campo-en-linea">
+              <input
+                type="text"
+                aria-label={`Especialidad de ${nombre}`}
+                value={especialidad}
+                autoFocus
+                disabled={guardandoEspecialidad}
+                placeholder="Medicina general, Psicología…"
+                onChange={(evento) => setEspecialidad(evento.target.value)}
+                onKeyDown={(evento) => {
+                  if (evento.key === 'Enter') {
+                    evento.preventDefault();
+                    void guardarEspecialidad();
+                  }
+                  if (evento.key === 'Escape') cancelarEdicionDeEspecialidad();
+                }}
+              />
+              <button
+                type="button"
+                className="principal fino"
+                disabled={guardandoEspecialidad}
+                onClick={() => void guardarEspecialidad()}
+              >
+                {guardandoEspecialidad ? 'Guardando…' : 'Guardar'}
+              </button>
+              <button
+                type="button"
+                className="enlace fino"
+                disabled={guardandoEspecialidad}
+                onClick={cancelarEdicionDeEspecialidad}
+              >
+                Cancelar
+              </button>
+            </span>
+          ) : (
+            <span className="especialidad">
+              {especialidadGuardada || 'sin especialidad'}
+              <button
+                type="button"
+                className="icono-boton"
+                onClick={empezarEdicionDeEspecialidad}
+                title="Editar especialidad"
+                aria-label="Editar especialidad"
+              >
+                <IconoLapiz width={14} height={14} />
+              </button>
+            </span>
+          )}
+        </div>
+        <div className="pro-datos">
+          {!activo && <span className="etiqueta">inactivo</span>}
+          <span className={`etiqueta-centro ${tono}`}>{centro || '—'}</span>
+          <span className="horas">
+            <IconoReloj width={14} height={14} /> {vivos.length} horario
+            {vivos.length === 1 ? '' : 's'}
+          </span>
+        </div>
       </div>
 
-      <div className="controles">
-        <button type="button" className="fino" onClick={alAbrir} aria-expanded={abierto}>
+      <div className="pro-acciones">
+        <button type="button" className="boton-texto" onClick={alAbrir} aria-expanded={abierto}>
+          <IconoCalendario width={15} height={15} />
           {abierto ? 'Cerrar' : 'Horarios y cuenta'}
+          <IconoFlechaAbajo width={14} height={14} className={abierto ? 'girado' : ''} />
         </button>
         <button
           type="button"
-          className="fino"
+          className={activo ? 'boton-texto peligro' : 'boton-texto'}
           disabled={ocupado === `profesional:${id}`}
           onClick={() =>
             void ejecutar(
@@ -633,12 +722,20 @@ function FilaDeProfesional({
 
       {abierto && (
         <div className="desplegado">
-          <h3>Cuenta vinculada</h3>
-          <p className="fino">
-            {cuenta
-              ? `Hoy: ${String(cuenta.nombre ?? cuenta.email ?? userId)}.`
-              : 'Sin cuenta. La agenda funciona igual, pero esta persona no puede entrar a ver sus citas: se buscan por «profesional_user_id».'}
-          </p>
+          <p className="antetitulo">Cuenta vinculada</p>
+          {cuenta ? (
+            <p>
+              <strong>Hoy: {String(cuenta.nombre ?? cuenta.email ?? userId)}.</strong>
+            </p>
+          ) : (
+            <p>
+              <strong>Sin cuenta.</strong>{' '}
+              <span className="ayuda">
+                La agenda funciona igual, pero esta persona no puede entrar a ver sus
+                citas: se buscan por «profesional_user_id».
+              </span>
+            </p>
+          )}
           <div className="controles">
             <label>
               Cuenta con rol profesional
@@ -649,6 +746,11 @@ function FilaDeProfesional({
                     {String(perfil.nombre ?? perfil.email ?? perfil.user_id)}
                   </option>
                 ))}
+                {vinculadaFueraDeLista && (
+                  <option value={userId}>
+                    {String(cuenta?.nombre ?? cuenta?.email ?? userId)} (ya no es profesional)
+                  </option>
+                )}
               </select>
             </label>
             <button
@@ -664,11 +766,11 @@ function FilaDeProfesional({
                 )
               }
             >
-              Vincular
+              {ocupado === `vinculo:${id}` ? 'Guardando…' : 'Vincular'}
             </button>
           </div>
           {candidatos.length === 0 && (
-            <p className="fino">
+            <p className="ayuda">
               Ninguna cuenta tiene rol profesional todavía. Se le da en la pestaña de
               usuarios.
             </p>
@@ -691,6 +793,7 @@ function FilaDeProfesional({
                 ))}
             </ul>
           )}
+          <h3>Añadir horario</h3>
           <FormularioDeHorario profesionalId={id} ocupado={ocupado} ejecutar={ejecutar} />
         </div>
       )}
@@ -712,8 +815,8 @@ function FilaDeHorario({
   const clave = `horario:${id}`;
 
   return (
-    <li>
-      <span className="quien">{diaSemanaLegible(horario.dia_semana)}</span>
+    <li className={activo ? '' : 'inactivo'}>
+      <span className="dia">{diaSemanaLegible(horario.dia_semana)}</span>
       <span className="cuando">
         {String(horario.hora_inicio ?? '—')}–{String(horario.hora_fin ?? '—')}
       </span>
@@ -723,7 +826,7 @@ function FilaDeHorario({
       {!activo && <span className="etiqueta">inactivo</span>}
       <button
         type="button"
-        className="enlace"
+        className={activo ? 'boton-texto peligro' : 'boton-texto'}
         disabled={ocupado === clave}
         onClick={() =>
           void ejecutar(
@@ -849,6 +952,7 @@ function FormularioDeHorario({
         className="principal fino"
         disabled={Boolean(problema) || ocupado === clave}
       >
+        <IconoMas width={15} height={15} />
         {ocupado === clave ? 'Añadiendo…' : 'Añadir horario'}
       </button>
       {problema && <span className="fino problema">{problema}</span>}
@@ -876,8 +980,13 @@ function FormularioDeProfesional({
   const [campos, setCampos] = useState(PROFESIONAL_EN_BLANCO);
   const clave = 'nuevo-profesional';
 
+  // `minLength` del navegador cuenta los espacios, así que «   a» pasaba y se
+  // guardaba un nombre vacío. La regla se aplica sobre el texto recortado.
+  const nombreCorto = campos.nombre.trim().length < 3;
+
   function enviar(evento: FormEvent) {
     evento.preventDefault();
+    if (nombreCorto) return;
     void ejecutar(
       clave,
       'profesionales',
@@ -897,65 +1006,80 @@ function FormularioDeProfesional({
   }
 
   return (
-    <Tarjeta titulo="Añadir profesional">
-      <form className="formulario rejilla" onSubmit={enviar}>
-        <label>
-          Nombre
-          <input
-            type="text"
-            value={campos.nombre}
-            onChange={(e) => setCampos({ ...campos, nombre: e.target.value })}
-            required
-            minLength={3}
-          />
-        </label>
-        <label>
-          Correo
-          <input
-            type="email"
-            value={campos.email}
-            onChange={(e) => setCampos({ ...campos, email: e.target.value })}
-          />
-        </label>
-        <label>
-          Centro
-          <select
-            value={campos.centro}
-            onChange={(e) => setCampos({ ...campos, centro: e.target.value as Centro })}
+    <Tarjeta titulo="Añadir profesional" icono={<IconoMas />}>
+      <p className="ayuda">Crea una persona que atiende. Después podrás ponerle horarios.</p>
+      <form onSubmit={enviar}>
+        <div className="rejilla-formulario">
+          <label>
+            Nombre
+            <input
+              type="text"
+              value={campos.nombre}
+              onChange={(e) => setCampos({ ...campos, nombre: e.target.value })}
+              placeholder="Nombre completo"
+              required
+              minLength={3}
+            />
+          </label>
+          <label>
+            Correo electrónico
+            <input
+              type="email"
+              value={campos.email}
+              onChange={(e) => setCampos({ ...campos, email: e.target.value })}
+              placeholder="correo@ejemplo.com"
+            />
+          </label>
+          <label>
+            Centro
+            <select
+              value={campos.centro}
+              onChange={(e) => setCampos({ ...campos, centro: e.target.value as Centro })}
+            >
+              {CENTROS.map((centro) => (
+                <option key={centro} value={centro}>
+                  {centro}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Especialidad
+            <input
+              type="text"
+              value={campos.especialidad}
+              onChange={(e) => setCampos({ ...campos, especialidad: e.target.value })}
+              placeholder="Medicina general, Psicología…"
+            />
+          </label>
+        </div>
+        <div className="final-formulario">
+          <label>
+            Cuenta profesional (opcional)
+            <select
+              value={campos.userId}
+              onChange={(e) => setCampos({ ...campos, userId: e.target.value })}
+            >
+              <option value="">Sin cuenta</option>
+              {candidatos.map((perfil) => (
+                <option key={idDe(perfil)} value={String(perfil.user_id ?? '')}>
+                  {String(perfil.nombre ?? perfil.email ?? perfil.user_id)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            className="principal"
+            disabled={nombreCorto || ocupado === clave}
           >
-            {CENTROS.map((centro) => (
-              <option key={centro} value={centro}>
-                {centro}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Especialidad
-          <input
-            type="text"
-            value={campos.especialidad}
-            onChange={(e) => setCampos({ ...campos, especialidad: e.target.value })}
-            placeholder="Medicina general, Psicología…"
-          />
-        </label>
-        <label>
-          Cuenta (opcional)
-          <select
-            value={campos.userId}
-            onChange={(e) => setCampos({ ...campos, userId: e.target.value })}
-          >
-            <option value="">Sin cuenta</option>
-            {candidatos.map((perfil) => (
-              <option key={idDe(perfil)} value={String(perfil.user_id ?? '')}>
-                {String(perfil.nombre ?? perfil.email ?? perfil.user_id)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="submit" className="principal fino" disabled={ocupado === clave}>
-          {ocupado === clave ? 'Creando…' : 'Crear'}
-        </button>
+            <IconoMas width={16} height={16} />
+            {ocupado === clave ? 'Creando…' : 'Crear profesional'}
+          </button>
+        </div>
+        {campos.nombre !== '' && nombreCorto && (
+          <p className="fino problema">El nombre necesita al menos 3 letras.</p>
+        )}
       </form>
     </Tarjeta>
   );
@@ -981,9 +1105,9 @@ function SeccionAjustes({
   useEffect(() => setBorrador(ajustes), [ajustes]);
 
   return (
-    <>
+    <div className="pila angosta">
       <Tarjeta titulo="Ajustes de la plataforma" icono={<IconoAjustes />}>
-        <p className="fino">
+        <p className="ayuda">
           Cada ajuste dice quién lo lee. No hay ninguno que no esté conectado a algo:
           un interruptor que no hace nada es peor que no tenerlo.
         </p>
@@ -1003,27 +1127,33 @@ function SeccionAjustes({
         ))}
       </Tarjeta>
 
-      <Tarjeta titulo="Lo que no se configura desde aquí">
-        <dl className="datos">
-          <dt>Centros</dt>
-          <dd>
-            CMU y CAE están en el código y en los roles. Añadir un tercero es un cambio
-            de esquema, no un ajuste.
-          </dd>
-          <dt>Protocolo de triaje</dt>
-          <dd>
-            Vive en <code>protocolos/triaje-v0.md</code> y viaja dentro del paquete de
-            la Lambda: cambiarlo es un despliegue, con revisión en el pull request. Un
-            campo de texto aquí sería editar criterio clínico sin dejar rastro.
-          </dd>
-          <dt>Correos y credenciales</dt>
-          <dd>
-            En Parameter Store y en las variables de Terraform. No pasan por el
-            navegador.
-          </dd>
-        </dl>
+      <Tarjeta titulo="Lo que no se configura desde aquí" icono={<IconoEscudo />}>
+        <div className="limites">
+          <div>
+            <strong>Centros</strong>
+            <p>
+              CMU y CAE están en el código y en los roles. Añadir un tercero es un cambio
+              de esquema, no un ajuste.
+            </p>
+          </div>
+          <div>
+            <strong>Protocolo de triaje</strong>
+            <p>
+              Vive en <code>protocolos/triaje-v0.md</code> y viaja dentro del paquete de
+              la Lambda: cambiarlo es un despliegue, con revisión en el pull request. Un
+              campo de texto aquí sería editar criterio clínico sin dejar rastro.
+            </p>
+          </div>
+          <div>
+            <strong>Correos y credenciales</strong>
+            <p>
+              En Parameter Store y en las variables de Terraform. No pasan por el
+              navegador.
+            </p>
+          </div>
+        </div>
       </Tarjeta>
-    </>
+    </div>
   );
 }
 
@@ -1045,15 +1175,23 @@ function FilaDeAjuste({
   ejecutar: Ejecutar;
 }) {
   const clave = `ajuste:${definicion.clave}`;
+  const campo = `ajuste-${definicion.clave}`;
   const problema = problemaDeAjuste(definicion, valor);
   const cambiado = valor !== guardado;
 
   return (
     <div className="ajuste">
-      <label>
-        {definicion.etiqueta}
+      <div className="ajuste-texto">
+        <label htmlFor={campo}>{definicion.etiqueta}</label>
+        <p>{definicion.ayuda}</p>
+        <p className="lo-lee">
+          Lo lee <code>{definicion.loLee}</code>
+        </p>
+      </div>
+      <div className="ajuste-control">
         {definicion.tipo === 'numero' ? (
           <input
+            id={campo}
             type="number"
             min={definicion.minimo}
             max={definicion.maximo}
@@ -1062,17 +1200,18 @@ function FilaDeAjuste({
           />
         ) : (
           <textarea
-            rows={2}
+            id={campo}
+            rows={3}
             maxLength={definicion.largo}
             value={valor}
             onChange={(evento) => alEscribir(evento.target.value)}
           />
         )}
-        <small>
-          {definicion.ayuda} Lo lee <code>{definicion.loLee}</code>.
-        </small>
-      </label>
-      <div className="controles">
+        <span className="fino">
+          {definicion.tipo === 'numero'
+            ? `Entre ${definicion.minimo ?? '—'} y ${definicion.maximo ?? '—'}`
+            : `${valor.length} / ${definicion.largo ?? '∞'}`}
+        </span>
         <button
           type="button"
           className="principal fino"

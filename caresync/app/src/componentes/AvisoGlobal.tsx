@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { leerAjustes, textoDeAjuste } from '../ajustes';
+import { IconoCampana } from './Iconos';
 
 export function AvisoGlobal() {
   const [texto, setTexto] = useState('');
@@ -30,7 +31,10 @@ export function AvisoGlobal() {
 
   return (
     <p className="aviso-global" role="status">
-      {texto}
+      <IconoCampana />
+      <span>
+        <strong>Información importante:</strong> {texto}
+      </span>
     </p>
   );
 }

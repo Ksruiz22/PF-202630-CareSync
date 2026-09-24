@@ -26,6 +26,7 @@
 
 import type { ReactElement } from 'react';
 import { AvisoGlobal } from './componentes/AvisoGlobal';
+import { Barra, Pie } from './componentes/Marco';
 import { Cargando } from './componentes/Piezas';
 import { useSesion } from './sesion';
 import type { Rol } from './tipos';
@@ -53,10 +54,12 @@ export function App() {
   }
 
   return (
-    <>
+    <div className="app">
+      <Barra />
       <AvisoGlobal />
       {vistaDeRol(quien.rol)}
-    </>
+      <Pie />
+    </div>
   );
 }
 

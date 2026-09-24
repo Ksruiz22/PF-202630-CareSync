@@ -8,48 +8,51 @@
 
 import type { ReactNode } from 'react';
 import { estadoLegible, nivelLegible } from '../formato';
-import { IconoAlerta, IconoSalir } from './Iconos';
+import { IconoAlerta, IconoCheck } from './Iconos';
 
 export function Aviso({
   tipo = 'info',
   children,
 }: {
-  tipo?: 'info' | 'error' | 'urgente';
+  tipo?: 'info' | 'exito' | 'error' | 'urgente';
   children: ReactNode;
 }) {
   return (
     <p className={`aviso ${tipo}`} role={tipo === 'error' ? 'alert' : 'status'}>
-      {tipo === 'urgente' && <IconoAlerta />}
-      {children}
+      {(tipo === 'urgente' || tipo === 'error') && <IconoAlerta />}
+      {tipo === 'exito' && <IconoCheck />}
+      <span>{children}</span>
     </p>
   );
 }
 
 /**
- * La cabecera de pantalla: título, subtítulo opcional y el botón de salir.
+ * El encabezado de pantalla: antetítulo opcional, título, subtítulo y un extra a la
+ * derecha.
  *
- * Las cuatro vistas por rol repetían este mismo bloque de forma idéntica. Vivir
- * en un solo sitio es lo que hace que un ajuste de estilo aplique a las cuatro a
- * la vez, en vez de arriesgarse a que una quede desalineada de las otras tres.
+ * El botón de salir vivía aquí y se mudó a la barra superior (`Marco.tsx`), que es
+ * la misma para todos los roles. Las cuatro vistas por rol siguen usando esta pieza
+ * para que un ajuste de estilo aplique a las cuatro a la vez.
  */
 export function Cabecera({
+  antetitulo,
   titulo,
   subtitulo,
-  onSalir,
+  extra,
 }: {
+  antetitulo?: string;
   titulo: ReactNode;
   subtitulo?: ReactNode;
-  onSalir: () => void;
+  extra?: ReactNode;
 }) {
   return (
     <header className="cabecera">
       <div>
+        {antetitulo && <p className="antetitulo">{antetitulo}</p>}
         <h1>{titulo}</h1>
-        {subtitulo && <p>{subtitulo}</p>}
+        {subtitulo && <p className="subtitulo">{subtitulo}</p>}
       </div>
-      <button type="button" className="secundario" onClick={onSalir}>
-        <IconoSalir /> Salir
-      </button>
+      {extra}
     </header>
   );
 }
@@ -92,18 +95,20 @@ export function Tarjeta({
   titulo,
   icono,
   extra,
+  className,
   children,
 }: {
   titulo: string;
   icono?: ReactNode;
   extra?: ReactNode;
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="tarjeta">
+    <section className={className ? `tarjeta ${className}` : 'tarjeta'}>
       <header>
         <h2>
-          {icono}
+          {icono && <span className="icono-titulo">{icono}</span>}
           {titulo}
         </h2>
         {extra}
@@ -111,4 +116,16 @@ export function Tarjeta({
       {children}
     </section>
   );
+}
+
+/** «Ana María Restrepo» → «AM». Ignora títulos con punto como «Dra.» o «Ps.». */
+export function iniciales(texto: unknown, cuantas = 2): string {
+  const palabras = String(texto ?? '')
+    .split(/\s+/)
+    .filter((palabra) => palabra && !/\.$/.test(palabra) && /^\p{L}/u.test(palabra));
+  const salida = palabras
+    .slice(0, cuantas)
+    .map((palabra) => palabra[0]?.toUpperCase() ?? '')
+    .join('');
+  return salida || '?';
 }

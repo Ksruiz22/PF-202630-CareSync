@@ -40,13 +40,13 @@ const VACIO: Tablero = { casos: [], citas: [], cupos: [] };
  * escrituras tiene que volver a preguntarse si hay centro.
  */
 export function Administrativo() {
-  const { quien, salir } = useSesion();
+  const { quien } = useSesion();
   const centro = (quien?.centro ?? null) as Centro | null;
 
   if (!centro) {
     return (
       <div className="panel administrativo">
-        <Cabecera titulo="Sin centro asignado" onSalir={() => void salir()} />
+        <Cabecera antetitulo="Administración de centro" titulo="Sin centro asignado" />
         <Aviso tipo="error">
           Tu cuenta tiene un rol administrativo pero no un centro. Quien administre el
           contrato de ROBLE tiene que poner CMU o CAE en tu fila de «perfiles».
@@ -107,6 +107,7 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
   return (
     <div className="panel administrativo">
       <Cabecera
+        antetitulo="Administración de centro"
         titulo={centro}
         subtitulo={
           <>
@@ -116,7 +117,6 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
             {vista.libres.length === 1 ? '' : 's'}
           </>
         }
-        onSalir={() => void salir()}
       />
 
       {error && <Aviso tipo="error">{error}</Aviso>}

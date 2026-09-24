@@ -37,7 +37,7 @@ interface Agenda {
 }
 
 export function Profesional() {
-  const { quien, salir } = useSesion();
+  const { quien } = useSesion();
   const [agenda, setAgenda] = useState<Agenda>({ citas: [], casos: {} });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -68,6 +68,7 @@ export function Profesional() {
   return (
     <div className="panel profesional">
       <Cabecera
+        antetitulo="Agenda profesional"
         titulo={quien?.nombre}
         subtitulo={
           <>
@@ -75,7 +76,6 @@ export function Profesional() {
             {proximas.length === 1 ? '' : 's'} por atender.
           </>
         }
-        onSalir={() => void salir()}
       />
 
       {error && <Aviso tipo="error">{error}</Aviso>}
