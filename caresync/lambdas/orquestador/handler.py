@@ -35,7 +35,14 @@ from caresync_comun.errores import (
     SolicitudInvalida,
 )
 from caresync_comun.registro import evento, registro
-from caresync_comun.roble_acceso import AccesoRoble, fila_id
+from caresync_comun.roble_acceso import (
+    ADMIN_CAE,
+    ADMIN_CMU,
+    PACIENTE,
+    PROFESIONAL,
+    AccesoRoble,
+    fila_id,
+)
 
 import agentes
 import bedrock_conversa
@@ -142,7 +149,9 @@ def _conversar(
     if actor.rol not in agente.roles:
         raise SinPermiso(f"El rol «{actor.rol}» no puede usar el {agente.nombre}")
 
-    acceso.anotar_mensaje(caso_id=caso_id, agente=agente.clave, autor="paciente", contenido=mensaje)
+    acceso.anotar_mensaje(
+        caso_id=caso_id, agente=agente.clave, autor=actor.rol, contenido=mensaje
+    )
 
     # El hilo que se le pasa al modelo es sólo texto: turnos de la persona y del
     # agente. Los bloques `toolUse`/`toolResult` de la vuelta anterior se quedan
@@ -257,6 +266,17 @@ def _resolver_caso(
     return abierto or acceso.abrir_caso(motivo=mensaje)
 
 
+# Cómo se le presenta al modelo un turno que escribió alguien del equipo de atención
+# y no la persona que consulta. La marca sigue la convención de `[sistema]`, que el
+# prompt común declara: algo entre corchetes al principio del turno no lo dijo la
+# persona.
+_MARCA_DE_AUTOR = {
+    ADMIN_CMU: "[personal del CMU]",
+    ADMIN_CAE: "[personal del CAE]",
+    PROFESIONAL: "[profesional que atiende]",
+}
+
+
 def _historial(acceso: AccesoRoble, caso_id: str) -> list[dict[str, Any]]:
     """Convierte lo escrito en ROBLE al formato de mensajes de Converse.
 
@@ -270,10 +290,19 @@ def _historial(acceso: AccesoRoble, caso_id: str) -> list[dict[str, Any]]:
         contenido = str(fila.get("contenido") or "").strip()
         if not contenido:
             continue
-        # Sólo la persona habla como `user`. Las notas `[sistema]` van del lado del
-        # agente a propósito: son lo último que se escribe en el turno, y un turno
-        # de usuario al final lo descarta el recorte de más abajo.
-        papel = "user" if fila.get("autor") == "paciente" else "assistant"
+        autor = str(fila.get("autor") or PACIENTE)
+        # Habla como `user` cualquier persona: el paciente y también quien atiende el
+        # caso desde un centro, que sobre el mismo caso conversa con el agente de
+        # agenda. Las notas `[sistema]` van del lado del agente a propósito: son lo
+        # último que se escribe en el turno, y un turno de usuario al final lo
+        # descarta el recorte de más abajo.
+        papel = "assistant" if autor in ("agente", "sistema") else "user"
+        # Y se dice de quién es el turno, porque si no el modelo le atribuye al
+        # paciente el «¿por qué no se ha asignado cita?» que escribió el centro y le
+        # responde a la persona equivocada en el turno siguiente.
+        marca = _MARCA_DE_AUTOR.get(autor)
+        if marca:
+            contenido = f"{marca} {contenido}"
         if mensajes and mensajes[-1]["role"] == papel:
             # Converse exige alternancia estricta de papeles.
             mensajes[-1]["content"].append({"text": contenido})
