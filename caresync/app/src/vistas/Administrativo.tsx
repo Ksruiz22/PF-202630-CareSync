@@ -69,6 +69,15 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
   // Cuántos días abre el botón. Lo fija quien administra la plataforma; aquí sólo se
   // lee, para que el rótulo del botón diga la verdad antes de pulsarlo.
   const [dias, setDias] = useState(DIAS_POR_DEFECTO);
+  // El caso sobre el que habla el agente de agenda. Se elige con un clic en el tablero
+  // y no describiéndolo con palabras: el orquestador le exige `caso_id` a todo rol que
+  // no sea paciente, y resolverlo a partir de lo que el modelo lea en el mensaje
+  // rompería el invariante de que la identidad la pone el orquestador, no el modelo.
+  //
+  // Se guarda el caso entero y no su id porque la fila desaparece del tablero en cuanto
+  // consigue cita —es justo lo que el agente acaba de hacer— y la conversación no puede
+  // perderse en ese momento.
+  const [elegido, setElegido] = useState<Caso | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -88,6 +97,9 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
   }, [cargar]);
 
   const vista = useMemo(() => organizar(tablero), [tablero]);
+  // Vacío mientras no haya caso elegido, así que nunca coincide con la fila de un caso
+  // al que ROBLE no le devolviera id.
+  const idElegido = idDe(elegido);
 
   async function publicarCupos() {
     setGenerando(true);
@@ -129,7 +141,12 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
           </Aviso>
           <ul className="casos">
             {vista.urgencias.map((caso) => (
-              <FilaDeCaso key={idDe(caso)} caso={caso} />
+              <FilaDeCaso
+                key={idDe(caso)}
+                caso={caso}
+                activa={Boolean(idElegido) && idDe(caso) === idElegido}
+                alElegir={() => setElegido(caso)}
+              />
             ))}
           </ul>
         </Tarjeta>
@@ -163,7 +180,12 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
             ) : (
               <ul className="casos">
                 {vista.porAtender.map((caso) => (
-                  <FilaDeCaso key={idDe(caso)} caso={caso} />
+                  <FilaDeCaso
+                    key={idDe(caso)}
+                    caso={caso}
+                    activa={Boolean(idElegido) && idDe(caso) === idElegido}
+                    alElegir={() => setElegido(caso)}
+                  />
                 ))}
               </ul>
             )}
@@ -210,14 +232,45 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
         </section>
 
         <aside className="lateral">
+          {elegido && (
+            <p className="caso-fijado">
+              <span>
+                Sobre el caso de{' '}
+                <strong>{String(elegido.paciente_nombre ?? 'un paciente')}</strong>
+              </span>
+              <button type="button" className="enlace" onClick={() => setElegido(null)}>
+                Cambiar de caso
+              </button>
+            </p>
+          )}
+          {/*
+            El `key` reinicia el hilo al cambiar de caso. No es cosmético: los turnos
+            que quedaran en pantalla se leerían como parte de la conversación sobre el
+            caso nuevo, y el historial que el backend le da al modelo es el del caso,
+            así que lo de arriba ni siquiera existiría para el agente.
+          */}
           <Conversacion
+            key={idElegido || 'sin-caso'}
             agente="agenda"
+            {...(idElegido ? { casoId: idElegido } : {})}
             saludo={
-              'Soy el agente de agenda del ' +
-              centro +
-              '. Puedo consultar disponibilidad, agendar y avisar a los profesionales. ' +
-              'Dime sobre qué caso trabajamos.'
+              elegido
+                ? 'Soy el agente de agenda del ' +
+                  centro +
+                  '. Trabajamos sobre el caso de ' +
+                  String(elegido.paciente_nombre ?? 'este paciente') +
+                  ': puedo consultar disponibilidad, agendar y avisar al profesional.'
+                : 'Soy el agente de agenda del ' +
+                  centro +
+                  '. Puedo consultar disponibilidad, agendar y avisar a los profesionales.'
             }
+            {...(idElegido
+              ? {}
+              : {
+                  bloqueo:
+                    'Elige un caso del tablero para empezar. El agente actúa sobre un ' +
+                    'caso concreto y lo fija este clic, no el texto del mensaje.',
+                })}
             alResponder={() => void cargar()}
             alVencerSesion={() => void salir()}
           />
@@ -227,15 +280,36 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
   );
 }
 
-function FilaDeCaso({ caso }: { caso: Caso }) {
+/**
+ * Una fila del tablero, que además es el selector del caso para el chat.
+ *
+ * `aria-pressed` y no `aria-current`: esto no es navegación —la fila no lleva a otra
+ * pantalla— sino un interruptor que queda puesto, y es lo que hay que anunciar.
+ */
+function FilaDeCaso({
+  caso,
+  activa,
+  alElegir,
+}: {
+  caso: Caso;
+  activa: boolean;
+  alElegir: () => void;
+}) {
   return (
     <li>
-      <span className="quien">{String(caso.paciente_nombre ?? 'Paciente')}</span>
-      <span className="marcas">
-        <Nivel valor={caso.nivel_urgencia} />
-        <Etiqueta estado={caso.estado} />
-      </span>
-      <span className="fino">{hace(caso.actualizado_en ?? caso.creado_en)}</span>
+      <button
+        type="button"
+        className={`fila ${activa ? 'activa' : ''}`}
+        aria-pressed={activa}
+        onClick={alElegir}
+      >
+        <span className="quien">{String(caso.paciente_nombre ?? 'Paciente')}</span>
+        <span className="marcas">
+          <Nivel valor={caso.nivel_urgencia} />
+          <Etiqueta estado={caso.estado} />
+        </span>
+        <span className="fino">{hace(caso.actualizado_en ?? caso.creado_en)}</span>
+      </button>
     </li>
   );
 }

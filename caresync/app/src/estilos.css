@@ -779,6 +779,23 @@ label small {
   padding: 1.4rem;
 }
 
+/* Qué caso tiene fijado el chat. Va fuera de la conversación y encima: el caso sale
+   del tablero en cuanto consigue cita —lo que el agente acaba de hacer—, y entonces
+   esta línea es lo único que dice sobre quién se sigue hablando. */
+.caso-fijado {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0;
+  border: 1px solid var(--primario);
+  border-radius: 13px;
+  background: var(--primario-suave);
+  padding: 0.6rem 0.9rem;
+  font-size: 0.82rem;
+}
+
 .conversacion-cabecera {
   padding: 1.1rem 1.4rem;
   border-bottom: 1px solid var(--borde);
@@ -893,12 +910,28 @@ label small {
   }
 }
 
+/* Qué falta para poder escribir. Va pegada al redactor deshabilitado, no como un
+   aviso más arriba: lo que explica es por qué ese campo no acepta texto. */
+.pendiente {
+  margin: 0;
+  padding: 0.8rem 1.4rem 0;
+  border-top: 1px solid var(--borde);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--tinta-suave);
+}
+
 .redactor {
   display: flex;
   gap: 0.6rem;
   align-items: flex-end;
   padding: 1rem 1.4rem;
   border-top: 1px solid var(--borde);
+}
+
+/* La raya de separación ya la puso la nota; dos seguidas parecen un error. */
+.pendiente + .redactor {
+  border-top: 0;
 }
 
 .redactor textarea {
@@ -1172,8 +1205,11 @@ label small {
   font-size: 0.88rem;
 }
 
-/* La agenda del profesional: cada cita es un botón que abre el detalle. */
-.citas button.fila {
+/* La agenda del profesional: cada cita es un botón que abre el detalle. Lo mismo en
+   el tablero administrativo, donde cada caso es el botón que fija sobre qué caso
+   habla el agente de agenda. */
+.citas button.fila,
+.casos button.fila {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -1186,17 +1222,20 @@ label small {
   padding: 0.5rem 0.6rem;
 }
 
-.citas button.fila:hover:not(.activa) {
+.citas button.fila:hover:not(.activa),
+.casos button.fila:hover:not(.activa) {
   background: var(--primario-suave);
   border-color: transparent;
 }
 
-.citas button.fila.activa {
+.citas button.fila.activa,
+.casos button.fila.activa {
   background: var(--primario-suave);
   border-color: var(--primario);
 }
 
-.citas li:has(button.fila) {
+.citas li:has(button.fila),
+.casos li:has(button.fila) {
   padding: 0.15rem 0;
 }
 
