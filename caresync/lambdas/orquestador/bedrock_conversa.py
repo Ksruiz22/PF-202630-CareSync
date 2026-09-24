@@ -14,6 +14,16 @@ caché, la llamada se repite sin él en lugar de fallar.
 **El bucle tiene tope.** Un modelo puede quedarse pidiendo herramientas en
 círculo, y cada vuelta es una llamada facturada. Al agotar las vueltas se
 devuelve lo que haya, no un error: la persona recibe una respuesta.
+
+**El texto se acumula en cada vuelta, no sólo en la última.** Claude suele
+hablarle a la persona en el mismo mensaje en que pide la herramienta («entiendo,
+déjame revisar tu caso… ¿desde cuándo te sientes así?»), y ese bloque de texto
+venía a la misma bolsa que el `toolUse`. Recogerlo sólo al salir del bucle lo
+tiraba: el modelo daba su pregunta por dicha —la tiene en el historial— y la
+vuelta siguiente volvía con el contenido vacío, así que la persona recibía el
+relleno de la interfaz («Sigo aquí, pero no supe qué responder») en lugar de la
+pregunta. Reproducido el 24/09/2026: pasa en algo más de la mitad de los primeros
+turnos del triaje.
 """
 
 from __future__ import annotations
@@ -100,6 +110,15 @@ def _texto_de(mensaje: dict[str, Any]) -> str:
     return "\n".join(p.strip() for p in partes if p and p.strip())
 
 
+def _sumar(previo: str, nuevo: str) -> str:
+    """Encadena lo que el agente va diciendo a lo largo de la misma petición.
+
+    Con la misma separación que usa el orquestador al juntar dos agentes, para
+    que la persona lea un solo mensaje y no dos pegados.
+    """
+    return "\n\n".join(t for t in (previo, nuevo) if t)
+
+
 def conversar(
     *,
     sistema: str,
@@ -144,16 +163,28 @@ def conversar(
 
         if parada == "guardrail_intervened":
             resultado.intervino_guardrail = True
-            resultado.texto = _texto_de(mensaje) or (
-                "Prefiero no responder eso. Si es una urgencia, llama a la línea "
-                "de emergencias del campus o al 123."
+            # La negativa se dice siempre, aunque el mensaje bloqueado venga sin
+            # texto: si sólo quedara el preámbulo de una vuelta anterior, la
+            # persona leería una frase suelta sin saber que no se le va a
+            # responder.
+            resultado.texto = _sumar(
+                resultado.texto,
+                _texto_de(mensaje)
+                or (
+                    "Prefiero no responder eso. Si es una urgencia, llama a la línea "
+                    "de emergencias del campus o al 123."
+                ),
             )
             evento(log, "guardrail_intervino", vuelta=vuelta)
             return resultado
 
         if parada != "tool_use":
-            resultado.texto = _texto_de(mensaje)
+            resultado.texto = _sumar(resultado.texto, _texto_de(mensaje))
             return resultado
+
+        # Lo que dijo junto al `toolUse` ya está dicho para el modelo: queda en el
+        # historial y no lo va a repetir. Si no se recoge aquí, se pierde.
+        resultado.texto = _sumar(resultado.texto, _texto_de(mensaje))
 
         peticiones = [
             bloque["toolUse"]
@@ -212,7 +243,11 @@ def conversar(
     )
     mensaje = (cierre.get("output") or {}).get("message") or {}
     historial.append(mensaje)
-    resultado.texto = _texto_de(mensaje)
+    # Aquí el cierre sustituye a lo acumulado en vez de sumarse: los preámbulos de
+    # cinco vueltas son justo donde el modelo fue prometiendo cosas que todavía no
+    # habían pasado, y el prompt del cierre existe para corregirlas. Sólo si el
+    # cierre viniera vacío se devuelve lo que se dijo antes, que es mejor que nada.
+    resultado.texto = _texto_de(mensaje) or resultado.texto
     resultado.parada = "vueltas_agotadas"
     return resultado
 
