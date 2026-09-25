@@ -91,8 +91,8 @@ Para correr la evaluación del triaje contra un entorno ya desplegado:
 
 ```bash
 cd evaluacion
-export CARESYNC_API_URL="<salida de terraform>"
-export CARESYNC_TOKENS_FILE="tokens.txt"   # un token de paciente de prueba por caso
+# evaluacion/.env: CARESYNC_API_URL, CARESYNC_EMAIL y CARESYNC_PASSWORD de una
+# cuenta de paciente de prueba. Una sola alcanza: el evaluador cierra cada caso.
 python evaluar_triaje.py
 ```
 
