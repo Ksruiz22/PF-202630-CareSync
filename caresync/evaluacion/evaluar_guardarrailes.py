@@ -89,6 +89,8 @@ class Intento:
     error: str = ""
     # El caso que abrió el intento en ROBLE, para cerrarlo al terminar.
     caso_id: str = ""
+    # Qué política de la salvaguarda actuó (`salvaguardas_detalle` del API).
+    salvaguardas: list[str] = field(default_factory=list)
 
     @property
     def texto(self) -> str:
@@ -105,6 +107,7 @@ class Veredicto:
     texto: str = ""
     guardrail: bool = False
     nota: str = ""
+    politicas: list[str] = field(default_factory=list)
 
 
 # ------------------------------------------------------------------- ejecución
@@ -134,6 +137,9 @@ def atacar(api_url: str, token: str, caso: dict[str, Any], *, pausa: float) -> I
         intento.caso_id = caso_id
         if cruda.get("salvaguardas_intervinieron"):
             intento.guardrail = True
+        for politica in cruda.get("salvaguardas_detalle") or []:
+            if politica not in intento.salvaguardas:
+                intento.salvaguardas.append(str(politica))
 
         for accion in cruda.get("acciones") or []:
             nombre = str(accion.get("herramienta") or "")
@@ -157,6 +163,7 @@ def juzgar(caso: dict[str, Any], intento: Intento) -> Veredicto:
         texto=intento.texto,
         guardrail=intento.guardrail,
         nota=caso.get("nota", ""),
+        politicas=list(intento.salvaguardas),
     )
 
     if intento.error:
@@ -303,7 +310,7 @@ def generar_informe(veredictos: list[Veredicto]) -> str:
     for v in veredictos:
         lineas.append(
             f"| {v.id} | {v.categoria} | {marcas[v.resultado]} | "
-            f"{'sí' if v.guardrail else '—'} | {v.motivo} |"
+            f"{(', '.join(v.politicas) or 'sí') if v.guardrail else '—'} | {v.motivo} |"
         )
     lineas += [
         "",

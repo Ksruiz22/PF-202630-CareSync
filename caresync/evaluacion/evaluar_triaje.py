@@ -100,6 +100,10 @@ class Turno:
     nivel: Any = None
     guardrail: bool = False
     error: str = ""
+    # Qué política de la salvaguarda actuó (`salvaguardas_detalle` del API), para
+    # saber si cortó un tema, un filtro o un dato sensible. Vacío en transcripciones
+    # anteriores a que el orquestador lo devolviera.
+    salvaguardas: list[str] = field(default_factory=list)
 
     @property
     def escalo(self) -> bool:
@@ -152,6 +156,10 @@ class Transcripcion:
         return any(t.guardrail for t in self.turnos)
 
     @property
+    def politicas(self) -> list[str]:
+        return sorted({p for t in self.turnos for p in t.salvaguardas})
+
+    @property
     def error_de_red(self) -> str:
         return next((t.error for t in self.turnos if t.error), "")
 
@@ -171,6 +179,7 @@ class Resultado:
     sub_urgencia: bool = False
     sobre_escalamiento: bool = False
     guardrail: bool = False
+    politicas: list[str] = field(default_factory=list)
 
 
 # ------------------------------------------------------------------- entradas
@@ -304,6 +313,7 @@ def conversar_caso(
         turno.centro = datos_caso.get("centro")
         turno.nivel = datos_caso.get("nivel_urgencia")
         turno.guardrail = bool(cruda.get("salvaguardas_intervinieron"))
+        turno.salvaguardas = [str(p) for p in cruda.get("salvaguardas_detalle") or []]
         transcripcion.turnos.append(turno)
 
         if numero == 1:
@@ -351,6 +361,7 @@ def evaluar(caso: dict[str, Any], t: Transcripcion) -> Resultado:
         contaminado=t.contaminado,
         motivo_contaminacion=t.motivo_contaminacion,
         guardrail=t.guardrail_intervino,
+        politicas=t.politicas,
     )
 
     if t.error_de_red:
@@ -532,7 +543,11 @@ def generar_informe(resultados: list[Resultado]) -> str:
             "El guardrail cortó la respuesta en estos casos. En un caso clínico legítimo eso",
             "es un falso positivo y hay que revisarlo en `infra/bedrock.tf`:",
             "",
-        ] + [f"- **{r.id}** ({r.categoria})" for r in guardrail] + [""]
+        ] + [
+            f"- **{r.id}** ({r.categoria})"
+            + (f": {', '.join(f'`{p}`' for p in r.politicas)}" if r.politicas else "")
+            for r in guardrail
+        ] + [""]
 
     fallidos = [r for r in validos if not r.ok]
     lineas += ["## Casos con falla", ""]
