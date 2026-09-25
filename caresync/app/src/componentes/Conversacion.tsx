@@ -24,21 +24,18 @@ import type { RespuestaAgente, Turno } from '../tipos';
 const LIMITE = 2000;
 
 interface Props {
-  /** Caso sobre el que se conversa. Vacío en un paciente sin caso: lo abre el backend. */
+  /**
+   * Caso sobre el que se conversa, si la conversación es sobre uno.
+   *
+   * Vacío en dos situaciones distintas: un paciente sin caso todavía —el backend se lo
+   * abre en el primer turno— y el personal de un centro preguntando por su operación,
+   * que no habla de nadie en concreto y se queda sin caso todo el rato.
+   */
   casoId?: string;
   agente?: 'triaje' | 'agenda' | 'seguimiento';
   saludo: string;
-  /**
-   * Qué falta antes de poder escribir. Si viene, el redactor queda deshabilitado y se
-   * muestra este texto.
-   *
-   * Existe porque el orquestador sólo le resuelve el caso a un paciente: a un rol
-   * administrativo le exige `caso_id` en la petición y, si no viene, la rechaza con un
-   * 400 que en pantalla se lee como «No entendí la solicitud» —como si el agente no
-   * hubiera comprendido la pregunta, cuando en realidad nunca llegó a verla—. Es mejor
-   * decir qué falta antes de mandar la petición.
-   */
-  bloqueo?: string;
+  /** Qué invita a escribir el redactor. El texto por defecto es el del paciente. */
+  marcador?: string;
   /** Se llama tras cada turno para que la vista recargue lo que cambió en ROBLE. */
   alResponder?: (respuesta: RespuestaAgente) => void;
   alVencerSesion?: () => void;
@@ -48,7 +45,7 @@ export function Conversacion({
   casoId,
   agente,
   saludo,
-  bloqueo,
+  marcador = 'Cuéntame qué te pasa…',
   alResponder,
   alVencerSesion,
 }: Props) {
@@ -65,7 +62,7 @@ export function Conversacion({
   async function enviar(evento: FormEvent) {
     evento.preventDefault();
     const mensaje = borrador.trim();
-    if (!mensaje || esperando || bloqueo) return;
+    if (!mensaje || esperando) return;
 
     setBorrador('');
     setTurnos((previos) => [...previos, { quien: 'yo', texto: mensaje }]);
@@ -134,12 +131,6 @@ export function Conversacion({
         <div ref={fondo} />
       </div>
 
-      {bloqueo && (
-        <p className="pendiente" aria-live="polite">
-          {bloqueo}
-        </p>
-      )}
-
       <form className="redactor" onSubmit={enviar}>
         <label className="lectores" htmlFor="mensaje">
           Escribe tu mensaje
@@ -149,7 +140,7 @@ export function Conversacion({
           value={borrador}
           maxLength={LIMITE}
           rows={2}
-          placeholder="Cuéntame qué te pasa…"
+          placeholder={marcador}
           onChange={(e) => setBorrador(e.target.value)}
           onKeyDown={(e) => {
             // Enter envía, Shift+Enter hace salto de línea: es lo que la gente
@@ -159,12 +150,12 @@ export function Conversacion({
               void enviar(e as unknown as FormEvent);
             }
           }}
-          disabled={esperando || Boolean(bloqueo)}
+          disabled={esperando}
         />
         <button
           type="submit"
           className="principal"
-          disabled={esperando || !borrador.trim() || Boolean(bloqueo)}
+          disabled={esperando || !borrador.trim()}
         >
           <IconoEnviar />
           {esperando ? 'Enviando…' : 'Enviar'}
@@ -232,6 +223,7 @@ function describir(herramienta: string): string {
     canalizar_caso: 'Tu caso quedó canalizado al centro que corresponde',
     escalar_urgencia: 'Se activó la ruta de urgencias y se avisó al equipo',
     consultar_disponibilidad: 'Se revisaron los espacios disponibles',
+    consultar_profesionales: 'Se revisó quién atiende en el centro',
     agendar_cita: 'Tu cita quedó agendada',
     notificar_profesional: 'El profesional ya tiene tu información',
     registrar_evolucion: 'Se registró cómo te sientes',

@@ -779,9 +779,9 @@ label small {
   padding: 1.4rem;
 }
 
-/* Qué caso tiene fijado el chat. Va fuera de la conversación y encima: el caso sale
-   del tablero en cuanto consigue cita —lo que el agente acaba de hacer—, y entonces
-   esta línea es lo único que dice sobre quién se sigue hablando. */
+/* Sobre qué habla el chat. Va fuera de la conversación y encima: el caso sale del
+   tablero en cuanto consigue cita —lo que el agente acaba de hacer—, y entonces esta
+   línea es lo único que dice sobre quién se sigue hablando. */
 .caso-fijado {
   display: flex;
   flex-wrap: wrap;
@@ -794,6 +794,15 @@ label small {
   background: var(--primario-suave);
   padding: 0.6rem 0.9rem;
   font-size: 0.82rem;
+}
+
+/* Sin caso la línea sigue ahí pero no resalta: lo que dice no es un estado que
+   alguien puso, es la ausencia de uno. Resaltarlo se leería como una advertencia, y
+   preguntar por los horarios del centro es un uso normal del chat. */
+.caso-fijado.suelto {
+  border-color: var(--borde);
+  background: transparent;
+  color: var(--tinta-suave);
 }
 
 .conversacion-cabecera {
@@ -910,28 +919,12 @@ label small {
   }
 }
 
-/* Qué falta para poder escribir. Va pegada al redactor deshabilitado, no como un
-   aviso más arriba: lo que explica es por qué ese campo no acepta texto. */
-.pendiente {
-  margin: 0;
-  padding: 0.8rem 1.4rem 0;
-  border-top: 1px solid var(--borde);
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: var(--tinta-suave);
-}
-
 .redactor {
   display: flex;
   gap: 0.6rem;
   align-items: flex-end;
   padding: 1rem 1.4rem;
   border-top: 1px solid var(--borde);
-}
-
-/* La raya de separación ya la puso la nota; dos seguidas parecen un error. */
-.pendiente + .redactor {
-  border-top: 0;
 }
 
 .redactor textarea {
