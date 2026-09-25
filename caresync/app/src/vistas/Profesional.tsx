@@ -185,6 +185,7 @@ function Consulta({
   alGuardar: () => void;
 }) {
   const casoId = idDe(caso);
+  const cerrado = caso.estado === 'cerrado';
   const [contexto, setContexto] = useState<Contexto | null>(null);
   const [resumen, setResumen] = useState('');
   const [lineas, setLineas] = useState('');
@@ -319,58 +320,139 @@ function Consulta({
             </Tarjeta>
           )}
 
-          <Tarjeta titulo={contexto.plan ? 'Nuevo plan' : 'Registrar el plan'}>
-            <form className="formulario" onSubmit={guardarPlan}>
-              <label>
-                Resumen de la consulta
-                <textarea
-                  value={resumen}
-                  onChange={(e) => setResumen(e.target.value)}
-                  rows={4}
-                  maxLength={2000}
-                  placeholder="Qué se encontró y qué se decidió."
-                  required
-                />
-              </label>
-
-              <label>
-                Indicaciones, una por línea
-                <textarea
-                  value={lineas}
-                  onChange={(e) => setLineas(e.target.value)}
-                  rows={5}
-                  maxLength={2000}
-                  placeholder={'Caminar 20 minutos al día\nEjercicio de respiración antes de dormir'}
-                  required
-                />
-              </label>
-
-              <label>
-                Cada cuánto se le pregunta
-                <input
-                  type="text"
-                  value={frecuencia}
-                  onChange={(e) => setFrecuencia(e.target.value)}
-                  maxLength={60}
-                  placeholder="cada 24 horas"
-                />
-              </label>
-              <p className="fino">
-                Se acepta «cada 12 horas», «cada 2 días», «semanal». Los recordatorios
-                salen entre las 7:00 y las 20:00, hora de Bogotá.
+          {cerrado ? (
+            <Tarjeta titulo="Caso cerrado">
+              <p>
+                Este caso ya no está en seguimiento: no salen recordatorios y, si la
+                persona vuelve a escribir, el asistente le abre un caso nuevo desde el
+                triaje.
               </p>
+            </Tarjeta>
+          ) : (
+            <Tarjeta titulo={contexto.plan ? 'Nuevo plan' : 'Registrar el plan'}>
+              <form className="formulario" onSubmit={guardarPlan}>
+                <label>
+                  Resumen de la consulta
+                  <textarea
+                    value={resumen}
+                    onChange={(e) => setResumen(e.target.value)}
+                    rows={4}
+                    maxLength={2000}
+                    placeholder="Qué se encontró y qué se decidió."
+                    required
+                  />
+                </label>
 
-              <button type="submit" className="principal" disabled={guardando}>
-                {guardando ? 'Guardando…' : 'Guardar plan y cerrar la consulta'}
-              </button>
+                <label>
+                  Indicaciones, una por línea
+                  <textarea
+                    value={lineas}
+                    onChange={(e) => setLineas(e.target.value)}
+                    rows={5}
+                    maxLength={2000}
+                    placeholder={'Caminar 20 minutos al día\nEjercicio de respiración antes de dormir'}
+                    required
+                  />
+                </label>
 
-              {aviso && <Aviso>{aviso}</Aviso>}
-              {error && <Aviso tipo="error">{error}</Aviso>}
-            </form>
-          </Tarjeta>
+                <label>
+                  Cada cuánto se le pregunta
+                  <input
+                    type="text"
+                    value={frecuencia}
+                    onChange={(e) => setFrecuencia(e.target.value)}
+                    maxLength={60}
+                    placeholder="cada 24 horas"
+                  />
+                </label>
+                <p className="fino">
+                  Se acepta «cada 12 horas», «cada 2 días», «semanal». Los recordatorios
+                  salen entre las 7:00 y las 20:00, hora de Bogotá.
+                </p>
+
+                <button type="submit" className="principal" disabled={guardando}>
+                  {guardando ? 'Guardando…' : 'Guardar plan y cerrar la consulta'}
+                </button>
+
+                {aviso && <Aviso>{aviso}</Aviso>}
+                {error && <Aviso tipo="error">{error}</Aviso>}
+              </form>
+            </Tarjeta>
+          )}
+
+          {!cerrado && (
+            <CierreDelCaso casoId={casoId} autor={autor} alCerrar={alGuardar} />
+          )}
         </>
       )}
     </>
+  );
+}
+
+/**
+ * Cerrar el caso: la última escritura del ciclo de vida, y la única que faltaba.
+ *
+ * Hasta ahora ninguna ruta del sistema escribía `cerrado`, así que todo caso se
+ * quedaba en seguimiento para siempre: seguían saliendo recordatorios y, si la
+ * persona volvía a escribir meses después por otra cosa, el agente de seguimiento le
+ * preguntaba por un plan viejo en vez de hacerle el triaje.
+ *
+ * Lo cierra el profesional y no el agente por lo mismo que el plan lo escribe él: dar
+ * a alguien de alta es una decisión clínica. Por eso pide confirmación —no hay botón
+ * para deshacerlo— y deja rastro en la bitácora con quién lo cerró.
+ */
+function CierreDelCaso({
+  casoId,
+  autor,
+  alCerrar,
+}: {
+  casoId: string;
+  autor: { userId: string; nombre: string };
+  alCerrar: () => void;
+}) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [cerrando, setCerrando] = useState(false);
+  const [error, setError] = useState('');
+
+  async function cerrar() {
+    setCerrando(true);
+    setError('');
+    try {
+      await cerrarCaso(casoId, autor);
+      alCerrar();
+    } catch (fallo) {
+      setError(mensajeDeError(fallo));
+      setCerrando(false);
+    }
+  }
+
+  return (
+    <Tarjeta titulo="Cerrar el caso">
+      <p className="fino">
+        Ciérralo cuando la persona ya no necesite acompañamiento. Dejan de salir los
+        recordatorios y, si vuelve a escribir, empieza un caso nuevo desde el triaje.
+      </p>
+      {confirmando ? (
+        <div className="botonera">
+          <button type="button" className="principal" disabled={cerrando} onClick={() => void cerrar()}>
+            {cerrando ? 'Cerrando…' : 'Sí, cerrar el caso'}
+          </button>
+          <button
+            type="button"
+            className="enlace"
+            disabled={cerrando}
+            onClick={() => setConfirmando(false)}
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="secundario" onClick={() => setConfirmando(true)}>
+          Cerrar el caso
+        </button>
+      )}
+      {error && <Aviso tipo="error">{error}</Aviso>}
+    </Tarjeta>
   );
 }
 
@@ -507,6 +589,35 @@ async function registrarPlan(datos: {
     estado: 'en_seguimiento',
     actualizado_en: ahora,
   });
+}
+
+/**
+ * El caso pasa a `cerrado` y la bitácora dice quién lo cerró.
+ *
+ * Primero el caso y después el evento: si el evento fallara, el caso ya está cerrado,
+ * que es lo que importa; al revés quedaría escrito un cierre que no ocurrió. Las
+ * columnas son las de `eventos` en `bootstrap_roble.mjs` —ROBLE rechaza la escritura
+ * entera si se envía una que no existe—.
+ */
+async function cerrarCaso(
+  casoId: string,
+  autor: { userId: string; nombre: string }
+): Promise<void> {
+  const ahora = new Date().toISOString();
+  await roble.update('casos', casoId, { estado: 'cerrado', actualizado_en: ahora });
+  try {
+    await roble.create('eventos', {
+      caso_id: casoId,
+      tipo: 'caso_cerrado',
+      severidad: 'info',
+      actor_user_id: autor.userId,
+      actor_rol: 'profesional',
+      detalle: { cerrado_por: autor.nombre },
+      creado_en: ahora,
+    });
+  } catch (error) {
+    console.warn('El caso quedó cerrado pero no se pudo anotar en la bitácora', error);
+  }
 }
 
 async function desactivar(indicacionId: string): Promise<void> {
