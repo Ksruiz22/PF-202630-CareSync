@@ -13,6 +13,10 @@ Reglas que este archivo hace cumplir, y que no se dejan al prompt:
 * **Los argumentos.** `caso_id` nunca es un argumento del modelo: lo pone el
   orquestador desde la sesión. Si el modelo pudiera elegirlo, podría pedir el
   caso de otra persona.
+* **Qué herramientas necesitan un caso.** No todas: el personal de un centro
+  pregunta por su agenda y por sus profesionales sin hablar de nadie en
+  concreto. Las que sí lo necesitan no se le declaran al modelo cuando no hay
+  caso, y la función de herramientas las rechaza igual si llegan sin él.
 """
 
 from __future__ import annotations
@@ -33,6 +37,10 @@ class Herramienta:
     # Una herramienta que escribe deja rastro en `eventos` y no se puede llamar
     # dos veces por vuelta.
     escribe: bool = False
+    # Casi todas actúan sobre un caso concreto. Las que no —lo que se puede
+    # responder sabiendo sólo el centro de quien pregunta— quedan disponibles
+    # también en una conversación sin caso.
+    necesita_caso: bool = True
 
     def spec(self) -> dict[str, Any]:
         """Forma que espera `toolConfig` de la API Converse."""
@@ -113,9 +121,10 @@ CATALOGO: dict[str, Herramienta] = {
     "consultar_disponibilidad": Herramienta(
         nombre="consultar_disponibilidad",
         descripcion=(
-            "Lista los espacios libres del centro asignado al caso, del más próximo al más "
-            "lejano. De cada espacio devuelve «cuando» para decírselo a la persona e "
-            "«inicio», que es lo que necesita agendar_cita."
+            "Lista los espacios libres del centro, del más próximo al más lejano. El centro "
+            "es el del caso si hay uno, y si no el de quien pregunta. De cada espacio "
+            "devuelve «cuando» para decírselo a la persona e «inicio», que es lo que "
+            "necesita agendar_cita."
         ),
         propiedades={
             "dias_adelante": {
@@ -126,6 +135,29 @@ CATALOGO: dict[str, Herramienta] = {
             }
         },
         roles=frozenset({PACIENTE, ADMIN_CMU, ADMIN_CAE}),
+        necesita_caso=False,
+    ),
+    "consultar_profesionales": Herramienta(
+        nombre="consultar_profesionales",
+        descripcion=(
+            "Los profesionales activos del centro: nombre, especialidad, en qué días y horas "
+            "atienden, y cuántos espacios libres les quedan en los próximos días. Úsala "
+            "cuando el centro pregunte quién atiende, con qué horario o dónde hay hueco. No "
+            "sirve para saber a quién le toca una cita concreta: eso está en el caso."
+        ),
+        propiedades={
+            "dias_adelante": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "description": (
+                    "Ventana para contar los espacios libres de cada profesional. 7 si no "
+                    "hay una razón para otra cosa."
+                ),
+            }
+        },
+        roles=frozenset({ADMIN_CMU, ADMIN_CAE}),
+        necesita_caso=False,
     ),
     "agendar_cita": Herramienta(
         nombre="agendar_cita",
@@ -220,3 +252,13 @@ def especificaciones(nombres: tuple[str, ...]) -> list[dict[str, Any]]:
 def permitida(nombre: str, rol: str) -> bool:
     herramienta = CATALOGO.get(nombre)
     return bool(herramienta) and rol in herramienta.roles
+
+
+def necesita_caso(nombre: str) -> bool:
+    """¿Esta herramienta exige un caso sobre el que actuar?
+
+    Lo que no está en el catálogo se trata como que sí: negar es lo seguro cuando
+    no se sabe.
+    """
+    herramienta = CATALOGO.get(nombre)
+    return herramienta.necesita_caso if herramienta else True

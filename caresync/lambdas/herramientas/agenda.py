@@ -30,12 +30,21 @@ DIAS_ALTERNATIVAS = 30
 VENTANA_MAXIMA_DIAS = DIAS_ALTERNATIVAS
 MAX_CANDIDATOS = 200
 
+# Tope de la lectura con la que se cuentan los cupos libres por profesional. No es
+# una página que se pueda pedir de nuevo: es cuántos se cuentan como máximo, y el
+# número va en la respuesta para que el agente no diga «tiene 300» cuando lo que
+# sabe es «al menos 300».
+MAX_CUPOS_CONTADOS = 300
+
+# 0 = lunes … 6 = domingo, la convención de la columna `dia_semana`.
+DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+
 # --------------------------------------------------------------- disponibilidad
 
 def consultar_disponibilidad(
     acceso: AccesoRoble, caso: dict[str, Any], argumentos: dict[str, Any]
 ) -> dict[str, Any]:
-    centro = _centro_del_caso(caso)
+    centro = _centro(acceso, caso)
     # El `maximum` del esquema es una indicación para el modelo, no una validación:
     # se recorta aquí para no ofrecer un espacio que después `_coincidencias` no
     # alcanzaría a encontrar.
@@ -85,7 +94,32 @@ def _opcion(acceso: AccesoRoble, cupo: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _centro(acceso: AccesoRoble, caso: dict[str, Any]) -> str:
+    """Sobre qué centro se mira la agenda.
+
+    El del caso cuando hay caso. Cuando no lo hay —el personal de un centro
+    preguntando por su propia agenda— el del actor, que sale de su perfil en ROBLE
+    y no de nada que haya dicho el modelo: así una consulta general no puede
+    terminar leyendo los cupos del otro centro.
+    """
+    centro = caso.get("centro") or (acceso.actor.centro if not acceso.actor.es_paciente else "")
+    if not centro:
+        raise SolicitudInvalida(
+            "El caso todavía no tiene centro asignado: hay que canalizarlo antes de agendar",
+            publico=(
+                "Este caso todavía no está canalizado a un centro, así que no se puede "
+                "agendar. Completa el triaje primero."
+            ),
+        )
+    return str(centro)
+
+
 def _centro_del_caso(caso: dict[str, Any]) -> str:
+    """El centro del caso, y sólo el del caso.
+
+    Lo usan `agendar_cita` y `notificar_profesional`: ahí el centro del actor no
+    vale como respaldo, porque lo que se va a escribir cuelga del caso.
+    """
     centro = caso.get("centro")
     if not centro:
         raise SolicitudInvalida(
@@ -96,6 +130,115 @@ def _centro_del_caso(caso: dict[str, Any]) -> str:
             ),
         )
     return str(centro)
+
+
+# ------------------------------------------------------------- profesionales
+
+def consultar_profesionales(
+    acceso: AccesoRoble, caso: dict[str, Any], argumentos: dict[str, Any]
+) -> dict[str, Any]:
+    """Quién atiende en el centro, con qué horario y cuánto le queda libre.
+
+    Existe porque el personal del centro preguntaba esto y el agente no tenía de
+    dónde sacarlo: sin herramienta, lo único correcto que podía hacer era decir que
+    no lo sabe —y lo incorrecto, inventárselo—.
+
+    Los cupos libres se cuentan a partir de una sola lectura del centro y no una
+    por profesional: la cuota de ROBLE es de 100 operaciones por minuto y por IP, y
+    los horarios ya gastan una lectura por profesional.
+    """
+    centro = _centro(acceso, caso)
+    dias = max(1, min(int(argumentos.get("dias_adelante") or 7), VENTANA_MAXIMA_DIAS))
+
+    cupos = acceso.cupos_libres(
+        centro=centro, hasta=reloj.mas(dias=dias), maximo=MAX_CUPOS_CONTADOS
+    )
+    libres_por_profesional: dict[str, int] = {}
+    for cupo in cupos:
+        clave = str(cupo.get("profesional_id") or "")
+        libres_por_profesional[clave] = libres_por_profesional.get(clave, 0) + 1
+
+    profesionales = acceso.profesionales_de(centro)
+    fichas = [
+        {
+            "nombre": str(p.get("nombre") or ""),
+            "especialidad": str(p.get("especialidad") or "sin especialidad registrada"),
+            "atiende": _horario_legible(acceso, fila_id(p)),
+            "espacios_libres": libres_por_profesional.get(str(fila_id(p) or ""), 0),
+        }
+        for p in profesionales
+    ]
+
+    salida: dict[str, Any] = {
+        "centro": centro,
+        "ventana_dias": dias,
+        "profesionales": fichas,
+        "instruccion": (
+            "Responde en prosa corta sólo lo que te preguntaron: no recites los cuatro "
+            "campos de cada profesional. «espacios_libres» son cupos publicados y sin "
+            "reservar en esa ventana; un cero no dice que el profesional no atienda, "
+            "dice que no hay cupos publicados, y esos los publica el centro desde su "
+            "panel."
+        )
+        if fichas
+        else (
+            "Este centro no tiene profesionales activos registrados. Dilo tal cual: no "
+            "es un fallo del sistema, es que faltan por dar de alta."
+        ),
+    }
+
+    if len(cupos) >= MAX_CUPOS_CONTADOS:
+        # El conteo se quedó en el tope, así que los números son un mínimo. Decirlo
+        # es la diferencia entre «tiene 300 libres» y «tiene al menos 300».
+        salida["conteo_recortado_en"] = MAX_CUPOS_CONTADOS
+
+    return salida
+
+
+def _horario_legible(acceso: AccesoRoble, profesional_id: str | None) -> str:
+    """Los horarios de un profesional en una frase, agrupando días de igual horario.
+
+    Se agrupa porque lo normal es «lunes a viernes de 8:00 a 12:00» y enumerar cinco
+    veces el mismo rango hace que el agente lo lea en voz alta entero.
+    """
+    if not profesional_id:
+        return "sin horario registrado"
+
+    por_rango: dict[tuple[str, str], list[int]] = {}
+    for horario in acceso.horarios_de(profesional_id):
+        if not _activo(horario):
+            continue
+        dia = horario.get("dia_semana")
+        if dia is None:
+            continue
+        rango = (str(horario.get("hora_inicio") or ""), str(horario.get("hora_fin") or ""))
+        por_rango.setdefault(rango, []).append(int(dia) % 7)
+
+    if not por_rango:
+        return "sin horario registrado"
+
+    partes = [
+        f"{_dias_legibles(sorted(set(dias)))} de {desde} a {hasta}"
+        for (desde, hasta), dias in sorted(por_rango.items(), key=lambda par: par[0])
+    ]
+    return "; ".join(partes)
+
+
+def _dias_legibles(dias: list[int]) -> str:
+    nombres = [DIAS[d] for d in dias if 0 <= d < len(DIAS)]
+    if not nombres:
+        return "sin días registrados"
+    # Un tramo corrido se dice como tramo. `dias` viene ordenado y sin repetidos.
+    if len(nombres) > 2 and dias[-1] - dias[0] == len(dias) - 1:
+        return f"{nombres[0]} a {nombres[-1]}"
+    if len(nombres) == 1:
+        return nombres[0]
+    return ", ".join(nombres[:-1]) + " y " + nombres[-1]
+
+
+def _activo(horario: dict[str, Any]) -> bool:
+    """ROBLE devuelve los booleanos de cuatro formas, y `None` en las filas viejas."""
+    return horario.get("activo") in (True, "true", "t", 1, "1", None)
 
 
 # --------------------------------------------------------- resolver el espacio
