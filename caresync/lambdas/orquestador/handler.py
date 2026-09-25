@@ -182,6 +182,7 @@ def _conversar(
     texto_final = ""
     tokens = {"entrada": 0, "salida": 0, "cacheados": 0}
     intervino = False
+    salvaguardas: set[str] = set()
 
     # Como máximo dos agentes por petición: el que atiende y el que recibe el
     # traspaso. Un tercero sería una cadena que la persona no puede seguir.
@@ -203,6 +204,7 @@ def _conversar(
         tokens["salida"] += resultado.tokens_salida
         tokens["cacheados"] += resultado.tokens_cacheados
         intervino = intervino or resultado.intervino_guardrail
+        salvaguardas.update(resultado.salvaguardas)
         texto_final = "\n\n".join(t for t in (texto_final, resultado.texto) if t)
 
         siguiente = _traspaso(agente, resultado)
@@ -249,6 +251,7 @@ def _conversar(
         tokens_salida=tokens["salida"],
         tokens_cacheados=tokens["cacheados"],
         guardrail=intervino,
+        salvaguardas=sorted(salvaguardas),
     )
 
     # `caso` va en null cuando no hay ninguno: la vista lo usa para saber si el hilo
@@ -272,6 +275,10 @@ def _conversar(
                 for u in usos_totales
             ],
             "salvaguardas_intervinieron": intervino,
+            # Qué política actuó, sin el contenido. Sirve a los evaluadores para
+            # distinguir la salvaguarda cortando una dosis —su trabajo— de la
+            # salvaguarda cortando una urgencia, que es el peor fallo posible.
+            "salvaguardas_detalle": sorted(salvaguardas),
         },
         cabeceras={"x-caresync-caso": caso_id} if caso_id else None,
     )
