@@ -3,7 +3,8 @@
 Lo que hace, en orden:
 
 1. Autoriza al llamante contra ROBLE con su propio token, y de ahí saca su rol.
-2. Resuelve el caso: continúa el que esté abierto o abre uno nuevo.
+2. Resuelve el caso: continúa el que esté abierto, abre uno nuevo, o ninguno —el
+   personal de un centro pregunta también por su operación, sin hablar de nadie.
 3. Elige el agente por rol y por estado del caso, no por lo que diga el cliente.
 4. Corre el bucle de herramientas contra Bedrock.
 5. Traspasa al siguiente agente si el anterior cerró su parte.
@@ -25,7 +26,11 @@ import boto3
 import requests
 
 from caresync_comun import respuesta
-from caresync_comun.catalogo_herramientas import especificaciones, permitida
+from caresync_comun.catalogo_herramientas import (
+    especificaciones,
+    necesita_caso,
+    permitida,
+)
 from caresync_comun.config import config
 from caresync_comun.errores import (
     ErrorDeCareSync,
@@ -140,17 +145,28 @@ def _conversar(
 ) -> dict[str, Any]:
     actor = acceso.actor
     caso = _resolver_caso(acceso, cuerpo=cuerpo, mensaje=mensaje)
-    caso_id = str(fila_id(caso))
+    caso_id = str(fila_id(caso)) if caso else ""
+
+    # Dónde se guarda este hilo. Con caso, en el caso. Sin caso —el personal de un
+    # centro preguntando por sus horarios— en un hilo propio de quien pregunta, para
+    # que la conversación tenga memoria de un turno a otro igual que las demás.
+    # `conversaciones.caso_id` es texto libre, así que el prefijo no colisiona con
+    # ningún `_id`; una columna nueva no era opción, ROBLE no admite `alter`.
+    hilo_id = caso_id or f"consulta:{actor.user_id}"
 
     solicitado = str(cuerpo.get("agente") or "").strip().lower()
-    clave = solicitado if solicitado in agentes.AGENTES else agentes.agente_por_defecto(caso)
+    clave = (
+        solicitado
+        if solicitado in agentes.AGENTES
+        else agentes.agente_por_defecto(caso, rol=actor.rol)
+    )
     agente = agentes.AGENTES[clave]
 
     if actor.rol not in agente.roles:
         raise SinPermiso(f"El rol «{actor.rol}» no puede usar el {agente.nombre}")
 
     acceso.anotar_mensaje(
-        caso_id=caso_id, agente=agente.clave, autor=actor.rol, contenido=mensaje
+        caso_id=hilo_id, agente=agente.clave, autor=actor.rol, contenido=mensaje
     )
 
     # El hilo que se le pasa al modelo es sólo texto: turnos de la persona y del
@@ -158,7 +174,7 @@ def _conversar(
     # dentro del bucle y no se arrastran al traspaso, porque el segundo agente
     # declara otras herramientas y la API rechaza un historial que referencia
     # herramientas que ya no existen.
-    hilo = _historial(acceso, caso_id)
+    hilo = _historial(acceso, hilo_id)
     hilo.append({"role": "user", "content": [{"text": mensaje}]})
 
     participantes: list[str] = []
@@ -171,14 +187,14 @@ def _conversar(
     # traspaso. Un tercero sería una cadena que la persona no puede seguir.
     for salto in range(2):
         participantes.append(agente.clave)
-        contexto_extra = _contexto_del_traspaso(caso) if salto else ""
+        contexto_extra = _contexto_del_traspaso(caso or {}) if salto else ""
 
         resultado = bedrock_conversa.conversar(
             sistema=agentes.instrucciones(
                 agente, actor=actor, caso=caso, contexto=contexto_extra
             ),
             mensajes=hilo,
-            herramientas=_herramientas_de(agente, actor.rol),
+            herramientas=_herramientas_de(agente, actor.rol, con_caso=bool(caso_id)),
             ejecutar=_ejecutor(token=token, caso_id=caso_id, agente=agente.clave),
         )
 
@@ -194,7 +210,9 @@ def _conversar(
             break
 
         # El caso cambió de estado dentro de la herramienta: hay que releerlo
-        # para que el siguiente agente vea el centro y el nivel de urgencia.
+        # para que el siguiente agente vea el centro y el nivel de urgencia. Aquí
+        # hay caso con seguridad: el traspaso lo dispara `canalizar_caso`, que sin
+        # caso no se le llega a declarar al modelo.
         caso = acceso.caso(caso_id)
         agente = agentes.AGENTES[siguiente]
         if actor.rol not in agente.roles:
@@ -206,7 +224,7 @@ def _conversar(
 
     if texto_final:
         acceso.anotar_mensaje(
-            caso_id=caso_id, agente=participantes[-1], autor="agente", contenido=texto_final
+            caso_id=hilo_id, agente=participantes[-1], autor="agente", contenido=texto_final
         )
 
     # La constancia de los fallos va fuera de ese `if`: un turno puede salir sin
@@ -214,14 +232,15 @@ def _conversar(
     # que la bitácora diga qué no se hizo. Colgada del texto, el turno siguiente
     # arrancaba sin saber que la herramienta había fallado.
     _dejar_constancia_de_los_fallos(
-        acceso, caso_id=caso_id, agente=participantes[-1], usos=usos_totales
+        acceso, hilo_id=hilo_id, agente=participantes[-1], usos=usos_totales
     )
 
-    caso = acceso.caso(caso_id)
+    if caso_id:
+        caso = acceso.caso(caso_id)
     evento(
         log,
         "conversacion_atendida",
-        caso_id=caso_id,
+        caso_id=hilo_id,
         agentes=participantes,
         herramientas=[u.nombre for u in usos_totales],
         tokens_entrada=tokens["entrada"],
@@ -230,15 +249,21 @@ def _conversar(
         guardrail=intervino,
     )
 
+    # `caso` va en null cuando no hay ninguno: la vista lo usa para saber si el hilo
+    # tiene sujeto, y un objeto con el id a medias la haría creer que sí.
     return respuesta.ok(
         {
             "respuesta": texto_final,
-            "caso": {
-                "id": caso_id,
-                "estado": caso.get("estado"),
-                "centro": caso.get("centro"),
-                "nivel_urgencia": caso.get("nivel_urgencia"),
-            },
+            "caso": (
+                {
+                    "id": caso_id,
+                    "estado": caso.get("estado"),
+                    "centro": caso.get("centro"),
+                    "nivel_urgencia": caso.get("nivel_urgencia"),
+                }
+                if caso
+                else None
+            ),
             "agentes": participantes,
             "acciones": [
                 {"herramienta": u.nombre, "ok": u.ok, "resultado": u.resultado}
@@ -246,21 +271,30 @@ def _conversar(
             ],
             "salvaguardas_intervinieron": intervino,
         },
-        cabeceras={"x-caresync-caso": caso_id},
+        cabeceras={"x-caresync-caso": caso_id} if caso_id else None,
     )
 
 
 def _resolver_caso(
     acceso: AccesoRoble, *, cuerpo: dict[str, Any], mensaje: str
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
+    """El caso de esta petición, si hay uno.
+
+    Devuelve `None` cuando quien escribe no es un paciente y no dijo sobre qué caso
+    trabaja. No es un error: el personal de un centro también pregunta por su
+    agenda, por quién atiende y a qué horas, y eso no es de nadie en concreto. Lo
+    que se le exigía antes era un `caso_id` que la vista no tenía, y el 400 se leía
+    en pantalla como «No entendí la solicitud».
+
+    Lo que no se hace es deducir el caso de lo que diga el mensaje: la identidad la
+    pone el orquestador desde la sesión, no el modelo leyendo un nombre.
+    """
     pedido = cuerpo.get("caso_id")
     if pedido:
         return acceso.caso_visible(str(pedido))
 
     if not acceso.actor.es_paciente:
-        # Un profesional o un administrativo siempre habla *sobre* un caso
-        # concreto; no tiene uno propio que continuar.
-        raise SolicitudInvalida("Falta «caso_id»: tu rol siempre actúa sobre un caso concreto")
+        return None
 
     abierto = acceso.caso_abierto_de(acceso.actor.user_id)
     return abierto or acceso.abrir_caso(motivo=mensaje)
@@ -277,7 +311,7 @@ _MARCA_DE_AUTOR = {
 }
 
 
-def _historial(acceso: AccesoRoble, caso_id: str) -> list[dict[str, Any]]:
+def _historial(acceso: AccesoRoble, hilo_id: str) -> list[dict[str, Any]]:
     """Convierte lo escrito en ROBLE al formato de mensajes de Converse.
 
     Los resultados de herramientas no se rehidratan: se guardan como texto en la
@@ -286,7 +320,7 @@ def _historial(acceso: AccesoRoble, caso_id: str) -> list[dict[str, Any]]:
     guardar identificadores de la API en la base y no aporta nada al hilo.
     """
     mensajes: list[dict[str, Any]] = []
-    for fila in acceso.mensajes(caso_id, maximo=20):
+    for fila in acceso.mensajes(hilo_id, maximo=20):
         contenido = str(fila.get("contenido") or "").strip()
         if not contenido:
             continue
@@ -318,13 +352,25 @@ def _historial(acceso: AccesoRoble, caso_id: str) -> list[dict[str, Any]]:
     return mensajes
 
 
-def _herramientas_de(agente: agentes.Agente, rol: str) -> list[dict[str, Any]]:
-    """Sólo se declaran las herramientas que el rol puede usar de verdad.
+def _herramientas_de(
+    agente: agentes.Agente, rol: str, *, con_caso: bool
+) -> list[dict[str, Any]]:
+    """Sólo se declaran las herramientas que se pueden usar de verdad ahora mismo.
 
-    Filtrar aquí, y no al ejecutar, evita que el modelo prometa a la persona algo
-    que después le va a ser negado.
+    Dos filtros. El rol, porque filtrar aquí y no al ejecutar evita que el modelo
+    prometa a la persona algo que después le va a ser negado. Y el caso: en una
+    consulta general no hay sobre quién agendar, así que esas herramientas no se
+    declaran —si se declararan, el modelo pediría un nombre para buscar el caso, que
+    es justo lo que el sistema no hace.
+
+    Ninguno de los dos es la última defensa: la función de herramientas vuelve a
+    comprobar el rol y a exigir el caso antes del efecto.
     """
-    disponibles = tuple(n for n in agente.herramientas if permitida(n, rol))
+    disponibles = tuple(
+        n
+        for n in agente.herramientas
+        if permitida(n, rol) and (con_caso or not necesita_caso(n))
+    )
     return especificaciones(disponibles)
 
 
@@ -347,7 +393,7 @@ def _contexto_del_traspaso(caso: dict[str, Any]) -> str:
 
 
 def _dejar_constancia_de_los_fallos(
-    acceso: AccesoRoble, *, caso_id: str, agente: str, usos: list[bedrock_conversa.Uso]
+    acceso: AccesoRoble, *, hilo_id: str, agente: str, usos: list[bedrock_conversa.Uso]
 ) -> None:
     """Escribe en el caso qué herramientas fallaron, junto a lo que dijo el agente.
 
@@ -367,7 +413,7 @@ def _dejar_constancia_de_los_fallos(
         return
 
     acceso.anotar_mensaje(
-        caso_id=caso_id,
+        caso_id=hilo_id,
         agente=agente,
         autor="sistema",
         contenido=(

@@ -499,10 +499,16 @@ class AccesoRoble:
     # ---------------------------------------------------------- conversaciones
 
     def mensajes(self, caso_id: str, *, maximo: int = 30) -> list[dict[str, Any]]:
-        """Historial del caso, en orden y recortado a las últimas vueltas.
+        """Historial de un hilo, en orden y recortado a las últimas vueltas.
 
         El recorte no es sólo por coste de tokens: un historial largo diluye las
         instrucciones del agente. Lo que hay antes del recorte sigue en ROBLE.
+
+        `caso_id` es el identificador del hilo y no siempre el de un caso: la columna
+        es texto libre y el orquestador usa `consulta:<user_id>` para las
+        conversaciones que no son sobre nadie en concreto —el personal de un centro
+        preguntando por sus horarios—. Aquí se filtra por igualdad, así que un hilo
+        no puede leer el otro.
         """
         filas = self._leer(CONVERSACIONES, {"caso_id": caso_id})
         filas.sort(key=lambda f: str(f.get("creado_en") or ""))
