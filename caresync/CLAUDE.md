@@ -105,7 +105,7 @@ Desplegado y sano, verificado contra `GET /salud`: Claude Haiku 4.5, guardrail
 activo, contrato de ROBLE válido, función de herramientas conectada. `correo: false`
 — SES sigue sin remitente verificado.
 
-Hecho: infraestructura aplicada, PWA publicada, 14 tablas, 3 Lambdas, catálogo de 9
+Hecho: infraestructura aplicada, PWA publicada, 14 tablas, 3 Lambdas, catálogo de 10
 herramientas, protocolo v0.1 con fundamento y criterios medibles, banco de 40 casos
 **con guion de respuestas**, y `evaluar_triaje.py` reescrito a conversación de varios
 turnos con detección de contaminación de token.

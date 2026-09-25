@@ -51,7 +51,7 @@ herramientas y quién puede hablarle.
 | Agente | Roles que lo invocan | Herramientas |
 |---|---|---|
 | Triaje | paciente | `consultar_estado_caso`, `escalar_urgencia`, `canalizar_caso` |
-| Agenda y logística | paciente, administrativo (CMU y CAE) | `consultar_estado_caso`, `consultar_disponibilidad`, `agendar_cita`, `notificar_profesional`, `escalar_urgencia` |
+| Agenda y logística | paciente, administrativo (CMU y CAE) | `consultar_estado_caso`, `consultar_disponibilidad`, `consultar_profesionales`, `agendar_cita`, `notificar_profesional`, `escalar_urgencia` |
 | Seguimiento | paciente, profesional | `consultar_estado_caso`, `consultar_plan`, `registrar_evolucion`, `registrar_adherencia`, `escalar_urgencia` |
 
 **El traspaso es explícito y uno solo:** cuando `canalizar_caso` tiene éxito, el
@@ -62,6 +62,21 @@ y ocurre porque una herramienta concreta funcionó.
 Qué agente atiende cuando la aplicación no pide uno se deduce **del estado del
 caso**, no de la pantalla que llamó (`agente_por_defecto`). Alguien que vuelve a
 escribir tres días después cae en seguimiento en lugar de repetir el triaje.
+
+### Una conversación puede no ser sobre ningún caso
+
+El personal de un centro pregunta también por su propia operación —quién atiende,
+con qué horario, dónde queda hueco—, y eso no es de nadie en concreto. Esa
+conversación no tiene caso: se guarda en un hilo propio de quien pregunta
+(`consulta:<user_id>` en la columna `caso_id` de `conversaciones`, que es texto
+libre) y el agente se elige por el rol, porque no hay estado del que deducirlo.
+
+Sin caso el catálogo recorta lo que se le declara al modelo: sólo las herramientas
+marcadas `necesita_caso=False`, que son las que se responden sabiendo únicamente el
+centro de quien pregunta. Las demás no se declaran, y la Lambda de herramientas las
+rechaza igual si llegaran sin caso. El centro sale del perfil del actor en ROBLE, no
+de nada que el modelo haya leído, así que una consulta general no puede terminar
+leyendo la agenda del otro centro.
 
 ### Los permisos se comprueban dos veces
 
