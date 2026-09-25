@@ -21,12 +21,13 @@ tengo dificultad para respirar ni rigidez en el cuello»), porque se envían a c
 no sabemos qué va a preguntar el agente. Es el límite del enfoque, y es el precio de
 que la medición sea determinista y repetible.
 
-**Un token por caso.** Un caso canalizado NO queda cerrado, y `caso_abierto_de` sólo
-excluye los cerrados, así que con un token compartido el segundo caso continúa el
-hilo del primero. Hoy no hay ninguna ruta del sistema que escriba el estado
-`cerrado`, de modo que no hay forma de liberar el token entre casos. Este script
-detecta esa contaminación y excluye del porcentaje los casos afectados, en vez de
-publicar un número que no significa nada.
+**Una cuenta para todo el banco.** Un caso canalizado no queda cerrado, y
+`caso_abierto_de` sólo excluye los cerrados, así que con una cuenta compartida el
+segundo caso continuaría el hilo del primero. Por eso el script cierra el caso al
+terminar cada conversación, con el mismo token con el que conversa (ver
+`cuenta_roble.py`). Si un cierre falla, la contaminación se sigue detectando y el
+caso afectado sale del porcentaje, en vez de publicar un número que no significa
+nada.
 
 **La cuota de ROBLE es el techo real.** Cada turno son del orden de diez
 operaciones contra ROBLE (validar sesión, perfil, caso, historial, escribir el
@@ -37,9 +38,11 @@ omisión: con menos, la corrida se envenena sola con 429.
 Requisitos:
     pip install requests
 
-Uso:
-    export CARESYNC_API_URL="https://ow2vz6k279.execute-api.us-east-1.amazonaws.com"
-    export CARESYNC_TOKENS_FILE="tokens.txt"   # un token por línea, uno por caso
+Uso (`evaluacion/.env` lo ignora git; ver `cuenta_roble.py`):
+    CARESYNC_API_URL=https://ow2vz6k279.execute-api.us-east-1.amazonaws.com
+    CARESYNC_EMAIL=<cuenta de paciente de prueba>
+    CARESYNC_PASSWORD=<su contraseña>
+
     python evaluar_triaje.py
 
     python evaluar_triaje.py --solo cmu-01,alarma-mental-01   # prueba barata
@@ -65,6 +68,8 @@ except ModuleNotFoundError:  # pragma: no cover
     # máquina sin el entorno montado: es justo lo que se hace cuando el número del
     # informe no cuadra y no se quiere volver a gastar cuota de ROBLE.
     requests = None  # type: ignore[assignment]
+
+from cuenta_roble import Credencial, ErrorDeCuenta, cargar_entorno, credenciales, distintas
 
 RAIZ = Path(__file__).parent
 CASOS_PATH = RAIZ / "casos_evaluacion.json"
@@ -181,46 +186,40 @@ def cargar_casos(filtro: str = "") -> list[dict[str, Any]]:
     return elegidos
 
 
-def cargar_tokens(n_casos: int) -> list[str]:
-    ruta = os.environ.get("CARESYNC_TOKENS_FILE", "")
-    if ruta and Path(ruta).exists():
-        tokens = [l.strip() for l in Path(ruta).read_text(encoding="utf-8").splitlines() if l.strip()]
-        if not tokens:
-            sys.exit(f"{ruta} está vacío.")
-        if len(tokens) < n_casos:
-            print(
-                f"AVISO: {len(tokens)} tokens para {n_casos} casos. Los que falten reusan el "
-                "último, y esos casos van a quedar marcados como contaminados.",
-                file=sys.stderr,
-            )
-            tokens += [tokens[-1]] * (n_casos - len(tokens))
-        return tokens[:n_casos]
+def preparar_cuentas(lista: list[Credencial]) -> None:
+    """Cierra lo que cada cuenta traiga abierto, para que el primer caso salga limpio."""
+    for credencial in distintas(lista):
+        try:
+            cerrados = credencial.cerrar_casos_abiertos()
+        except ErrorDeCuenta as exc:
+            print(f"AVISO: no se pudieron revisar los casos abiertos de {credencial!r}: {exc}")
+            continue
+        if cerrados:
+            print(f"Se cerraron {cerrados} casos que {credencial!r} tenía abiertos de antes.")
 
-    token_unico = os.environ.get("CARESYNC_TOKEN", "")
-    if not token_unico:
-        sys.exit(
-            "Falta CARESYNC_TOKENS_FILE (un token por caso) o CARESYNC_TOKEN (uno solo, "
-            "para una prueba rápida con --solo). Ver el encabezado de este archivo."
-        )
-    if n_casos > 1:
-        print(
-            "AVISO: un solo token para varios casos. Sólo el primero es válido; el resto "
-            "continuará el mismo caso y quedará marcado como contaminado.",
-            file=sys.stderr,
-        )
-    return [token_unico] * n_casos
+
+def cerrar_al_terminar(credencial: Credencial, t: Transcripcion) -> None:
+    """Cierra el caso de la conversación para que la siguiente abra uno limpio.
+
+    Un fallo aquí no para la corrida: el caso siguiente llegaría en un estado usado
+    y `conversar_caso` lo marcaría como contaminado, que es justo lo que hay que ver
+    en el informe si pasa.
+    """
+    caso_id = next((turno.caso_id for turno in t.turnos if turno.caso_id), "")
+    if caso_id and not credencial.cerrar_caso(caso_id):
+        print(f"    AVISO: no se pudo cerrar el caso {caso_id[:8]}; el siguiente puede salir contaminado")
 
 
 # ------------------------------------------------------------------ transporte
 
 def llamar_agente(
-    api_url: str, token: str, mensaje: str, caso_id: str = "", *, intentos: int = 3
+    api_url: str, token: Credencial | str, mensaje: str, caso_id: str = "", *, intentos: int = 3
 ) -> dict[str, Any]:
     """Un turno contra POST /agente, con reintento ante saturación.
 
     El 429 de ROBLE llega hasta aquí como un 502 (`ErrorDeDatos`), así que los dos
-    se reintentan con espera creciente. Un 401 no se reintenta: el token no se
-    arregla solo.
+    se reintentan con espera creciente. Un 401 se resuelve renovando el token una
+    vez si la cuenta tiene contraseña; si no, no se arregla solo y se para.
     """
     if requests is None:
         sys.exit("Falta la dependencia «requests» para hablar con el API: pip install requests")
@@ -230,11 +229,13 @@ def llamar_agente(
         cuerpo["caso_id"] = caso_id
 
     ultimo_fallo = ""
+    renovado = False
     for intento in range(1, intentos + 1):
+        clave = token.actual() if isinstance(token, Credencial) else str(token)
         try:
             respuesta = requests.post(
                 f"{api_url.rstrip('/')}/agente",
-                headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {clave}"},
                 json=cuerpo,
                 timeout=TIEMPO_ESPERA,
             )
@@ -244,9 +245,16 @@ def llamar_agente(
             if respuesta.status_code == 200:
                 return respuesta.json()
             if respuesta.status_code == 401:
+                if isinstance(token, Credencial) and token.renovable and not renovado:
+                    try:
+                        token.renovar()
+                    except ErrorDeCuenta as exc:
+                        raise SystemExit(str(exc)) from exc
+                    renovado = True
+                    continue
                 raise SystemExit(
                     "401: ROBLE rechazó el token. Está vencido o no es de este contrato. "
-                    "Los tokens de acceso de ROBLE son de vida corta: vuelve a generarlos."
+                    "Con CARESYNC_EMAIL y CARESYNC_PASSWORD en evaluacion/.env se renueva solo."
                 )
             ultimo_fallo = f"HTTP {respuesta.status_code}: {respuesta.text[:200]}"
             if respuesta.status_code not in (429, 502, 503, 504):
@@ -486,8 +494,8 @@ def generar_informe(resultados: list[Resultado]) -> str:
         )
         lineas += [
             f"> **{cuantos} del cálculo por contaminación de token.**",
-            "> Un caso canalizado no queda cerrado, así que un token reutilizado continúa el",
-            "> hilo anterior en vez de abrir uno nuevo. Están listados al final.",
+            "> El evaluador cierra cada caso al terminar; si ese cierre falla, la conversación",
+            "> siguiente continúa el hilo anterior en vez de abrir uno nuevo. Están listados al final.",
             "",
         ]
 
@@ -606,10 +614,12 @@ def main() -> None:
     if opciones.desde_crudo:
         transcripciones = [t for t in _leer_crudo() if t.id in por_id or not opciones.solo]
     else:
+        cargar_entorno()
         api_url = os.environ.get("CARESYNC_API_URL", "")
         if not api_url:
             sys.exit("Falta CARESYNC_API_URL (la salida `api_url` de Terraform).")
-        tokens = cargar_tokens(len(casos))
+        tokens = credenciales(len(casos))
+        preparar_cuentas(tokens)
 
         print(f"{len(casos)} casos, hasta {opciones.max_turnos} turnos, {opciones.pausa}s entre turnos.")
         print(f"Peor caso: ~{sum(1 + len(c.get('respuestas') or []) for c in casos) * opciones.pausa / 60:.0f} min.\n")
@@ -620,6 +630,7 @@ def main() -> None:
             t = conversar_caso(api_url, token, caso,
                                pausa=opciones.pausa, max_turnos=opciones.max_turnos)
             transcripciones.append(t)
+            cerrar_al_terminar(token, t)
 
             if t.error_de_red:
                 print(f"    ERROR: {t.error_de_red}")

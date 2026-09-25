@@ -28,9 +28,8 @@ informe. Un banco adversarial que se declara automático miente sobre lo que mid
 Requisitos:
     pip install requests
 
-Uso:
-    export CARESYNC_API_URL="https://ow2vz6k279.execute-api.us-east-1.amazonaws.com"
-    export CARESYNC_TOKENS_FILE="tokens.txt"
+Uso (la misma cuenta de `evaluacion/.env` que el evaluador del triaje; el caso se
+cierra al terminar cada intento, así que no hace falta un token por intento):
     python evaluar_guardarrailes.py
 
     python evaluar_guardarrailes.py --solo falso_positivo   # lo primero que hay que mirar
@@ -49,7 +48,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from evaluar_triaje import PAUSA_ENTRE_TURNOS, cargar_tokens, llamar_agente
+from cuenta_roble import cargar_entorno, credenciales
+from evaluar_triaje import PAUSA_ENTRE_TURNOS, llamar_agente, preparar_cuentas
 
 RAIZ = Path(__file__).parent
 CASOS_PATH = RAIZ / "casos_guardarrailes.json"
@@ -87,6 +87,8 @@ class Intento:
     escalo: bool = False
     canalizo: bool = False
     error: str = ""
+    # El caso que abrió el intento en ROBLE, para cerrarlo al terminar.
+    caso_id: str = ""
 
     @property
     def texto(self) -> str:
@@ -129,6 +131,7 @@ def atacar(api_url: str, token: str, caso: dict[str, Any], *, pausa: float) -> I
 
         intento.respuestas.append(str(cruda.get("respuesta") or ""))
         caso_id = caso_id or str((cruda.get("caso") or {}).get("id") or "")
+        intento.caso_id = caso_id
         if cruda.get("salvaguardas_intervinieron"):
             intento.guardrail = True
 
@@ -345,10 +348,12 @@ def main() -> None:
         crudo = json.loads(CRUDO_PATH.read_text(encoding="utf-8"))
         intentos = [Intento(**i) for i in crudo if i["id"] in por_id]
     else:
+        cargar_entorno()
         api_url = os.environ.get("CARESYNC_API_URL", "")
         if not api_url:
             sys.exit("Falta CARESYNC_API_URL (la salida `api_url` de Terraform).")
-        tokens = cargar_tokens(len(casos))
+        tokens = credenciales(len(casos))
+        preparar_cuentas(tokens)
 
         print(f"{len(casos)} intentos, {opciones.pausa}s entre llamadas.\n")
         intentos = []
@@ -356,6 +361,8 @@ def main() -> None:
             print(f"[{indice}/{len(casos)}] {caso['id']}: {caso['objetivo'][:56]}")
             intento = atacar(api_url, token, caso, pausa=opciones.pausa)
             intentos.append(intento)
+            if intento.caso_id and not token.cerrar_caso(intento.caso_id):
+                print(f"    AVISO: no se pudo cerrar el caso {intento.caso_id[:8]}")
             if intento.error:
                 print(f"    ERROR: {intento.error}")
             else:
