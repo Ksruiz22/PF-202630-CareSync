@@ -183,6 +183,8 @@ export interface Turno {
   texto: string;
   agentes?: string[];
   acciones?: RespuestaAgente['acciones'];
+  /** Las salvaguardas de Bedrock cortaron o reescribieron esta respuesta. */
+  salvaguardas?: boolean;
 }
 
 /** `true` para `true`, `"true"`, `1` y `"1"`. ROBLE devuelve las cuatro formas. */

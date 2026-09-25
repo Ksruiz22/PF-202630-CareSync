@@ -886,6 +886,15 @@ label small {
   font-weight: 800;
 }
 
+.burbuja .salvaguarda {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+  font-size: 0.74rem;
+  color: var(--tinta-suave);
+}
+
 .pensando {
   display: flex;
   gap: 0.25rem;

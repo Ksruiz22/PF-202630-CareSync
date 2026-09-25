@@ -86,6 +86,7 @@ export function Conversacion({
           texto: respuesta.respuesta || 'Sigo aquí, pero no supe qué responder.',
           agentes: respuesta.agentes,
           acciones: respuesta.acciones?.filter((a) => a.ok),
+          salvaguardas: respuesta.salvaguardas_intervinieron,
         },
       ]);
       alResponder?.(respuesta);
@@ -187,6 +188,19 @@ function Burbuja({ turno }: { turno: Turno }) {
     <div className={`burbuja ${turno.quien}`}>
       <span className="autor">{autor}</span>
       <p>{turno.texto}</p>
+      {/*
+        Se dice cuándo actuaron las salvaguardas porque es la tercera capa de seguridad
+        —protocolo, prompt y Bedrock Guardrails— y la única que la persona no vería de
+        otro modo: una negativa suya se lee igual que una del agente. Si la salvaguarda
+        corta a alguien que describe una urgencia, esta marca es también lo que permite
+        notarlo en una revisión.
+      */}
+      {turno.salvaguardas && (
+        <p className="salvaguarda">
+          <IconoEscudo width={14} height={14} />
+          <span>Las salvaguardas de contenido revisaron esta respuesta.</span>
+        </p>
+      )}
       {turno.acciones && turno.acciones.length > 0 && (
         <ul className="acciones" aria-label="Lo que hizo el asistente">
           {turno.acciones.map((accion, indice) =>
