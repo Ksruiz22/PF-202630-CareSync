@@ -318,8 +318,9 @@ conversación. No añadir formularios, checkboxes de "cumplido" ni botones de ag
   modal que se cierra): "Esto es un prototipo académico. No reemplaza una consulta con
   personal de salud. Si es una urgencia, llama a la línea de emergencias del campus o
   al 123."
-- El historial del chat no persiste en pantalla al recargar (solo el saludo). Es el
-  comportamiento actual; no hace falta diseñar carga de historial.
+- Al recargar, el hilo se vuelve a pintar desde `conversaciones` (los últimos 30
+  turnos, sin las notas `[sistema]` ni lo que el personal del centro le escribió al
+  agente sobre el caso) y el saludo va al final. Antes sólo quedaba el saludo.
 
 ### 3.3 Panel lateral
 

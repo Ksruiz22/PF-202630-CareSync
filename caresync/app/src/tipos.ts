@@ -187,6 +187,16 @@ export interface Turno {
   salvaguardas?: boolean;
 }
 
+/** Una fila de `conversaciones`: un turno del hilo, tal como lo guarda el orquestador. */
+export interface FilaConversacion extends Fila {
+  caso_id?: string;
+  agente?: string;
+  /** `paciente`, `agente`, `sistema`, o el rol del personal que escribió sobre el caso. */
+  autor?: string;
+  contenido?: string;
+  creado_en?: string;
+}
+
 /** `true` para `true`, `"true"`, `1` y `"1"`. ROBLE devuelve las cuatro formas. */
 export function esVerdad(valor: unknown): boolean {
   return valor === true || valor === 1 || valor === 'true' || valor === '1' || valor === 't';
