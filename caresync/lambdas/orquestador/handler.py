@@ -43,6 +43,7 @@ from caresync_comun.registro import evento, registro
 from caresync_comun.roble_acceso import (
     ADMIN_CAE,
     ADMIN_CMU,
+    CASO_CERRADO,
     PACIENTE,
     PROFESIONAL,
     AccesoRoble,
@@ -297,10 +298,19 @@ def _resolver_caso(
 
     Lo que no se hace es deducir el caso de lo que diga el mensaje: la identidad la
     pone el orquestador desde la sesión, no el modelo leyendo un nombre.
+
+    Un paciente que pide un caso cerrado no lo reabre: se le atiende en su caso
+    vigente, o en uno nuevo. La vista guarda el `caso_id` del primer turno y lo
+    reenvía en los siguientes, así que una pestaña abierta mientras el profesional
+    cerraba el caso seguiría escribiendo en él; el triaje no podría canalizarlo
+    —`canalizar_caso` no acepta un caso cerrado— y la persona se quedaría hablando
+    con un agente que no puede hacer nada.
     """
     pedido = cuerpo.get("caso_id")
     if pedido:
-        return acceso.caso_visible(str(pedido))
+        caso = acceso.caso_visible(str(pedido))
+        if not (acceso.actor.es_paciente and caso.get("estado") == CASO_CERRADO):
+            return caso
 
     if not acceso.actor.es_paciente:
         return None

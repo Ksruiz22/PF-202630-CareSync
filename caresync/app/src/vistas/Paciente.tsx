@@ -43,6 +43,8 @@ import {
 
 interface Panorama {
   caso: Caso | null;
+  /** El último caso cerrado, sólo cuando no hay ninguno vigente: para decir que se cerró. */
+  anterior: Caso | null;
   cita: Cita | null;
   plan: Plan | null;
   indicaciones: Indicacion[];
@@ -52,6 +54,7 @@ interface Panorama {
 
 const VACIO: Panorama = {
   caso: null,
+  anterior: null,
   cita: null,
   plan: null,
   indicaciones: [],
@@ -70,8 +73,8 @@ export function Paciente() {
   const cargar = useCallback(async () => {
     if (!userId) return;
     try {
-      const caso = await casoVigente(userId);
-      setDatos(caso ? await alrededorDelCaso(caso) : VACIO);
+      const { vigente, anterior } = await casosDe(userId);
+      setDatos(vigente ? await alrededorDelCaso(vigente) : { ...VACIO, anterior });
       setError('');
     } catch (fallo) {
       setError(mensajeDeError(fallo));
@@ -140,11 +143,23 @@ export function Paciente() {
                     <span className="icono-vacio">
                       <IconoMensaje width={21} height={21} />
                     </span>
-                    <strong>Todavía no hay caso</strong>
-                    <p>
-                      Cuando le escribas al asistente se abre un caso y aquí verás en
-                      qué va.
-                    </p>
+                    {datos.anterior ? (
+                      <>
+                        <strong>Tu caso anterior quedó cerrado</strong>
+                        <p>
+                          Tu profesional lo dio por terminado. Si necesitas algo
+                          nuevo, cuéntaselo al asistente y se abre otro caso.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <strong>Todavía no hay caso</strong>
+                        <p>
+                          Cuando le escribas al asistente se abre un caso y aquí verás
+                          en qué va.
+                        </p>
+                      </>
+                    )}
                     <button
                       type="button"
                       className="boton-texto"
@@ -267,19 +282,28 @@ function TarjetaDePrivacidad() {
 }
 
 /**
- * El caso sobre el que se conversa.
+ * El caso sobre el que se conversa, y el último cerrado si no hay ninguno vigente.
  *
  * `read` de ROBLE sólo filtra por igualdad y no ordena, así que se traen los casos
  * de la persona y se elige aquí: el más reciente que no esté cerrado. Cuando eso
  * deje de caber en una lectura habrá que crear una consulta guardada en ROBLE y
  * llamarla con `executeQuery`; para el número de casos de un estudiante, no hace
  * falta.
+ *
+ * Un caso cerrado nunca es el vigente. Antes, a falta de uno abierto, se devolvía el
+ * último aunque estuviera cerrado, y su id viajaba al chat: el siguiente mensaje
+ * seguía escribiendo en un caso que el profesional ya había cerrado, en lugar de
+ * abrir uno nuevo con su triaje.
  */
-async function casoVigente(userId: string): Promise<Caso | null> {
+async function casosDe(userId: string): Promise<{ vigente: Caso | null; anterior: Caso | null }> {
   const casos = (await roble.read('casos', { paciente_user_id: userId })) as Caso[];
   const abiertos = casos.filter((caso) => caso.estado !== 'cerrado');
-  const candidatos = abiertos.length > 0 ? abiertos : casos;
-  return [...candidatos].sort(porFechaDescendente)[0] ?? null;
+  const cerrados = casos.filter((caso) => caso.estado === 'cerrado');
+  const vigente = [...abiertos].sort(porFechaDescendente)[0] ?? null;
+  return {
+    vigente,
+    anterior: vigente ? null : ([...cerrados].sort(porFechaDescendente)[0] ?? null),
+  };
 }
 
 async function alrededorDelCaso(caso: Caso): Promise<Panorama> {
@@ -300,6 +324,7 @@ async function alrededorDelCaso(caso: Caso): Promise<Panorama> {
 
   return {
     caso,
+    anterior: null,
     cita: [...activa].sort(porInicioAscendente)[0] ?? null,
     plan: [...planes].sort(porFechaDescendente)[0] ?? null,
     indicaciones: indicaciones.filter((fila) => esVerdad(fila.activa)),
