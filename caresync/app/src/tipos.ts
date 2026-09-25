@@ -160,12 +160,19 @@ export interface EventoCaso extends Fila {
 /** Lo que devuelve `POST /agente`. Debe coincidir con `_conversar` del orquestador. */
 export interface RespuestaAgente {
   respuesta: string;
+  /**
+   * El caso del que se habló, o `null` si la conversación no era sobre ninguno.
+   *
+   * Nulo cuando el personal de un centro pregunta por su operación —horarios, quién
+   * atiende, dónde hay hueco— sin nombrar a nadie. El backend responde igual, pero no
+   * hay caso que la vista pueda seguir mandando en el turno siguiente.
+   */
   caso: {
     id: string;
     estado?: EstadoCaso;
     centro?: Centro | null;
     nivel_urgencia?: number | null;
-  };
+  } | null;
   agentes: string[];
   acciones: Array<{ herramienta: string; ok: boolean; resultado?: unknown }>;
   salvaguardas_intervinieron: boolean;

@@ -8,6 +8,9 @@ propósito, y la separación es de seguridad, no de estilo:
 * La identidad no la aporta el modelo. El `caso_id` y el token llegan en el
   bloque `contexto` que arma el orquestador desde la sesión. Si el modelo
   incluyera un `caso_id` entre sus argumentos, se ignora: no está en el catálogo.
+  El contexto puede llegar sin caso —el personal de un centro preguntando por su
+  agenda no habla de nadie en concreto—, y entonces sólo se admiten las
+  herramientas que el catálogo marca con `necesita_caso=False`.
 * El rol se vuelve a comprobar aquí. El orquestador ya filtra qué herramientas
   declara, pero una segunda comprobación en el punto donde ocurre el efecto es
   lo que hace que el filtro del prompt no sea la única defensa.
@@ -46,6 +49,7 @@ EJECUTORES: dict[str, Callable[[AccesoRoble, dict[str, Any], dict[str, Any]], di
     "canalizar_caso": triaje.canalizar_caso,
     "escalar_urgencia": triaje.escalar_urgencia,
     "consultar_disponibilidad": agenda.consultar_disponibilidad,
+    "consultar_profesionales": agenda.consultar_profesionales,
     "agendar_cita": agenda.agendar_cita,
     "notificar_profesional": agenda.notificar_profesional,
     "consultar_plan": seguimiento.consultar_plan,
@@ -101,8 +105,19 @@ def _ejecutar(nombre: str, crudos: dict[str, Any], contexto: dict[str, Any]) -> 
     caso_id = str(contexto.get("caso_id") or "")
     if not token:
         raise NoAutorizado("La invocación no trae el token del llamante")
-    if not caso_id:
-        raise SolicitudInvalida("La invocación no trae el caso sobre el que actuar")
+    if not caso_id and herramienta.necesita_caso:
+        # El `publico` explícito es lo que lee el modelo en el `toolResult`. El de
+        # serie de `SolicitudInvalida` es «No entendí la solicitud», que aquí sería
+        # mentira: la solicitud se entendió y falta el caso. Esta rama no debería
+        # alcanzarse —el orquestador no declara estas herramientas sin caso—, y si se
+        # alcanza lo útil es que el agente sepa qué decir.
+        raise SolicitudInvalida(
+            "La invocación no trae el caso sobre el que actuar",
+            publico=(
+                "Esto no se puede hacer en una consulta general: hace falta un caso "
+                "concreto, y el caso se elige en el tablero."
+            ),
+        )
 
     argumentos = _argumentos(herramienta, crudos)
 
@@ -112,8 +127,11 @@ def _ejecutar(nombre: str, crudos: dict[str, Any], contexto: dict[str, Any]) -> 
             raise SinPermiso(f"El rol «{acceso.actor.rol}» no puede usar {nombre}")
 
         # Autorización de fila: que el caso exista no basta, tiene que ser un
-        # caso que este actor tenga por qué tocar.
-        caso = acceso.caso_visible(caso_id)
+        # caso que este actor tenga por qué tocar. Sin caso no hay fila que
+        # autorizar: esa herramienta se queda con el centro del actor, que sale de
+        # su perfil en ROBLE, y el `{}` la obliga a resolverlo por ahí en vez de
+        # leer un caso a medias.
+        caso = acceso.caso_visible(caso_id) if caso_id else {}
 
         salida = EJECUTORES[nombre](acceso, caso, argumentos)
 

@@ -69,10 +69,13 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
   // Cuántos días abre el botón. Lo fija quien administra la plataforma; aquí sólo se
   // lee, para que el rótulo del botón diga la verdad antes de pulsarlo.
   const [dias, setDias] = useState(DIAS_POR_DEFECTO);
-  // El caso sobre el que habla el agente de agenda. Se elige con un clic en el tablero
-  // y no describiéndolo con palabras: el orquestador le exige `caso_id` a todo rol que
-  // no sea paciente, y resolverlo a partir de lo que el modelo lea en el mensaje
-  // rompería el invariante de que la identidad la pone el orquestador, no el modelo.
+  // El caso sobre el que habla el agente de agenda, cuando se habla de uno. Sin caso el
+  // chat funciona igual: sirve para lo que no es de nadie en concreto —horarios,
+  // profesionales, cupos libres del centro— y ahí no hay nada que elegir.
+  //
+  // Cuando sí lo hay se elige con un clic en el tablero y no describiéndolo con
+  // palabras: resolver el caso a partir de lo que el modelo lea en el mensaje rompería
+  // el invariante de que la identidad la pone el orquestador, no el modelo.
   //
   // Se guarda el caso entero y no su id porque la fila desaparece del tablero en cuanto
   // consigue cita —es justo lo que el agente acaba de hacer— y la conversación no puede
@@ -232,27 +235,46 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
         </section>
 
         <aside className="lateral">
-          {elegido && (
-            <p className="caso-fijado">
-              <span>
-                Sobre el caso de{' '}
-                <strong>{String(elegido.paciente_nombre ?? 'un paciente')}</strong>
-              </span>
-              <button type="button" className="enlace" onClick={() => setElegido(null)}>
-                Cambiar de caso
-              </button>
-            </p>
-          )}
           {/*
-            El `key` reinicia el hilo al cambiar de caso. No es cosmético: los turnos
-            que quedaran en pantalla se leerían como parte de la conversación sobre el
-            caso nuevo, y el historial que el backend le da al modelo es el del caso,
-            así que lo de arriba ni siquiera existiría para el agente.
+            El chat está siempre abierto. La mayor parte de lo que el centro pregunta
+            —quién atiende, en qué horario, dónde queda hueco— no es de nadie en
+            concreto, y exigir un caso para escribir dejaba fuera justo eso. Elegir uno
+            en el tablero no es un requisito: es lo que habilita lo que sí necesita
+            sujeto, agendar y avisar al profesional.
+          */}
+          <p className={`caso-fijado ${elegido ? '' : 'suelto'}`}>
+            {elegido ? (
+              <>
+                <span>
+                  Sobre el caso de{' '}
+                  <strong>{String(elegido.paciente_nombre ?? 'un paciente')}</strong>
+                </span>
+                <button type="button" className="enlace" onClick={() => setElegido(null)}>
+                  Soltar el caso
+                </button>
+              </>
+            ) : (
+              <span>
+                Consulta general del {centro}. Para agendar, elige un caso del tablero:
+                el agente actúa sobre el que fije ese clic, no sobre lo que diga el
+                mensaje.
+              </span>
+            )}
+          </p>
+          {/*
+            El `key` reinicia el hilo al cambiar de caso, y también al soltarlo. No es
+            cosmético: los turnos que quedaran en pantalla se leerían como parte de la
+            conversación nueva, y el historial que el backend le da al modelo es el del
+            caso —o el de las consultas generales—, así que lo de arriba ni siquiera
+            existiría para el agente.
           */}
           <Conversacion
             key={idElegido || 'sin-caso'}
             agente="agenda"
             {...(idElegido ? { casoId: idElegido } : {})}
+            marcador={
+              elegido ? 'Pregunta o pide algo sobre este caso…' : 'Pregunta por la agenda del centro…'
+            }
             saludo={
               elegido
                 ? 'Soy el agente de agenda del ' +
@@ -262,15 +284,9 @@ function PanelDeCentro({ centro }: { centro: Centro }) {
                   ': puedo consultar disponibilidad, agendar y avisar al profesional.'
                 : 'Soy el agente de agenda del ' +
                   centro +
-                  '. Puedo consultar disponibilidad, agendar y avisar a los profesionales.'
+                  '. Pregúntame quién atiende, con qué horario o dónde hay espacio libre. ' +
+                  'Para agendar, elige antes el caso en el tablero.'
             }
-            {...(idElegido
-              ? {}
-              : {
-                  bloqueo:
-                    'Elige un caso del tablero para empezar. El agente actúa sobre un ' +
-                    'caso concreto y lo fija este clic, no el texto del mensaje.',
-                })}
             alResponder={() => void cargar()}
             alVencerSesion={() => void salir()}
           />
