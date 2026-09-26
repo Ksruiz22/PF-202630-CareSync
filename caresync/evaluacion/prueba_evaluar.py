@@ -116,6 +116,25 @@ def probar_contaminacion() -> None:
     t = ev.conversar_caso("u", "t7", CASO, pausa=0, max_turnos=6)
     comprobar("un caso que llega ya usado queda marcado", t.contaminado, t.motivo_contaminacion)
 
+    # El estado del primer turno es el de después del turno: una alarma que escala a la
+    # primera llega en `urgencia_escalada` sin venir de ningún otro caso.
+    _llamadas.clear()
+    ev.llamar_agente = _simular([_resp("urgencia_escalada", None, 1, [ESC])])
+    t = ev.conversar_caso("u", "t8", CASO, pausa=0, max_turnos=6)
+    comprobar("escalar en el primer turno no es contaminación", not t.contaminado, t.motivo_contaminacion)
+
+    _llamadas.clear()
+    ev.llamar_agente = _simular([_resp("canalizado", "CMU", 3, [CAN])])
+    t = ev.conversar_caso("u", "t9", CASO, pausa=0, max_turnos=6)
+    comprobar("canalizar en el primer turno tampoco", not t.contaminado)
+
+    guardada = ev.Transcripcion("G", "alarma_mental", [
+        ev.Turno(1, "m", caso_id="K", estado="urgencia_escalada", acciones=[ESC])
+    ], contaminado=True, motivo_contaminacion="criterio viejo")
+    ev.recalcular_contaminacion([guardada])
+    comprobar("--desde-crudo rejuzga con el criterio de ahora, no con la marca guardada",
+              not guardada.contaminado)
+
     a = ev.Transcripcion("A", "cmu_claro", [ev.Turno(1, "m", caso_id="MISMO")])
     b = ev.Transcripcion("B", "cmu_claro", [ev.Turno(1, "m", caso_id="MISMO")])
     c = ev.Transcripcion("C", "cmu_claro", [ev.Turno(1, "m", caso_id="OTRO")])

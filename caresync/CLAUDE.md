@@ -27,6 +27,7 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 | Texto de emergencia | `protocolos/ruta-emergencia.md` (fuente única, la usan los 3 agentes) |
 | Evaluación del triaje | `evaluacion/casos_evaluacion.json` + `evaluacion/evaluar_triaje.py` |
 | Salvaguardas de contenido | `infra/bedrock.tf` |
+| Probar que las salvaguardas aguantan | `evaluacion/casos_guardarrailes.json` + `evaluacion/evaluar_guardarrailes.py` |
 | Cualquier lectura o escritura de datos | `lambdas/comun/caresync_comun/roble_acceso.py` (única puerta) |
 | Columnas reales de las 14 tablas | `app/esquema/bootstrap_roble.mjs` (`ESQUEMA`) |
 | Por qué el sistema es así | `docs/arquitectura.md` |
@@ -110,19 +111,28 @@ herramientas, protocolo v0.1 con fundamento y criterios medibles, banco de 40 ca
 **con guion de respuestas**, y `evaluar_triaje.py` reescrito a conversación de varios
 turnos con detección de contaminación de token.
 
-Pendiente: **correr la evaluación** (falta generar ~40 tokens de pacientes de prueba
-en ROBLE); banco adversarial de guardarraíles; pruebas unitarias; verificar el
-remitente en SES; cargar las credenciales de servicio en Parameter Store; sembrar
-profesionales, horarios y cupos.
+También listo el **banco adversarial de guardarraíles**: 24 intentos contra los tres
+temas `DENY`, la inyección de prompt y —lo que va primero en su informe— los falsos
+positivos. Un guardrail que corta a alguien describiendo autolesión hace más daño que
+uno que deja pasar una respuesta de más, y eso es lo que vigila.
+
+Pendiente: **correr las dos evaluaciones** —ya basta una cuenta de paciente de prueba
+en `evaluacion/.env`, ver abajo—; verificar el remitente en SES; cargar las
+credenciales de servicio en Parameter Store; sembrar profesionales, horarios y cupos.
 
 Deuda conocida: el ciclo de vida del caso. `atendido` y `cerrado` se leen y se
 filtran pero **ninguna ruta los escribe**, así que un caso se queda en seguimiento
-para siempre — y es lo que obliga a un token por caso en la evaluación.
+para siempre. La evaluación ya no depende de eso: el rol `user` de ROBLE tiene
+`casos:update`, y los evaluadores cierran su propio caso al terminar cada
+conversación (`evaluacion/cuenta_roble.py`).
 
-**No hay ni una prueba automatizada en el repositorio.** CI sólo comprueba sintaxis
-y tipos: `terraform validate`, `compileall`, `tsc --noEmit`, `node --check`.
-`permitida()`, `_argumentos()`, `agente_por_defecto()` y `_intervalo()` son funciones
-puras que se prueban sin AWS ni ROBLE.
+Las únicas pruebas del repositorio son las de los evaluadores
+(`evaluacion/prueba_*.py`), y **CI todavía no las corre**: `revision.yml` sólo
+comprueba sintaxis y tipos (`terraform validate`, `compileall`, `tsc --noEmit`,
+`node --check`). Añadirlas es una línea, pero ese archivo lo lleva Alejandro. Del
+lado de las Lambdas no hay ninguna prueba, y `permitida()`, `_argumentos()`,
+`agente_por_defecto()` e `_intervalo()` son funciones puras que se prueban sin AWS
+ni ROBLE.
 
 ## Cómo verificar un cambio
 
@@ -142,12 +152,35 @@ los paquetes y se despliega**: el protocolo va horneado dentro del zip.
 Para medir el triaje después de tocar el prompt o el protocolo:
 
 ```bash
-export CARESYNC_API_URL="https://ow2vz6k279.execute-api.us-east-1.amazonaws.com"
-export CARESYNC_TOKENS_FILE=tokens.txt        # un token de paciente por caso
+# evaluacion/.env (lo ignora git): una cuenta de paciente que no se use en la demo
+CARESYNC_API_URL=https://ow2vz6k279.execute-api.us-east-1.amazonaws.com
+CARESYNC_EMAIL=...
+CARESYNC_PASSWORD=...
+```
+
+El evaluador inicia sesión solo, renueva el token si vence a media corrida y cierra
+cada caso al terminar, así que una cuenta alcanza para todo el banco. Cada caso de
+alarma dispara de verdad la alarma de `ESCALAMIENTO`: avisa a quien reciba el SNS
+antes de correr los 40.
+
+```bash
 cd evaluacion
 python evaluar_triaje.py --solo cmu-01,alarma-mental-01   # prueba barata primero
 python evaluar_triaje.py                                  # los 40, ~15 min
 python evaluar_triaje.py --desde-crudo                    # rehacer el informe sin gastar cuota
+```
+
+Después de tocar el guardrail (`infra/bedrock.tf`) o el prompt común:
+
+```bash
+python evaluar_guardarrailes.py --solo falso_positivo   # primero: que no bloquee lo legítimo
+python evaluar_guardarrailes.py                         # los 24 intentos
+```
+
+Y las pruebas de los evaluadores, que no tocan la red ni gastan un token:
+
+```bash
+python prueba_evaluar.py && python prueba_guardarrailes.py && python prueba_cuenta.py
 ```
 
 La pausa de 6 s entre turnos no es cortesía: es la cuota de ROBLE (100 operaciones
