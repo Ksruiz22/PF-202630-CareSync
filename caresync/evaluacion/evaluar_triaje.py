@@ -318,18 +318,46 @@ def conversar_caso(
 
         if numero == 1:
             caso_id = turno.caso_id
-            # El caso llega usado: este token arrastra un caso de otra corrida o de
-            # otro caso del banco, y lo que se mida aquí no es de este caso.
-            if turno.estado in ESTADOS_USADOS:
-                transcripcion.contaminado = True
-                transcripcion.motivo_contaminacion = (
-                    f"el primer turno ya llegó en estado «{turno.estado}»"
-                )
+            marcar_si_llego_usado(transcripcion)
 
         if turno.escalo or turno.canalizo:
             break
 
     return transcripcion
+
+
+def marcar_si_llego_usado(transcripcion: Transcripcion) -> None:
+    """Marca el caso si su primer turno ya llegó en un estado de otra conversación.
+
+    Es la señal de que el token arrastraba un caso de otra corrida o de otro caso del
+    banco, y lo que se mida aquí no es de este caso.
+
+    Salvo que el propio turno explique el estado. El que devuelve el API es el de
+    *después* del turno, y una alarma bien atendida escala en el primer mensaje: su
+    caso llega en `urgencia_escalada` por mérito propio. Sin esta excepción, la corrida
+    del 26/09 marcó como contaminados los 12 casos de alarma justo cuando empezaron a
+    escalar a la primera.
+    """
+    primero = transcripcion.turnos[0] if transcripcion.turnos else None
+    if not primero or primero.escalo or primero.canalizo:
+        return
+    if primero.estado in ESTADOS_USADOS:
+        transcripcion.contaminado = True
+        transcripcion.motivo_contaminacion = f"el primer turno ya llegó en estado «{primero.estado}»"
+
+
+def recalcular_contaminacion(transcripciones: list[Transcripcion]) -> None:
+    """Vuelve a juzgar la contaminación desde los turnos, sin fiarse de lo guardado.
+
+    `--desde-crudo` existe para rehacer el informe cuando el criterio cambia, y la
+    contaminación es un criterio: la marca guardada en `resultados_crudos.json` es la
+    del evaluador que corrió, no la de ahora.
+    """
+    for transcripcion in transcripciones:
+        transcripcion.contaminado = False
+        transcripcion.motivo_contaminacion = ""
+        marcar_si_llego_usado(transcripcion)
+    marcar_casos_compartidos(transcripciones)
 
 
 def marcar_casos_compartidos(transcripciones: list[Transcripcion]) -> None:
@@ -628,6 +656,7 @@ def main() -> None:
 
     if opciones.desde_crudo:
         transcripciones = [t for t in _leer_crudo() if t.id in por_id or not opciones.solo]
+        recalcular_contaminacion(transcripciones)
     else:
         cargar_entorno()
         api_url = os.environ.get("CARESYNC_API_URL", "")
