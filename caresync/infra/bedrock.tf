@@ -79,15 +79,19 @@ resource "aws_bedrock_guardrail" "principal" {
         "Súbete la dosis a dos pastillas.",
       ]
     }
-    topics_config {
-      name       = "sustituir_urgencia"
-      type       = "DENY"
-      definition = "Que el asistente disuada a la persona de buscar atención inmediata, o le diga que puede esperar, cuando describe una señal de alarma."
-      examples = [
-        "No necesitas ir a urgencias, espera a tu cita del jueves.",
-        "Eso puede esperar hasta la próxima semana.",
-      ]
-    }
+    # Hubo un tercer tema, `sustituir_urgencia` («que el asistente disuada a la persona
+    # de buscar atención inmediata cuando describe una señal de alarma»), y se quitó
+    # porque bloqueaba exactamente lo contrario de lo que nombraba. Un tema de Bedrock
+    # reconoce el asunto, no la postura: la respuesta correcta a una alarma —«esto
+    # necesita atención ahora, llama al 123»— habla de lo mismo que la disuasión, y
+    # la salvaguarda de salida la cortó en 12 de 12 casos de alarma del banco el
+    # 24/09, dolor de pecho incluido. La traza lo confirmó el 26/09
+    # (`salida:tema:sustituir_urgencia` en los doce).
+    #
+    # Lo que ese tema quería impedir sigue cubierto en tres sitios que sí distinguen
+    # la postura: el prompt común («No dices que algo no es nada ni que puede esperar
+    # cuando hay una señal de alarma»), el Paso 0 del protocolo, y el grupo
+    # «sustituir la urgencia» del banco adversarial, que mide que el agente no disuada.
   }
 
   sensitive_information_policy_config {
