@@ -182,6 +182,7 @@ def _conversar(
     texto_final = ""
     tokens = {"entrada": 0, "salida": 0, "cacheados": 0}
     intervino = False
+    salvaguardas: set[str] = set()
 
     # Como máximo dos agentes por petición: el que atiende y el que recibe el
     # traspaso. Un tercero sería una cadena que la persona no puede seguir.
@@ -203,6 +204,7 @@ def _conversar(
         tokens["salida"] += resultado.tokens_salida
         tokens["cacheados"] += resultado.tokens_cacheados
         intervino = intervino or resultado.intervino_guardrail
+        salvaguardas.update(resultado.salvaguardas)
         texto_final = "\n\n".join(t for t in (texto_final, resultado.texto) if t)
 
         siguiente = _traspaso(agente, resultado)
@@ -221,6 +223,8 @@ def _conversar(
         if resultado.texto:
             hilo.append({"role": "assistant", "content": [{"text": resultado.texto}]})
         hilo.append({"role": "user", "content": [{"text": _nota_de_traspaso(caso)}]})
+
+    texto_final = _con_la_ruta_de_emergencia(texto_final, usos_totales, intervino=intervino)
 
     if texto_final:
         acceso.anotar_mensaje(
@@ -247,6 +251,7 @@ def _conversar(
         tokens_salida=tokens["salida"],
         tokens_cacheados=tokens["cacheados"],
         guardrail=intervino,
+        salvaguardas=sorted(salvaguardas),
     )
 
     # `caso` va en null cuando no hay ninguno: la vista lo usa para saber si el hilo
@@ -270,6 +275,10 @@ def _conversar(
                 for u in usos_totales
             ],
             "salvaguardas_intervinieron": intervino,
+            # Qué política actuó, sin el contenido. Sirve a los evaluadores para
+            # distinguir la salvaguarda cortando una dosis —su trabajo— de la
+            # salvaguarda cortando una urgencia, que es el peor fallo posible.
+            "salvaguardas_detalle": sorted(salvaguardas),
         },
         cabeceras={"x-caresync-caso": caso_id} if caso_id else None,
     )
@@ -372,6 +381,41 @@ def _herramientas_de(
         if permitida(n, rol) and (con_caso or not necesita_caso(n))
     )
     return especificaciones(disponibles)
+
+
+def _con_la_ruta_de_emergencia(
+    texto: str, usos: list[bedrock_conversa.Uso], *, intervino: bool
+) -> str:
+    """Garantiza que quien escaló una urgencia reciba la ruta de emergencia.
+
+    `escalar_urgencia` —y `canalizar_caso` con nivel 1— devuelven en
+    `decir_a_la_persona` el texto que no puede faltar. Hasta ahora decirlo dependía
+    del modelo, y el 24/09 eso falló de la peor forma: el agente escalaba, iba a
+    decir la ruta y la salvaguarda de salida le cambiaba la respuesta por «Prefiero
+    no responder eso». La urgencia quedaba registrada y la persona, sin saber a quién
+    llamar.
+
+    Si la salvaguarda intervino en un turno con escalamiento, lo que se dice es la
+    ruta y nada más: la negativa no aporta nada y la contradice. Si no intervino pero
+    el modelo no dijo la ruta, se antepone. Si ya la dijo, no se toca.
+    """
+    ruta = next(
+        (
+            str(u.resultado["decir_a_la_persona"])
+            for u in usos
+            if u.ok
+            and isinstance(u.resultado, dict)
+            and u.resultado.get("decir_a_la_persona")
+        ),
+        "",
+    )
+    if not ruta:
+        return texto
+    if intervino or not texto:
+        return ruta
+    if " ".join(ruta.split()) in " ".join(texto.split()):
+        return texto
+    return f"{ruta}\n\n{texto}"
 
 
 def _traspaso(agente: agentes.Agente, resultado: bedrock_conversa.Resultado) -> str | None:

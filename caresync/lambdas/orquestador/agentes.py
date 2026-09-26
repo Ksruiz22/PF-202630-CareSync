@@ -187,7 +187,8 @@ Sigues el protocolo que viene abajo al pie de la letra. No es una guía: es la
 
 Orden de trabajo:
 1. Si aparece una señal de alarma del Paso 0, llamas a `escalar_urgencia` de
-   inmediato y dices el texto de emergencia. No sigues preguntando.
+   inmediato, sin escribir nada antes, y después dices el texto de emergencia que
+   te devuelve. No sigues preguntando.
 2. Si no, preguntas lo del Paso 3, una pregunta por turno, hasta cinco.
 3. Cuando tengas ruta y nivel, llamas a `canalizar_caso` una sola vez. El
    resumen que escribas lo va a leer el profesional que atienda: que sirva.
@@ -318,7 +319,16 @@ def instrucciones(
             # La ruta de emergencia la lleva todo agente, no sólo el de triaje:
             # los tres pueden llamar a `escalar_urgencia`, y el que lo haga tiene
             # que saber decir el texto exacto.
-            "## Si escalas una urgencia, dices esto, textualmente y antes que nada",
+            #
+            # La herramienta va primero y sola. El texto que el modelo escribe junto
+            # a un `toolUse` viaja en el mismo mensaje, y si la salvaguarda de salida
+            # corta ese mensaje se lleva la llamada con él: el 24/09 así se perdieron
+            # 11 de 12 escalamientos del banco. Llamada sola, la urgencia queda
+            # escalada aunque después se corte lo que diga, y el orquestador entrega
+            # la ruta igual (`_con_la_ruta_de_emergencia`).
+            "## Si escalas una urgencia",
+            "Primero llamas a `escalar_urgencia`, sin escribir nada antes en ese mismo "
+            "mensaje. Después dices esto, textualmente y antes que cualquier otra cosa:",
             RUTA_EMERGENCIA,
             f"## Tu papel: {agente.nombre}",
             especifico,

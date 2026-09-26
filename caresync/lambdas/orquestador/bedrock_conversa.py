@@ -87,6 +87,9 @@ class Resultado:
     tokens_salida: int = 0
     tokens_cacheados: int = 0
     intervino_guardrail: bool = False
+    # Qué política de la salvaguarda bloqueó, si bloqueó alguna. Ver
+    # `politicas_que_bloquearon`.
+    salvaguardas: list[str] = field(default_factory=list)
 
 
 def _guardrail() -> dict[str, Any] | None:
@@ -175,7 +178,8 @@ def conversar(
                     "de emergencias del campus o al 123."
                 ),
             )
-            evento(log, "guardrail_intervino", vuelta=vuelta)
+            resultado.salvaguardas = politicas_que_bloquearon(respuesta.get("trace"))
+            evento(log, "guardrail_intervino", vuelta=vuelta, politicas=resultado.salvaguardas)
             return resultado
 
         if parada != "tool_use":
@@ -305,6 +309,49 @@ def _llamar(
         if codigo in ("ThrottlingException", "ServiceQuotaExceededException"):
             raise ErrorDelModelo(f"Bedrock está limitando las llamadas: {detalle}") from exc
         raise ErrorDelModelo(f"Bedrock respondió {codigo}: {detalle}") from exc
+
+
+def politicas_que_bloquearon(traza: dict[str, Any] | None) -> list[str]:
+    """Qué parte de la salvaguarda cortó, y de qué lado: nombres, nunca contenido.
+
+    Sin esto, lo único que se sabía de una intervención era que ocurrió. El 24/09 la
+    salvaguarda cortó la respuesta en 12 de 12 casos de alarma del banco —dolor de
+    pecho incluido— y no había forma de saber si era un tema, un filtro de contenido
+    o un dato sensible: la traza viene en la respuesta de Converse (`trace` está
+    activado en `_guardrail`) y nadie la leía.
+
+    Devuelve cosas como `salida:tema:sustituir_urgencia` o
+    `entrada:filtro:PROMPT_ATTACK:HIGH`. Nunca el texto que la disparó ni el valor de
+    un dato sensible: esto va al log y a la respuesta del API.
+    """
+    guardrail = (traza or {}).get("guardrail") or {}
+    evaluaciones: list[tuple[str, dict[str, Any]]] = [
+        ("entrada", e) for e in (guardrail.get("inputAssessment") or {}).values()
+    ]
+    for lista in (guardrail.get("outputAssessments") or {}).values():
+        evaluaciones += [("salida", e) for e in lista or []]
+
+    politicas: set[str] = set()
+    for lado, evaluacion in evaluaciones:
+        if not isinstance(evaluacion, dict):
+            continue
+        for tema in (evaluacion.get("topicPolicy") or {}).get("topics") or []:
+            if tema.get("action") == "BLOCKED":
+                politicas.add(f"{lado}:tema:{tema.get('name')}")
+        for filtro in (evaluacion.get("contentPolicy") or {}).get("filters") or []:
+            if filtro.get("action") == "BLOCKED":
+                politicas.add(f"{lado}:filtro:{filtro.get('type')}:{filtro.get('confidence')}")
+        sensible = evaluacion.get("sensitiveInformationPolicy") or {}
+        for dato in sensible.get("piiEntities") or []:
+            if dato.get("action") == "BLOCKED":
+                politicas.add(f"{lado}:dato:{dato.get('type')}")
+        palabras = evaluacion.get("wordPolicy") or {}
+        if any(
+            p.get("action") == "BLOCKED"
+            for p in (palabras.get("customWords") or []) + (palabras.get("managedWordLists") or [])
+        ):
+            politicas.add(f"{lado}:palabras")
+    return sorted(politicas)
 
 
 def _mensaje_para_el_modelo(exc: Exception) -> str:
