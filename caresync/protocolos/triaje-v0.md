@@ -43,6 +43,13 @@ inmediato (`escalar_urgencia`) y deja de recolectar información:
 - Ser víctima actual de violencia física o sexual, o estar en peligro inmediato.
 - Consumo de sustancias con desorientación o sin poder mantenerse en pie.
 
+**Ante la duda, es una señal de alarma.** Si lo que cuenta la persona *podría*
+ser una de las de arriba —«me hice cortes», «me tomé varias pastillas de
+más»—, se escala sin preguntar antes para confirmarlo. Preguntar dónde,
+cuánto o por qué retrasa la ruta de emergencia justo en el caso en que no hay
+tiempo, y escalar de más cuesta mucho menos que escalar de menos. Las preguntas
+que falten las hace después quien atiende la urgencia, no el triaje.
+
 **Qué dice el agente al escalar**, textualmente y antes que nada: el texto está
 en [`ruta-emergencia.md`](ruta-emergencia.md), y ese archivo es su única copia.
 Está aparte porque no lo usa sólo el triaje —cualquiera de los tres agentes
@@ -74,6 +81,12 @@ Después el agente sigue acompañando a la persona, sin agendar nada.
   persistente): se canaliza al **CAE** y en el resumen se pide la valoración
   física, porque el CAE tiene ruta interna al CMU y el sistema todavía no
   agenda dos citas para un mismo caso.
+
+  **Cómo distinguir los dos casos anteriores:** si hay **un solo** síntoma
+  físico que aparece con el estrés, es el primero (CMU). Si hay un síntoma de la
+  columna del CAE —insomnio, ánimo bajo, ansiedad— **y además** uno físico, es
+  este (CAE), aunque el físico parezca el más urgente de los dos: descartar su
+  causa física se pide en el resumen, no cambia la ruta.
 - **Violencia, acoso o discriminación** sin lesión física: **CAE**.
 
 ## Paso 2 — Nivel de urgencia
@@ -81,7 +94,7 @@ Después el agente sigue acompañando a la persona, sin agendar nada.
 | Nivel | Qué significa | Tiempo | Ejemplos |
 |---|---|---|---|
 | **1** | Emergencia | Ahora | Cualquier señal del Paso 0 |
-| **2** | Prioritario | 72 horas | Fiebre de más de 3 días; dolor que impide dormir; ánimo bajo con ideas de muerte pasivas y sin plan; ataques de pánico repetidos; síntoma que empeora rápido |
+| **2** | Prioritario | 72 horas | Fiebre de más de 3 días; dolor que impide dormir; lesión que impide apoyar o caminar; ánimo bajo con ideas de muerte pasivas y sin plan; ataques de pánico repetidos; síntoma que empeora rápido |
 | **3** | Regular | 7 días | Molestia estable de más de una semana; control de condición conocida; ansiedad que no impide funcionar |
 | **4** | Orientación | Sin cita | Duda de información, certificado, pregunta administrativa, malestar leve de menos de 24 horas y sin señales de alarma |
 
@@ -99,7 +112,12 @@ tener lo mínimo para que el profesional llegue con contexto.
 5. Qué necesita: una cita, orientación, o un certificado.
 
 Si en cualquier momento la persona pide directamente una cita y no hay señales
-de alarma, se canaliza con lo que se tenga: no se retiene a nadie en el triaje.
+de alarma, se canaliza **en ese mismo turno** con lo que se tenga: no se retiene
+a nadie en el triaje. Cuenta como pedirla cualquier forma de decirlo —«quiero una
+cita», «quiero hablar con alguien», «que me revisen», «que un médico me diga»—.
+No se hace «una última pregunta» antes de canalizar, y nunca se repite una
+pregunta que la persona ya respondió, aunque no la haya respondido con las
+palabras exactas: lo que falte lo pregunta el profesional en la consulta.
 
 ## Lo que el agente nunca hace
 
@@ -219,3 +237,4 @@ de que deje de ser v0:
 |---|---|---|---|
 | v0 | 2026-08-20 | Equipo de desarrollo | Primera redacción, sin validación clínica. |
 | v0.1 | 2026-08-27 | Kevin Ruiz | Se agregó fundamento en Manchester Triage, ESI y literatura de chatbots de triaje; criterios de aceptación medibles; y preguntas pendientes de validación clínica. Sin cambios al Paso 0-3. |
+| v0.2 | 2026-09-26 | Kevin Ruiz | Aclaraciones tras la primera evaluación completa (40 casos): ante la duda sobre una señal del Paso 0 se escala sin confirmar; cómo distinguir «síntoma físico con carga emocional» de «ambos frentes»; «lesión que impide apoyar o caminar» como ejemplo de nivel 2; y pedir cita canaliza en ese mismo turno. Ningún umbral ni ruta cambió de sentido. |
