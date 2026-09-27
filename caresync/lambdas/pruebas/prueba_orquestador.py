@@ -222,6 +222,73 @@ def probar_constancia_de_fallos() -> None:
     comprobar("sin fallos no se escribe nada: cada escritura gasta cuota de ROBLE", not sin_fallos.escrito)
 
 
+def probar_ruta_de_emergencia_garantizada() -> None:
+    """El PR #18: la ruta llega aunque la salvaguarda corte lo que el modelo iba a decir."""
+    print("\nLa ruta de emergencia no depende del modelo")
+
+    Uso = bedrock_conversa.Uso
+    ruta = "Por lo que me cuentas, esto necesita atención ahora. Llama al 123."
+    escalo = [Uso("escalar_urgencia", {}, {"ok": True, "decir_a_la_persona": ruta}, True)]
+    cortada = "Prefiero no responder eso: no soy personal clínico."
+    garantizar = orquestador._con_la_ruta_de_emergencia
+
+    comprobar("con salvaguarda y escalamiento se dice la ruta, sin la negativa",
+              garantizar(cortada, escalo, intervino=True) == ruta)
+    comprobar("si el modelo no dijo nada, se dice la ruta", garantizar("", escalo, intervino=False) == ruta)
+    comprobar("si ya la dijo, aunque con otros saltos de línea, no se duplica",
+              garantizar(ruta.replace(". ", ".\n") + " ¿Dónde estás?", escalo, intervino=False).count("123") == 1)
+    comprobar("si no la dijo, se antepone a lo que dijo",
+              garantizar("Aquí sigo contigo.", escalo, intervino=False).startswith(ruta))
+    nivel_1 = [Uso("canalizar_caso", {}, {"ok": True, "agendar": False, "decir_a_la_persona": ruta}, True)]
+    comprobar("canalizar con nivel 1 también la garantiza",
+              garantizar(cortada, nivel_1, intervino=True) == ruta)
+    fallida = [Uso("escalar_urgencia", {}, {"error": "x", "decir_a_la_persona": ruta}, False)]
+    comprobar("una herramienta fallida no cuenta", garantizar("hola", fallida, intervino=False) == "hola")
+    comprobar("sin escalamiento el texto no se toca",
+              garantizar(cortada, [Uso("consultar_plan", {}, {}, True)], intervino=True) == cortada)
+
+
+def probar_detalle_de_la_salvaguarda() -> None:
+    print("\nQué política de la salvaguarda actuó")
+
+    politicas = bedrock_conversa.politicas_que_bloquearon
+    traza = {"guardrail": {
+        "inputAssessment": {"g": {
+            "contentPolicy": {"filters": [
+                {"type": "SEXUAL", "confidence": "MEDIUM", "action": "BLOCKED"},
+                {"type": "VIOLENCE", "confidence": "HIGH", "action": "NONE"},
+            ]},
+        }},
+        "outputAssessments": {"g": [{
+            "topicPolicy": {"topics": [{"name": "prescripcion", "type": "DENY", "action": "BLOCKED"}]},
+            "sensitiveInformationPolicy": {"piiEntities": [
+                {"match": "4111-1111-1111-1111", "type": "CREDIT_DEBIT_CARD_NUMBER", "action": "BLOCKED"},
+            ]},
+        }]},
+    }}
+    leidas = politicas(traza)
+    comprobar("lee entrada y salida, y sólo lo que bloqueó",
+              leidas == ["entrada:filtro:SEXUAL:MEDIUM", "salida:dato:CREDIT_DEBIT_CARD_NUMBER",
+                         "salida:tema:prescripcion"], str(leidas))
+    comprobar("nunca incluye el valor del dato sensible", "4111" not in str(leidas))
+    comprobar("sin traza no inventa nada", politicas(None) == [] and politicas({}) == [])
+
+
+def probar_orden_del_triaje() -> None:
+    """El PR #20: el orden de trabajo es lo que el modelo sigue, así que el orden importa."""
+    print("\nEl orden de trabajo del triaje")
+
+    prompt = agentes._TRIAJE
+    alarma = prompt.index("señal de alarma del Paso 0")
+    cita = prompt.index("pidió una cita")
+    pregunta = prompt.index("siguiente pregunta del Paso 3")
+    comprobar("primero la alarma, después la cita, y sólo al final otra pregunta",
+              alarma < cita < pregunta)
+    comprobar("ante la duda sobre una alarma, escala sin confirmar", "Si dudas, escalas" in prompt)
+    comprobar("la herramienta de urgencia va sola, sin texto antes", "sin escribir nada antes" in prompt)
+    comprobar("no repite preguntas ya respondidas", "nunca una que la persona ya respondió" in prompt)
+
+
 def probar_instrucciones() -> None:
     print("\nEl prompt de sistema")
 
@@ -255,6 +322,9 @@ def main() -> int:
         probar_herramientas_declaradas,
         probar_traspaso,
         probar_constancia_de_fallos,
+        probar_ruta_de_emergencia_garantizada,
+        probar_detalle_de_la_salvaguarda,
+        probar_orden_del_triaje,
         probar_instrucciones,
     ):
         prueba()
