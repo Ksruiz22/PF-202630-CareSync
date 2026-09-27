@@ -51,8 +51,8 @@ no tumbe las demás:
 | `lambdas/` | Tres funciones en Python 3.12 y el paquete común `caresync_comun` |
 | `protocolos/` | El protocolo de triaje y la ruta de emergencia, en Markdown, versionados con el código |
 | `evaluacion/` | Banco de ~40 casos sintéticos y el script que mide el acierto de ruta, nivel de urgencia y escalamiento |
-| `app/` | PWA en React + Vite + TypeScript: cuatro vistas, una por rol |
-| `app/esquema/` | Creación de las trece tablas de ROBLE |
+| `app/` | PWA en React + Vite + TypeScript: cinco vistas, una por rol |
+| `app/esquema/` | Creación de las catorce tablas de ROBLE |
 | `scripts/` | Entorno, construcción, despliegue, publicación, esquema, CA corporativa |
 | `docs/` | Despliegue, arquitectura y el runbook de ROBLE |
 
@@ -101,12 +101,14 @@ python evaluar_triaje.py
 <!-- TODO (equipo): marcar según el hito real alcanzado antes de cada
      reunión con el tutor. Referencia completa en la propuesta. -->
 
-- [ ] Hito 1 — Alcance y arquitectura aprobados
-- [ ] Hito 2 — Walking skeleton: login + mensaje + respuesta del modelo, en AWS
-- [ ] Hito 3 — Demo 1: triaje canaliza correctamente 3 casos distintos
+- [x] Hito 1 — Alcance y arquitectura aprobados
+- [x] Hito 2 — Walking skeleton: login + mensaje + respuesta del modelo, en AWS
+- [x] Hito 3 — Demo 1: triaje canaliza correctamente 3 casos distintos
+  ([evaluación del 26/09](caresync/evaluacion/informes/README.md): alarmas 36/36,
+  centro correcto 23/26)
 - [ ] Hito 4 — Agenda y logística funcionando de punta a punta
 - [ ] Hito 5 — Seguimiento y alertas de retroceso
-- [ ] Hito 6 — Las 4 vistas integradas
+- [ ] Hito 6 — Las 5 vistas integradas
 - [ ] Hito 7 — Cierre: pruebas E2E, documentación y sustentación
 
 ## Equipo
@@ -115,4 +117,4 @@ python evaluar_triaje.py
 |---|---|
 | **Alejandro Santiago** | Infraestructura y despliegues: cuenta AWS, Terraform, esquema de ROBLE, CI, observabilidad y costes |
 | **Kevin Ruiz** | Agentes: prompts, catálogo de herramientas, protocolo de triaje, guardarraíles, evaluación |
-| **Bernardo Álvarez** | Aplicación y experiencia: las cuatro vistas, sesión, accesibilidad |
+| **Bernardo Álvarez** | Aplicación y experiencia: las cinco vistas, sesión, accesibilidad |
