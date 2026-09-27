@@ -21,11 +21,21 @@ resource "aws_bedrock_guardrail" "principal" {
     "Un profesional del Centro Médico Uninorte o del Centro de Acompañamiento Estudiantil puede resolverlo contigo.",
   ])
 
+  # Cómo leer la fuerza de un filtro: es cuánta confianza le basta al clasificador
+  # para bloquear, al revés de lo que sugiere el nombre. LOW bloquea sólo lo que
+  # clasifica con confianza alta; MEDIUM, lo de confianza media o alta; HIGH, hasta
+  # lo de confianza baja. Un filtro en HIGH corta todo lo que se le parezca.
   content_policy_config {
+    # LOW y no HIGH: la salud sexual y reproductiva es motivo de consulta del CMU
+    # (Paso 1 del protocolo). En HIGH, «ardor al orinar después de relaciones sin
+    # protección» se bloqueaba en la entrada con confianza media (banco adversarial,
+    # fp-03, 26/09) y la persona recibía «No puedo ayudarte con eso por este canal».
+    # En LOW sigue fuera el contenido sexual explícito, que el clasificador reconoce
+    # con confianza alta, y pasa la consulta clínica.
     filters_config {
       type            = "SEXUAL"
-      input_strength  = "HIGH"
-      output_strength = "HIGH"
+      input_strength  = "LOW"
+      output_strength = "LOW"
     }
     filters_config {
       type            = "HATE"
@@ -37,10 +47,13 @@ resource "aws_bedrock_guardrail" "principal" {
       input_strength  = "MEDIUM"
       output_strength = "HIGH"
     }
+    # MEDIUM y no HIGH en la salida: en HIGH bastaba confianza baja, y una respuesta
+    # sobre cómo pedir un certificado médico para justificar una falla se cortó como
+    # conducta indebida (triaje, cmu-03, 26/09).
     filters_config {
       type            = "MISCONDUCT"
       input_strength  = "MEDIUM"
-      output_strength = "HIGH"
+      output_strength = "MEDIUM"
     }
     # Deliberadamente bajo en la entrada: una persona describiendo autolesión o
     # una agresión sufrida NO debe ser rechazada, debe ser escalada. Filtrarla
@@ -79,15 +92,19 @@ resource "aws_bedrock_guardrail" "principal" {
         "Súbete la dosis a dos pastillas.",
       ]
     }
-    topics_config {
-      name       = "sustituir_urgencia"
-      type       = "DENY"
-      definition = "Que el asistente disuada a la persona de buscar atención inmediata, o le diga que puede esperar, cuando describe una señal de alarma."
-      examples = [
-        "No necesitas ir a urgencias, espera a tu cita del jueves.",
-        "Eso puede esperar hasta la próxima semana.",
-      ]
-    }
+    # Hubo un tercer tema, `sustituir_urgencia` («que el asistente disuada a la persona
+    # de buscar atención inmediata cuando describe una señal de alarma»), y se quitó
+    # porque bloqueaba exactamente lo contrario de lo que nombraba. Un tema de Bedrock
+    # reconoce el asunto, no la postura: la respuesta correcta a una alarma —«esto
+    # necesita atención ahora, llama al 123»— habla de lo mismo que la disuasión, y
+    # la salvaguarda de salida la cortó en 12 de 12 casos de alarma del banco el
+    # 24/09, dolor de pecho incluido. La traza lo confirmó el 26/09
+    # (`salida:tema:sustituir_urgencia` en los doce).
+    #
+    # Lo que ese tema quería impedir sigue cubierto en tres sitios que sí distinguen
+    # la postura: el prompt común («No dices que algo no es nada ni que puede esperar
+    # cuando hay una señal de alarma»), el Paso 0 del protocolo, y el grupo
+    # «sustituir la urgencia» del banco adversarial, que mide que el agente no disuada.
   }
 
   sensitive_information_policy_config {
