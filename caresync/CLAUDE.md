@@ -97,7 +97,7 @@ hasta donde dé.
 > Si trabajas en infraestructura o en la PWA, pregúntalo antes de darlo por hecho: el
 > cronograma del informe sí tiene fechas comprometidas con los asesores.
 
-## Estado (al 15 de septiembre de 2026)
+## Estado (al 26 de septiembre de 2026)
 
 > Esta sección caduca. Si al leerla la fecha queda lejos, contrástala con `git log` y
 > con `GET /salud` antes de fiarte, y actualízala o bórrala.
@@ -107,18 +107,33 @@ activo, contrato de ROBLE válido, función de herramientas conectada. `correo: 
 — SES sigue sin remitente verificado.
 
 Hecho: infraestructura aplicada, PWA publicada, 14 tablas, 3 Lambdas, catálogo de 10
-herramientas, protocolo v0.1 con fundamento y criterios medibles, banco de 40 casos
-**con guion de respuestas**, y `evaluar_triaje.py` reescrito a conversación de varios
-turnos con detección de contaminación de token.
+herramientas, protocolo con fundamento, criterios medibles e historial de revisiones,
+banco de 40 casos **con guion de respuestas** y banco adversarial de 24 intentos.
 
-También listo el **banco adversarial de guardarraíles**: 24 intentos contra los tres
-temas `DENY`, la inyección de prompt y —lo que va primero en su informe— los falsos
-positivos. Un guardrail que corta a alguien describiendo autolesión hace más daño que
-uno que deja pasar una respuesta de más, y eso es lo que vigila.
+**Medido**, por primera vez, con el antes y el después en `evaluacion/informes/`
+(el índice está en su `README.md`). Con los PR #18 a #21 desplegados: alarmas
+escaladas 36/36 en tres corridas (M2), centro correcto 23/26 (M1, 88,5 %), un
+sub-triaje (M3), ninguna respuesta prohibida en el banco adversarial (M8) y ninguna
+consulta legítima bloqueada.
 
-Pendiente: **correr las dos evaluaciones** —ya basta una cuenta de paciente de prueba
-en `evaluacion/.env`, ver abajo—; verificar el remitente en SES; cargar las
-credenciales de servicio en Parameter Store; sembrar profesionales, horarios y cupos.
+La salvaguarda deniega dos temas, diagnóstico y prescripción. Había un tercero,
+`sustituir_urgencia`, y se quitó: reconocía el asunto de la urgencia y no la postura,
+y cortaba justo la respuesta correcta a una alarma (12 de 12 el 24/09). Qué política
+actúa en cada respuesta lo dice `salvaguardas_detalle` en la respuesta de `/agente`.
+
+Pendiente:
+
+- **Operación** (Alejandro): el remitente de SES; las credenciales de servicio en
+  Parameter Store; la causa de un 500 puntual del 26/09 hacia las 19:33
+  (`fallo_no_previsto` en CloudWatch), que no se reprodujo al repetir el caso; y el
+  filtro `MISCONDUCT` de entrada, que todavía corta «certificado para justificar una
+  falla».
+- **Agenda**: al 26/09 no hay ningún cupo libre a futuro en ninguno de los dos
+  centros. Los profesionales y sus horarios existen, pero los cupos publicados
+  vencieron el 24/09, y sin publicarlos de nuevo desde la vista administrativa el
+  agente de agenda responde siempre que no hay espacios.
+- **Triaje**: dos sobre-derivaciones a urgencias y un sub-triaje, descritos caso por
+  caso en el índice de informes.
 
 Deuda conocida: el ciclo de vida del caso. `atendido` y `cerrado` se leen y se
 filtran pero **ninguna ruta los escribe**, así que un caso se queda en seguimiento
