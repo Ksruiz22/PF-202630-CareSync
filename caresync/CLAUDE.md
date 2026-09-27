@@ -165,11 +165,11 @@ Pendiente:
 - **Triaje**: dos sobre-derivaciones a urgencias y un sub-triaje, descritos caso por
   caso en el índice de informes.
 
-Deuda conocida: el ciclo de vida del caso. `atendido` y `cerrado` se leen y se
-filtran pero **ninguna ruta los escribe**, así que un caso se queda en seguimiento
-para siempre. La evaluación ya no depende de eso: el rol `user` de ROBLE tiene
-`casos:update`, y los evaluadores cierran su propio caso al terminar cada
-conversación (`evaluacion/cuenta_roble.py`).
+Ciclo de vida del caso: `cerrado` lo escribe el profesional desde su consulta, con
+el evento `caso_cerrado` en la bitácora, y un paciente no reabre un caso cerrado
+—ni la vista ni `_resolver_caso` se lo devuelven—. `atendido` sigue sin escribirse:
+guardar el plan pasa el caso directo a `en_seguimiento`, y hoy nada distingue esos
+dos estados.
 
 **CI sí corre las pruebas**, y esta sección decía lo contrario hasta que se comprobó:
 el paso «pruebas» de `revision.yml` llama a `scripts/pruebas.sh`, que las busca **por
@@ -183,6 +183,7 @@ faltan. Antes de dar por hecho que algo no se prueba, `scripts/pruebas.sh`.
 ```bash
 source scripts/entorno.sh
 python3 -m compileall -q lambdas scripts   # lo mismo que corre CI
+scripts/pruebas.sh                         # las pruebas sin red, también en CI
 scripts/construir_paquetes.sh              # falla si falta un protocolo
 cd app && npm run build                    # tsc --noEmit && vite build
 ```
