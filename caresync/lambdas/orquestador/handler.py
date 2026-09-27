@@ -449,8 +449,8 @@ def _dejar_constancia_de_los_fallos(
     agente no dijo nada, la nota va sola: el fallo se registra igual.
 
     Se anota como `sistema` y no como una fila más de la conversación: la persona
-    no la ve —la interfaz no lee esta tabla—, y en la bitácora del caso queda
-    distinguible de lo que sí se le dijo.
+    no la ve —la vista del paciente descarta esas filas al pintar el historial—, y
+    en la bitácora del caso queda distinguible de lo que sí se le dijo.
     """
     fallidas = sorted({u.nombre for u in usos if not u.ok})
     if not fallidas:

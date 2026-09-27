@@ -37,8 +37,10 @@ import {
   type Caso,
   type Cita,
   type Evolucion,
+  type FilaConversacion,
   type Indicacion,
   type Plan,
+  type Turno,
 } from '../tipos';
 
 interface Panorama {
@@ -48,6 +50,8 @@ interface Panorama {
   indicaciones: Indicacion[];
   evoluciones: Evolucion[];
   adherencias: Adherencia[];
+  /** Lo ya conversado en el caso, para que recargar la página no lo borre. */
+  previos: Turno[];
 }
 
 const VACIO: Panorama = {
@@ -57,6 +61,7 @@ const VACIO: Panorama = {
   indicaciones: [],
   evoluciones: [],
   adherencias: [],
+  previos: [],
 };
 
 export function Paciente() {
@@ -125,6 +130,7 @@ export function Paciente() {
             <Conversacion
               {...(casoId ? { casoId } : {})}
               saludo={saludoSegun(datos.caso)}
+              previos={datos.previos}
               alResponder={() => void cargar()}
               alVencerSesion={() => void salir()}
             />
@@ -285,15 +291,16 @@ async function casoVigente(userId: string): Promise<Caso | null> {
 async function alrededorDelCaso(caso: Caso): Promise<Panorama> {
   const casoId = idDe(caso);
 
-  // En paralelo porque son cinco lecturas independientes y en serie se notan.
+  // En paralelo porque son seis lecturas independientes y en serie se notan.
   // `catch` por tabla: que no haya plan todavía no puede dejar la pantalla en
-  // blanco, y un permiso faltante en una tabla no debe tumbar las otras cuatro.
-  const [citas, planes, indicaciones, evoluciones, adherencias] = await Promise.all([
+  // blanco, y un permiso faltante en una tabla no debe tumbar las otras cinco.
+  const [citas, planes, indicaciones, evoluciones, adherencias, hilo] = await Promise.all([
     leer<Cita>('citas', { caso_id: casoId }),
     leer<Plan>('planes', { caso_id: casoId }),
     leer<Indicacion>('indicaciones', { caso_id: casoId }),
     leer<Evolucion>('evolucion', { caso_id: casoId }),
     leer<Adherencia>('adherencia', { caso_id: casoId }),
+    leer<FilaConversacion>('conversaciones', { caso_id: casoId }),
   ]);
 
   const activa = citas.filter((cita) => cita.estado !== 'cancelada');
@@ -305,7 +312,55 @@ async function alrededorDelCaso(caso: Caso): Promise<Panorama> {
     indicaciones: indicaciones.filter((fila) => esVerdad(fila.activa)),
     evoluciones: [...evoluciones].sort(porReporteDescendente).slice(0, 5),
     adherencias,
+    previos: turnosDelHilo(hilo),
   };
+}
+
+/** Cuántos turnos anteriores se pintan al volver. El resto sigue en ROBLE. */
+const TURNOS_PREVIOS = 30;
+
+/**
+ * Lo que la persona ve de su propio hilo al volver a entrar.
+ *
+ * Antes, recargar la página dejaba el chat con el saludo y nada más, aunque la
+ * conversación estuviera entera en ROBLE: la persona tenía que recordar qué le había
+ * dicho el agente, y el agente —que sí tiene el historial— le hablaba de cosas que ya
+ * no estaban en pantalla.
+ *
+ * No se pinta todo lo que hay en la tabla, y lo que se quita es a propósito:
+ *
+ * - Las notas `[sistema]`, que son para el modelo («en el turno anterior no se
+ *   completó…») y no se le dicen a la persona.
+ * - Lo que el personal del centro o el profesional le escribió al agente sobre este
+ *   caso, y lo que el agente les respondió. Es una conversación de trabajo sobre la
+ *   persona, no con ella; mostrársela sería leerle las notas de otro.
+ *
+ * Las filas anteriores a que el orquestador guardara el autor real llevan todas
+ * `paciente`, así que ahí no se puede distinguir. Es un caso viejo y acotado.
+ */
+function turnosDelHilo(filas: FilaConversacion[]): Turno[] {
+  const ordenadas = [...filas].sort((a, b) =>
+    String(a.creado_en ?? '').localeCompare(String(b.creado_en ?? ''))
+  );
+
+  const turnos: Turno[] = [];
+  let ultimoHumano = '';
+  for (const fila of ordenadas) {
+    const texto = String(fila.contenido ?? '').trim();
+    const autor = String(fila.autor ?? 'paciente');
+    if (!texto || autor === 'sistema') continue;
+
+    if (autor === 'agente') {
+      if (ultimoHumano === 'paciente') {
+        turnos.push({ quien: 'agente', texto, ...(fila.agente ? { agentes: [fila.agente] } : {}) });
+      }
+      continue;
+    }
+
+    ultimoHumano = autor;
+    if (autor === 'paciente') turnos.push({ quien: 'yo', texto });
+  }
+  return turnos.slice(-TURNOS_PREVIOS);
 }
 
 async function leer<T>(tabla: string, filtros: Record<string, unknown>): Promise<T[]> {

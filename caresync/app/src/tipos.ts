@@ -183,6 +183,18 @@ export interface Turno {
   texto: string;
   agentes?: string[];
   acciones?: RespuestaAgente['acciones'];
+  /** Las salvaguardas de Bedrock cortaron o reescribieron esta respuesta. */
+  salvaguardas?: boolean;
+}
+
+/** Una fila de `conversaciones`: un turno del hilo, tal como lo guarda el orquestador. */
+export interface FilaConversacion extends Fila {
+  caso_id?: string;
+  agente?: string;
+  /** `paciente`, `agente`, `sistema`, o el rol del personal que escribió sobre el caso. */
+  autor?: string;
+  contenido?: string;
+  creado_en?: string;
 }
 
 /** `true` para `true`, `"true"`, `1` y `"1"`. ROBLE devuelve las cuatro formas. */

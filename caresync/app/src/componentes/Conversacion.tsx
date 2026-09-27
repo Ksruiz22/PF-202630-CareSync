@@ -34,6 +34,13 @@ interface Props {
   casoId?: string;
   agente?: 'triaje' | 'agenda' | 'seguimiento';
   saludo: string;
+  /**
+   * Lo que ya se habló en este caso, para que recargar la página no lo borre.
+   *
+   * Sólo lo pasa la vista del paciente, y ya filtrado: sin las notas `[sistema]` ni
+   * lo que el personal del centro le preguntó al agente sobre el caso.
+   */
+  previos?: Turno[];
   /** Qué invita a escribir el redactor. El texto por defecto es el del paciente. */
   marcador?: string;
   /** Se llama tras cada turno para que la vista recargue lo que cambió en ROBLE. */
@@ -45,11 +52,17 @@ export function Conversacion({
   casoId,
   agente,
   saludo,
+  previos,
   marcador = 'Cuéntame qué te pasa…',
   alResponder,
   alVencerSesion,
 }: Props) {
-  const [turnos, setTurnos] = useState<Turno[]>([{ quien: 'agente', texto: saludo }]);
+  // Con historial, el saludo va después: es lo que el asistente dice al volver, y
+  // arriba del todo quedaría como si hubiera abierto la conversación de hace días.
+  const [turnos, setTurnos] = useState<Turno[]>(() => [
+    ...(previos ?? []),
+    { quien: 'agente', texto: saludo },
+  ]);
   const [borrador, setBorrador] = useState('');
   const [esperando, setEsperando] = useState(false);
   const [caso, setCaso] = useState(casoId ?? '');
@@ -86,6 +99,7 @@ export function Conversacion({
           texto: respuesta.respuesta || 'Sigo aquí, pero no supe qué responder.',
           agentes: respuesta.agentes,
           acciones: respuesta.acciones?.filter((a) => a.ok),
+          salvaguardas: respuesta.salvaguardas_intervinieron,
         },
       ]);
       alResponder?.(respuesta);
@@ -187,6 +201,19 @@ function Burbuja({ turno }: { turno: Turno }) {
     <div className={`burbuja ${turno.quien}`}>
       <span className="autor">{autor}</span>
       <p>{turno.texto}</p>
+      {/*
+        Se dice cuándo actuaron las salvaguardas porque es la tercera capa de seguridad
+        —protocolo, prompt y Bedrock Guardrails— y la única que la persona no vería de
+        otro modo: una negativa suya se lee igual que una del agente. Si la salvaguarda
+        corta a alguien que describe una urgencia, esta marca es también lo que permite
+        notarlo en una revisión.
+      */}
+      {turno.salvaguardas && (
+        <p className="salvaguarda">
+          <IconoEscudo width={14} height={14} />
+          <span>Las salvaguardas de contenido revisaron esta respuesta.</span>
+        </p>
+      )}
       {turno.acciones && turno.acciones.length > 0 && (
         <ul className="acciones" aria-label="Lo que hizo el asistente">
           {turno.acciones.map((accion, indice) =>
