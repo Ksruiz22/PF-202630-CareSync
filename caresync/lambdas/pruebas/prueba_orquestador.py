@@ -195,6 +195,21 @@ def probar_traspaso() -> None:
     comprobar("sin canalizar no hay traspaso", orquestador._traspaso(triaje, nada) is None)
     comprobar("agenda no traspasa a nadie", orquestador._traspaso(agenda, bien) is None)
 
+    for nivel, resultado in (
+        (1, {"ok": True, "agendar": False, "decir_a_la_persona": "ruta"}),
+        (4, {"ok": True, "agendar": False, "plazo": "sin cita"}),
+    ):
+        sin_cita = Resultado(texto="", usos=[Uso("canalizar_caso", {}, resultado, True)])
+        comprobar(f"nivel {nivel}: la herramienta dice que no hay cita y no pasa a agenda",
+                  orquestador._traspaso(triaje, sin_cita) is None)
+
+    # Y si la persona vuelve a escribir, el caso canalizado lo atiende agenda: que
+    # tampoco busque espacios por su cuenta.
+    prompt_agenda = agentes.instrucciones(agenda, actor=ActorFalso("paciente"),
+                                          caso={"_id": "k", "estado": "canalizado", "nivel_urgencia": 4})
+    comprobar("agenda no busca espacios para un nivel 4 que no pidió cita",
+              "Si es 4, es una orientación sin cita" in prompt_agenda)
+
     nota = orquestador._nota_de_traspaso({"centro": "CMU", "nivel_urgencia": 3})
     comprobar("la nota de traspaso lleva la marca [sistema]", nota.startswith("[sistema]"), nota)
 

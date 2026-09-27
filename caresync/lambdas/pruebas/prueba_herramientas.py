@@ -121,6 +121,17 @@ def probar_canalizar() -> None:
     comprobar("nivel 1: además queda escalado",
               any(d.get("estado") == "urgencia_escalada" for que, d in emergencia.escrito if que == "caso"))
 
+    orientacion = AccesoFalso(ActorFalso("paciente"))
+    salida = triaje.canalizar_caso(orientacion, {"_id": "k", "estado": "abierto"},
+                                   {"centro": "CMU", "nivel_urgencia": 4, "resumen": "Anticonceptivos"})
+    comprobar("nivel 4: queda canalizado, pero sin cita (E2E-7)",
+              salida.get("agendar") is False and salida.get("plazo") == "sin cita"
+              and any(d.get("estado") == "canalizado" for que, d in orientacion.escrito if que == "caso"))
+    comprobar("nivel 4: le dice al agente qué decir, sin prometer respuesta",
+              "CMU" in salida.get("siguiente", "") and "No le prometas" in salida.get("siguiente", ""))
+    comprobar("nivel 4: no escala",
+              not any(d.get("estado") == "urgencia_escalada" for que, d in orientacion.escrito if que == "caso"))
+
     comprobar("una cita para un caso de nivel 1 se rechaza antes de leer la agenda",
               lanza(Conflicto, agenda.agendar_cita, AccesoFalso(ActorFalso("paciente")),
                     {"_id": "k", "centro": "CMU", "nivel_urgencia": 1},

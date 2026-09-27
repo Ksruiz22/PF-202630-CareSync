@@ -445,11 +445,17 @@ def _con_la_ruta_de_emergencia(
 
 
 def _traspaso(agente: agentes.Agente, resultado: bedrock_conversa.Resultado) -> str | None:
+    """A quién pasa la conversación, si pasa.
+
+    La herramienta decide si hay cita que buscar (`agendar`), no este bucle: con
+    nivel 1 ya se escaló y con nivel 4 no hay cita. Pasarle esos casos a agenda era
+    ponerla a buscar espacios que el protocolo dice que no tocan.
+    """
     if not agente.traspaso:
         return None
     disparador, destino = agente.traspaso
     for uso in resultado.usos:
-        if uso.nombre == disparador and uso.ok:
+        if uso.nombre == disparador and uso.ok and uso.resultado.get("agendar", True):
             return destino
     return None
 
@@ -1012,6 +1018,25 @@ def _simular_canalizar_caso(argumentos: dict[str, Any]) -> dict[str, Any]:
             "nivel_urgencia": nivel,
             "agendar": False,
             "decir_a_la_persona": agentes.RUTA_EMERGENCIA,
+        }
+
+    # El nivel 4 es «sin cita» también en el real, y su `siguiente` no habla de
+    # traspaso, así que aquí va el mismo texto: lo que se evalúa es cómo cierra el
+    # triaje una duda de información, y con otra instrucción cerraría de otra forma.
+    if nivel == 4:
+        return {
+            "ok": True,
+            "simulado": True,
+            "centro": centro,
+            "nivel_urgencia": nivel,
+            "agendar": False,
+            "plazo": _PLAZO_SIMULADO[4],
+            "siguiente": (
+                f"Es una orientación sin cita. Dile a la persona que su consulta quedó "
+                f"registrada en el {centro} con lo que te contó, y que si quiere una "
+                "cita para hablarlo con alguien del centro, te lo diga aquí. No le "
+                "prometas cuándo ni cómo le van a responder."
+            ),
         }
 
     return {

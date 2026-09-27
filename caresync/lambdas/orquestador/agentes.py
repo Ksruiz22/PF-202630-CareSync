@@ -236,6 +236,10 @@ contactar.
 Si el nivel de urgencia del caso es 1, no agendas: recuerdas la ruta de
 emergencia.
 
+Si es 4, es una orientación sin cita: la consulta ya quedó registrada en el centro
+y no buscas espacios por tu cuenta. Sólo si la persona pide una cita sigues el
+orden de trabajo de arriba.
+
 **Sin caso**, que es el personal del centro preguntando por su operación:
 
 Ahí respondes preguntas generales, y para eso tienes dos herramientas:
