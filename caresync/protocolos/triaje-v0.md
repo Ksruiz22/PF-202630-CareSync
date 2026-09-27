@@ -94,11 +94,17 @@ Después el agente sigue acompañando a la persona, sin agendar nada.
 | Nivel | Qué significa | Tiempo | Ejemplos |
 |---|---|---|---|
 | **1** | Emergencia | Ahora | Cualquier señal del Paso 0 |
-| **2** | Prioritario | 72 horas | Fiebre de más de 3 días; dolor que impide dormir; lesión que impide apoyar o caminar; ánimo bajo con ideas de muerte pasivas y sin plan; ataques de pánico repetidos; síntoma que empeora rápido |
+| **2** | Prioritario | 72 horas | Fiebre de más de 3 días; dolor que impide dormir; lesión que impide apoyar o caminar; efecto adverso de un medicamento que se sigue tomando; ánimo bajo con ideas de muerte pasivas y sin plan; ataques de pánico repetidos; síntoma que empeora rápido |
 | **3** | Regular | 7 días | Molestia estable de más de una semana; control de condición conocida; ansiedad que no impide funcionar |
 | **4** | Orientación | Sin cita | Duda de información, certificado, pregunta administrativa, malestar leve de menos de 24 horas y sin señales de alarma |
 
 Si el agente duda entre dos niveles, **elige el más urgente**.
+
+**El nivel 4 es para una necesidad de información o de trámite**, no para una
+situación que está afectando a la persona. Que diga «quiero orientación» no lo
+vuelve nivel 4: el nivel sale de lo que describe, no de la palabra que usa. Una
+situación que dura semanas y ya le afecta el ánimo, el sueño o el día a día es,
+como mínimo, un nivel 3, pida lo que pida.
 
 ## Paso 3 — Qué preguntar antes de canalizar
 
@@ -230,6 +236,13 @@ de que deje de ser v0:
 4. `correo_emergencias` en `infra/variables.tf` está vacío por defecto: ¿a
    quién debe llegar el correo de un escalamiento real — CMU, CAE, bienestar
    universitario, los tres?
+5. ¿Dónde está la línea del Paso 0 en dos casos que hoy el agente escala y el banco
+   de evaluación espera que no? El miedo a una pareja que maltrata sin golpes, ¿es
+   «estar en peligro inmediato»? Un consumo con lagunas de memoria en noches
+   pasadas, sin desorientación ahora, ¿es Paso 0 o nivel 2? El protocolo manda
+   sobre-derivar ante la duda, y es lo que hace el agente; lo que falta es un
+   criterio clínico para que deje de haber duda. Los casos están en
+   `evaluacion/informes/`.
 
 ## Historial de revisiones
 
@@ -238,3 +251,4 @@ de que deje de ser v0:
 | v0 | 2026-08-20 | Equipo de desarrollo | Primera redacción, sin validación clínica. |
 | v0.1 | 2026-08-27 | Kevin Ruiz | Se agregó fundamento en Manchester Triage, ESI y literatura de chatbots de triaje; criterios de aceptación medibles; y preguntas pendientes de validación clínica. Sin cambios al Paso 0-3. |
 | v0.2 | 2026-09-26 | Kevin Ruiz | Aclaraciones tras la primera evaluación completa (40 casos): ante la duda sobre una señal del Paso 0 se escala sin confirmar; cómo distinguir «síntoma físico con carga emocional» de «ambos frentes»; «lesión que impide apoyar o caminar» como ejemplo de nivel 2; y pedir cita canaliza en ese mismo turno. Ningún umbral ni ruta cambió de sentido. |
+| v0.3 | 2026-09-26 | Kevin Ruiz | Tras la segunda evaluación completa: «efecto adverso de un medicamento que se sigue tomando» como ejemplo de nivel 2; el nivel 4 es para información o trámite y no se deduce de que la persona pida «orientación»; y una pregunta pendiente para la validación clínica sobre las dos sobre-derivaciones que quedan. Ningún umbral ni ruta cambió de sentido. |
