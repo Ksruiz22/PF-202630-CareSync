@@ -83,6 +83,14 @@ jobs:
         # indentación antes de que aparezcan como un import fallido en CloudWatch.
         run: python3 -m compileall -q lambdas scripts
 
+      - name: pruebas
+        # Las de las Lambdas (permisos, orquestador, herramientas, recordatorios) y
+        # las de los evaluadores. Ninguna toca la red ni necesita un token: lo que
+        # falte de boto3, requests o el SDK de ROBLE se sustituye al importar (ver
+        # lambdas/pruebas/entorno.py). El script las busca por patrón, así que una
+        # prueba nueva entra aquí sin tocar este archivo.
+        run: scripts/pruebas.sh
+
       - name: construir los paquetes
         # Se construyen aquí aunque este flujo no despliegue: es donde se descubre
         # que una dependencia nueva no tiene rueda para arm64, y descubrirlo en el

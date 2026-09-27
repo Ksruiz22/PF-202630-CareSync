@@ -243,6 +243,14 @@ button.boton-texto.peligro {
   color: var(--coral);
 }
 
+/* Una acción y su «Cancelar», en la misma línea mientras quepan. */
+.botonera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .girado {
   transform: rotate(180deg);
 }
