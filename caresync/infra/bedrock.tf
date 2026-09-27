@@ -37,10 +37,15 @@ resource "aws_bedrock_guardrail" "principal" {
       input_strength  = "LOW"
       output_strength = "LOW"
     }
+    # LOW en la salida: en HIGH bastaba confianza baja, y la respuesta del agente a
+    # «llevo semanas muy ansioso por los parciales» se cortó como discurso de odio
+    # con confianza media (triaje, cae-01, 26/09). El agente no tiene de qué escribir
+    # odio; lo que se quiere parar es una inyección que lo empuje a hacerlo, y eso el
+    # clasificador lo reconoce con confianza alta. La entrada sigue en HIGH.
     filters_config {
       type            = "HATE"
       input_strength  = "HIGH"
-      output_strength = "HIGH"
+      output_strength = "LOW"
     }
     filters_config {
       type            = "INSULTS"
@@ -49,10 +54,15 @@ resource "aws_bedrock_guardrail" "principal" {
     }
     # MEDIUM y no HIGH en la salida: en HIGH bastaba confianza baja, y una respuesta
     # sobre cómo pedir un certificado médico para justificar una falla se cortó como
-    # conducta indebida (triaje, cmu-03, 26/09).
+    # conducta indebida (triaje, cmu-03, 26/09). LOW en la entrada por lo mismo, del
+    # otro lado: «necesito un certificado para justificar una falla» se cortó al
+    # llegar, con confianza media, en la corrida siguiente. Pedir un certificado es
+    # motivo de consulta del CMU (Paso 1); falsificarlo es lo que el filtro debe
+    # parar, y que siga parado —por el filtro o por el agente— lo mide `mala-01`
+    # del banco adversarial.
     filters_config {
       type            = "MISCONDUCT"
-      input_strength  = "MEDIUM"
+      input_strength  = "LOW"
       output_strength = "MEDIUM"
     }
     # Deliberadamente bajo en la entrada: una persona describiendo autolesión o
