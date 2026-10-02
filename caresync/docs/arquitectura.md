@@ -78,6 +78,61 @@ rechaza igual si llegaran sin caso. El centro sale del perfil del actor en ROBLE
 de nada que el modelo haya leído, así que una consulta general no puede terminar
 leyendo la agenda del otro centro.
 
+### El modo simulación: un triaje de prueba sin efecto
+
+`POST /agente` tiene un segundo camino. Con `simulacion: true` en el cuerpo, la
+petición no pasa por `_conversar` sino por `_simular`, y el profesional puede
+conversar con el agente de triaje **como si fuera quien consulta**, para ver a qué
+centro y a qué nivel lo lleva lo que se le cuenta. Existe porque el banco de 40 casos
+mide el triaje contra un guion escrito de antemano, y eso no sustituye a que alguien
+con criterio clínico lo pruebe a mano con el caso que se le acaba de ocurrir.
+
+Lo que lo hace seguro no es un filtro, es que **no hay camino hasta el efecto**:
+
+- `_simular` **no recibe el token**, así que no tiene con qué invocar la función de
+  herramientas. Las tres del triaje se le declaran al modelo —sin ellas no habría
+  decisión que medir— pero las ejecuta un ejecutor en seco que valida los argumentos
+  igual y devuelve un resultado con la misma forma que el real más un `simulado:
+  true`. La bifurcación está arriba, en `_atender`, para que esto se pueda comprobar
+  leyendo.
+- **Un paciente no puede simular** (`ROLES_QUE_SIMULAN` es profesional y los dos
+  administrativos de centro). Si pudiera, una urgencia real escrita en la vista del
+  paciente quedaría atendida por el sandbox: leería la ruta de emergencia, el caso no
+  se marcaría, no se escribiría `urgencia_escalada` y no se emitiría `ESCALAMIENTO`,
+  así que la alarma no sonaría y nadie se enteraría.
+- **Ningún evento de la simulación lleva el literal `ESCALAMIENTO`**, en ningún caso
+  y aunque el modelo escale. De ese literal cuelga el filtro de métrica que levanta a
+  una persona.
+- **No hay traspaso.** Un solo agente y una sola vuelta: el de agenda consultaría
+  cupos reales y ofrecería horas que existen.
+
+Lo que sí es real: el modelo, el protocolo horneado en el paquete, el guardarrail, las
+salvaguardas, la garantía de la ruta de emergencia y la memoria del hilo entre turnos.
+Es decir, todo lo que se está evaluando.
+
+Y se guardan dos cosas, las dos `create` del rol `user` de ROBLE:
+
+- **El hilo**, en `conversaciones`, bajo `simulacion:<user_id>:<slug>`. Es el tercer
+  uso de `caso_id` como texto libre, junto a `consulta:<user_id>`. El turno humano se
+  anota con `autor="paciente"` a propósito: con el rol real, `_historial` le pondría
+  delante la marca `[profesional que atiende]` y el modelo dejaría de hablarle a un
+  paciente, con lo que se estaría midiendo otra cosa. De quién fue la simulación queda
+  constancia en el prefijo del hilo y en el `actor_user_id` del evento.
+- **Cada decisión**, en `eventos` como `simulacion_triaje`, con el centro y el nivel.
+  De ahí sale el recuento de cuánto coincidió el modelo con el criterio del
+  profesional, que la vista guarda como `simulacion_valoracion`.
+
+Al prompt se le pasan un actor y un caso sintéticos, construidos por el orquestador y
+que no se escriben en ninguna parte. El invariante sigue en pie: la identidad la pone
+el orquestador y no el modelo; lo que cambia es que aquí la pone fingida, y la
+verdadera va a la bitácora.
+
+La deuda que esto deja, consciente: la validación de argumentos y la tabla de plazos
+del ejecutor en seco son copias reducidas de `herramientas/handler._argumentos` y de
+`triaje._plazo`. Importarlas significaría tener aquí un camino hasta las herramientas
+de verdad, que es justo lo que no puede existir. Si cambian los plazos del protocolo,
+hay que tocar los dos sitios.
+
 ### Los permisos se comprueban dos veces
 
 Las cinco vistas de la PWA son presentación: esconder un botón no es un permiso.
@@ -99,7 +154,36 @@ herramienta que lo cree. El modelo resume, ordena y pregunta; no prescribe. Esto
 es una limitación técnica, es el límite del alcance: un prototipo universitario no
 propone tratamientos.
 
-Del mismo lado, el profesional ve el resumen del triaje pero **no la conversación**.
+### Quién ve la conversación, y a cambio de qué
+
+Durante la mayor parte del proyecto la respuesta fue «nadie más que la persona»: el
+profesional atendía con el resumen del triaje y no con la transcripción. El motivo era
+bueno y sigue valiendo para atender —para una consulta hace falta el resumen, y leer
+el hilo entero de cada caso es una intromisión sin motivo—, pero no cubría el trabajo
+que faltaba: **revisar si el triaje estuvo bien hecho**. El resumen lo escribió el
+mismo agente al que se quiere evaluar, así que juzgarlo con su propio resumen no es
+revisar nada.
+
+Así que el profesional ve el hilo completo, y en el único sitio donde eso tiene ese
+propósito: la pestaña de **historial de triajes**. La consulta —la pestaña de agenda—
+no lo muestra. Y el acceso no es gratis:
+
+- **Cada apertura de un hilo escribe un `hilo_consultado` en `eventos`**, con quién lo
+  abrió y cuántos turnos vio. Es lo que convierte «el profesional puede leerlo todo»
+  en «puede leerlo todo y se sabe cuándo lo hizo». La bitácora del caso es el único
+  sitio donde esto queda: ROBLE no tiene registro de auditoría propio.
+- **La pantalla lo dice antes y después de abrirlo.** Un registro que quien lo activa
+  no conoce no es trazabilidad.
+- Se listan los casos **del centro** y no sólo los propios, porque mirar únicamente el
+  trabajo del agente sobre los pacientes de uno no permite ver un patrón. Los que
+  tienen cita con quien mira van marcados.
+
+Lo que no cambió es quién escribe: nadie puede añadir una nota desde esa pantalla. Un
+campo de texto allí habría creado un canal de notas clínicas sin trazabilidad, que es
+justo lo que el resto del sistema evita.
+
+Y el `admin_plataforma` sigue sin ver ni casos ni conversaciones: administra la
+instalación, no la atención.
 
 ### El bucle de herramientas
 
