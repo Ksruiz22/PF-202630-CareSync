@@ -15,6 +15,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Conversacion } from '../componentes/Conversacion';
+// El filtro del hilo se mudó a `conversaciones.ts` cuando el historial de triajes del
+// profesional necesitó el mismo hilo sin filtrar: las dos miradas tienen que cambiar
+// juntas si el orquestador cambia cómo marca el autor de una fila.
+import { turnosParaLaPersona } from '../conversaciones';
 import { Aviso, Cabecera, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
 import {
   IconoAlerta,
@@ -337,55 +341,8 @@ async function alrededorDelCaso(caso: Caso): Promise<Panorama> {
     indicaciones: indicaciones.filter((fila) => esVerdad(fila.activa)),
     evoluciones: [...evoluciones].sort(porReporteDescendente).slice(0, 5),
     adherencias,
-    previos: turnosDelHilo(hilo),
+    previos: turnosParaLaPersona(hilo),
   };
-}
-
-/** Cuántos turnos anteriores se pintan al volver. El resto sigue en ROBLE. */
-const TURNOS_PREVIOS = 30;
-
-/**
- * Lo que la persona ve de su propio hilo al volver a entrar.
- *
- * Antes, recargar la página dejaba el chat con el saludo y nada más, aunque la
- * conversación estuviera entera en ROBLE: la persona tenía que recordar qué le había
- * dicho el agente, y el agente —que sí tiene el historial— le hablaba de cosas que ya
- * no estaban en pantalla.
- *
- * No se pinta todo lo que hay en la tabla, y lo que se quita es a propósito:
- *
- * - Las notas `[sistema]`, que son para el modelo («en el turno anterior no se
- *   completó…») y no se le dicen a la persona.
- * - Lo que el personal del centro o el profesional le escribió al agente sobre este
- *   caso, y lo que el agente les respondió. Es una conversación de trabajo sobre la
- *   persona, no con ella; mostrársela sería leerle las notas de otro.
- *
- * Las filas anteriores a que el orquestador guardara el autor real llevan todas
- * `paciente`, así que ahí no se puede distinguir. Es un caso viejo y acotado.
- */
-function turnosDelHilo(filas: FilaConversacion[]): Turno[] {
-  const ordenadas = [...filas].sort((a, b) =>
-    String(a.creado_en ?? '').localeCompare(String(b.creado_en ?? ''))
-  );
-
-  const turnos: Turno[] = [];
-  let ultimoHumano = '';
-  for (const fila of ordenadas) {
-    const texto = String(fila.contenido ?? '').trim();
-    const autor = String(fila.autor ?? 'paciente');
-    if (!texto || autor === 'sistema') continue;
-
-    if (autor === 'agente') {
-      if (ultimoHumano === 'paciente') {
-        turnos.push({ quien: 'agente', texto, ...(fila.agente ? { agentes: [fila.agente] } : {}) });
-      }
-      continue;
-    }
-
-    ultimoHumano = autor;
-    if (autor === 'paciente') turnos.push({ quien: 'yo', texto });
-  }
-  return turnos.slice(-TURNOS_PREVIOS);
 }
 
 async function leer<T>(tabla: string, filtros: Record<string, unknown>): Promise<T[]> {
