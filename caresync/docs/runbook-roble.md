@@ -68,7 +68,7 @@ que no puede es crear tablas con las credenciales de una cuenta normal.
 |---|---|
 | `perfiles` | rol y centro de cada cuenta. Es la tabla que decide qué ve cada quien |
 | `casos` | un caso por episodio; su `estado` decide qué agente atiende |
-| `conversaciones` | los turnos de cada caso. El profesional **no** las ve |
+| `conversaciones` | los turnos de cada caso. El profesional las ve desde el historial de triajes, y cada apertura deja un `hilo_consultado` en `eventos` |
 | `profesionales` | quién atiende, en qué centro y con qué especialidad |
 | `horarios` | plantilla semanal de cada profesional |
 | `cupos` | los huecos concretos, generados desde `horarios`. Aquí vive `reserva_testigo` |

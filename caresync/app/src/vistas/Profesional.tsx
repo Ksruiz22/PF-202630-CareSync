@@ -1,21 +1,40 @@
 /**
  * Lo que ve un profesional del CMU o del CAE.
  *
- * Esta es la única pantalla del prototipo donde una persona escribe datos
- * clínicos a mano, y es a propósito: **el plan lo hace el profesional, no el
- * modelo**. El agente de seguimiento acompaña sobre un plan que ya existe; no lo
+ * **Hasta ahora el profesional no veía la conversación**, y era deliberado: en la
+ * consulta se atiende con el resumen del triaje, no con la transcripción. Eso sigue
+ * siendo cierto en la pestaña de agenda, que no la muestra. Lo que cambió es que hay
+ * dos trabajos más que sí la necesitan, y cada uno tiene su pestaña:
+ *
+ * - **Historial de triajes**: revisar cómo quedó clasificado un caso exige leer de
+ *   dónde salió esa clasificación. El resumen lo escribió el agente, y juzgar el
+ *   resumen con el resumen no es revisar nada. Por eso abrir un hilo **queda
+ *   registrado en la bitácora del caso** (`eventos`, tipo `hilo_consultado`): el
+ *   acceso existe, y quién lo usó se puede auditar. Esa fila es el precio de la
+ *   pestaña, no un adorno.
+ * - **Simulador de triaje**: ponerse en los zapatos de quien consulta para evaluar al
+ *   modelo, sin abrir un caso, sin agendar, sin correos y sin disparar la alarma de
+ *   urgencias. Lo real de esa conversación es sólo el modelo.
+ *
+ * Lo que no cambió: **el plan lo hace el profesional, no el modelo**. Ésta es la
+ * única pantalla del prototipo donde una persona escribe datos clínicos a mano, y es
+ * a propósito. El agente de seguimiento acompaña sobre un plan que ya existe; no lo
  * inventa. Si esta pantalla no existiera, el agente no tendría de dónde sacar las
  * indicaciones y la tentación sería dejar que se las imaginara.
- *
- * El profesional ve el resumen del triaje y lo que la persona ha reportado
- * después, pero **no la conversación**: el hilo completo se queda en ROBLE y en la
- * bitácora del caso. Lo que se necesita para atender es el resumen, no la
- * transcripción.
  */
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { Aviso, Cabecera, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
-import { IconoCalendario } from '../componentes/Iconos';
+import { IconoCalendario, IconoChispas, IconoDocumento } from '../componentes/Iconos';
+import { HistorialDeTriajes } from './HistorialDeTriajes';
+import { SimuladorDeTriaje } from './SimuladorDeTriaje';
 import { bandaDeEscala, escalaVisible, fechaHora, hace, soloFecha } from '../formato';
 import { mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
@@ -36,8 +55,11 @@ interface Agenda {
   casos: Record<string, Caso>;
 }
 
+type Pestana = 'agenda' | 'triajes' | 'simulador';
+
 export function Profesional() {
   const { quien } = useSesion();
+  const [pestana, setPestana] = useState<Pestana>('agenda');
   const [agenda, setAgenda] = useState<Agenda>({ citas: [], casos: {} });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -68,74 +90,146 @@ export function Profesional() {
   return (
     <div className="panel profesional">
       <Cabecera
-        antetitulo="Agenda profesional"
+        antetitulo="Panel del profesional"
         titulo={quien?.nombre}
-        subtitulo={
-          <>
-            Tu agenda en {quien?.centro ?? 'tu centro'}. {proximas.length} cita
-            {proximas.length === 1 ? '' : 's'} por atender.
-          </>
-        }
+        subtitulo={subtituloDe(pestana, {
+          centro: quien?.centro ?? 'tu centro',
+          porAtender: proximas.length,
+        })}
       />
 
-      {error && <Aviso tipo="error">{error}</Aviso>}
+      {/*
+        Tres pestañas y no tres pantallas: lo que el profesional hace aquí es un solo
+        trabajo visto de tres maneras —atender, revisar cómo se clasificó y probar al
+        modelo—, y repartirlo por rol en `App.tsx` habría significado inventar un rol
+        que no existe. La agenda sigue cargándose aunque se mire otra pestaña: la
+        cuenta de «por atender» está en la cabecera, que es común a las tres, y
+        volverla a leer en cada cambio de pestaña gasta cuota de ROBLE sin añadir nada.
+      */}
+      <div className="pestanas" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pestana === 'agenda'}
+          onClick={() => setPestana('agenda')}
+        >
+          <IconoCalendario width={17} height={17} /> Agenda
+          {!cargando && proximas.length > 0 && <span className="cuenta">{proximas.length}</span>}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pestana === 'triajes'}
+          onClick={() => setPestana('triajes')}
+        >
+          <IconoDocumento width={17} height={17} /> Historial de triajes
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={pestana === 'simulador'}
+          onClick={() => setPestana('simulador')}
+        >
+          <IconoChispas width={17} height={17} /> Simulador
+        </button>
+      </div>
 
-      <div className="columnas">
-        <section className="lista">
-          <Tarjeta titulo="Por atender" icono={<IconoCalendario />}>
-            {cargando ? (
-              <Cargando que="Cargando tu agenda" />
-            ) : proximas.length === 0 ? (
-              <Vacio>No tienes citas pendientes.</Vacio>
-            ) : (
-              <ul className="citas">
-                {proximas.map((cita) => (
-                  <FilaDeCita
-                    key={idDe(cita)}
-                    cita={cita}
-                    caso={agenda.casos[String(cita.caso_id ?? '')]}
-                    activa={idDe(cita) === abierta}
-                    alAbrir={() => setAbierta(idDe(cita))}
-                  />
-                ))}
-              </ul>
+      {pestana === 'triajes' && <HistorialDeTriajes />}
+      {pestana === 'simulador' && <SimuladorDeTriaje />}
+
+      {/*
+        La agenda se esconde con `hidden` en vez de desmontarse: el plan a medio
+        escribir en el formulario de la consulta se perdería al mirar un triaje y
+        volver, y eso es justo lo que un profesional hace mientras atiende. Que
+        `hidden` gane a `display: flex` lo garantiza la regla `[hidden]` del reset en
+        `estilos.css`; sin ella la clase del contenedor lo anula y la pestaña se
+        pintaría dos veces.
+      */}
+      <div className="pila" hidden={pestana !== 'agenda'}>
+        {error && <Aviso tipo="error">{error}</Aviso>}
+
+        <div className="columnas">
+          <section className="lista">
+            <Tarjeta titulo="Por atender" icono={<IconoCalendario />}>
+              {cargando ? (
+                <Cargando que="Cargando tu agenda" />
+              ) : proximas.length === 0 ? (
+                <Vacio>No tienes citas pendientes.</Vacio>
+              ) : (
+                <ul className="citas">
+                  {proximas.map((cita) => (
+                    <FilaDeCita
+                      key={idDe(cita)}
+                      cita={cita}
+                      caso={agenda.casos[String(cita.caso_id ?? '')]}
+                      activa={idDe(cita) === abierta}
+                      alAbrir={() => setAbierta(idDe(cita))}
+                    />
+                  ))}
+                </ul>
+              )}
+            </Tarjeta>
+
+            {pasadas.length > 0 && (
+              <Tarjeta titulo="Ya pasaron">
+                <ul className="citas">
+                  {pasadas.map((cita) => (
+                    <FilaDeCita
+                      key={idDe(cita)}
+                      cita={cita}
+                      caso={agenda.casos[String(cita.caso_id ?? '')]}
+                      activa={idDe(cita) === abierta}
+                      alAbrir={() => setAbierta(idDe(cita))}
+                    />
+                  ))}
+                </ul>
+              </Tarjeta>
             )}
-          </Tarjeta>
+          </section>
 
-          {pasadas.length > 0 && (
-            <Tarjeta titulo="Ya pasaron">
-              <ul className="citas">
-                {pasadas.map((cita) => (
-                  <FilaDeCita
-                    key={idDe(cita)}
-                    cita={cita}
-                    caso={agenda.casos[String(cita.caso_id ?? '')]}
-                    activa={idDe(cita) === abierta}
-                    alAbrir={() => setAbierta(idDe(cita))}
-                  />
-                ))}
-              </ul>
-            </Tarjeta>
-          )}
-        </section>
-
-        <section className="detalle">
-          {!seleccionada || !casoAbierto ? (
-            <Tarjeta titulo="Consulta">
-              <Vacio>Elige una cita para ver el caso y registrar el plan.</Vacio>
-            </Tarjeta>
-          ) : (
-            <Consulta
-              key={idDe(seleccionada)}
-              cita={seleccionada}
-              caso={casoAbierto}
-              autor={{ userId, nombre: quien?.nombre ?? '' }}
-              alGuardar={() => void cargar()}
-            />
-          )}
-        </section>
+          <section className="detalle">
+            {!seleccionada || !casoAbierto ? (
+              <Tarjeta titulo="Consulta">
+                <Vacio>Elige una cita para ver el caso y registrar el plan.</Vacio>
+              </Tarjeta>
+            ) : (
+              <Consulta
+                key={idDe(seleccionada)}
+                cita={seleccionada}
+                caso={casoAbierto}
+                autor={{ userId, nombre: quien?.nombre ?? '' }}
+                alGuardar={() => void cargar()}
+              />
+            )}
+          </section>
+        </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Qué dice la cabecera en cada pestaña.
+ *
+ * La cuenta de citas por atender sólo tiene sentido en la agenda: dejarla fija
+ * mientras se revisa un triaje de hace un mes hacía leer la pantalla como si esa
+ * conversación fuera una de las citas pendientes.
+ */
+function subtituloDe(
+  pestana: Pestana,
+  datos: { centro: string; porAtender: number }
+): ReactNode {
+  if (pestana === 'triajes') {
+    return `Los casos ya triados de ${datos.centro}, con la conversación de la que salió cada clasificación.`;
+  }
+  if (pestana === 'simulador') {
+    return 'Conversa con el agente de triaje como si fueras quien consulta, para ver cómo clasifica.';
+  }
+  return (
+    <>
+      Tu agenda en {datos.centro}. {datos.porAtender} cita
+      {datos.porAtender === 1 ? '' : 's'} por atender.
+    </>
   );
 }
 

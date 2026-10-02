@@ -10,6 +10,25 @@
  * autorizador JWT a propósito: el orquestador necesita el token no sólo para
  * validar quién llama, sino para actuar contra ROBLE en su nombre. El motivo
  * largo está en infra/api.tf.
+ *
+ * **El modo simulación.** La misma función sirve para el simulador de triaje del
+ * profesional (`vistas/SimuladorDeTriaje.tsx`): con `simulacion` el cuerpo lleva
+ * `simulacion: true` y un `simulacion_id`, y el backend corre el turno completo
+ * —modelo, protocolo, salvaguardas— pero **no ejecuta ninguna herramienta**: no
+ * abre caso, no agenda, no manda correos y no dispara la alarma de urgencias. En
+ * vez del efecto devuelve en `decisiones` lo que el modelo habría hecho, que es
+ * justo lo que el profesional juzga.
+ *
+ * Quién puede simular **lo decide el backend**, no esta función ni la vista que la
+ * llama: hoy admite `profesional`, `admin_cmu` y `admin_cae`, y a cualquier otro
+ * rol le responde 403. Es el mismo criterio que el resto del sistema —un permiso se
+ * comprueba en código del lado que tiene el efecto, no en la PWA—, así que la
+ * comprobación por rol que haga la vista es cortesía para dar un mensaje decible,
+ * nunca el control de acceso.
+ *
+ * El slug lo propone la PWA y el backend lo sanea y lo devuelve en
+ * `simulacion_id`: hay que usar el que vuelve, porque es el que forma el `caso_id`
+ * del hilo guardado en ROBLE.
  */
 
 import { tokenActual } from './roble';
@@ -42,9 +61,23 @@ export interface PeticionAgente {
   mensaje: string;
   casoId?: string;
   agente?: 'triaje' | 'agenda' | 'seguimiento';
+  /**
+   * Presente sólo cuando el turno es un ensayo: ver el comentario del módulo.
+   *
+   * Es un objeto y no un `boolean` + un `string` sueltos para que no exista la
+   * combinación imposible de pedir simulación sin identificarla: el backend necesita
+   * el slug para saber en qué hilo escribir, y una petición con `simulacion: true` y
+   * sin id no tendría dónde guardarse.
+   */
+  simulacion?: { id: string };
 }
 
-export async function hablar({ mensaje, casoId, agente }: PeticionAgente): Promise<RespuestaAgente> {
+export async function hablar({
+  mensaje,
+  casoId,
+  agente,
+  simulacion,
+}: PeticionAgente): Promise<RespuestaAgente> {
   const token = tokenActual();
   if (!token) throw new ErrorDelAgente(401, 'No hay sesión activa.');
 
@@ -66,6 +99,10 @@ export async function hablar({ mensaje, casoId, agente }: PeticionAgente): Promi
         mensaje,
         ...(casoId ? { caso_id: casoId } : {}),
         ...(agente ? { agente } : {}),
+        // Las dos claves van juntas o no va ninguna: el backend lee el modo de
+        // `simulacion` y el hilo de `simulacion_id`, y una sin la otra es una
+        // petición que no sabría dónde escribir.
+        ...(simulacion ? { simulacion: true, simulacion_id: simulacion.id } : {}),
       }),
       signal: corte.signal,
     });

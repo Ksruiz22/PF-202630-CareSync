@@ -43,6 +43,22 @@ interface Props {
   previos?: Turno[];
   /** Qué invita a escribir el redactor. El texto por defecto es el del paciente. */
   marcador?: string;
+  /**
+   * Presente sólo en el simulador de triaje del profesional, y entonces hace dos cosas:
+   * el `id` viaja a `hablar()` como el hilo de la simulación, y la banda de más abajo
+   * deja dicho dentro de la conversación que nada de esto le pasa a un paciente.
+   *
+   * La banda va **dentro** del componente y no en la vista que lo monta porque es aquí
+   * donde la persona está leyendo y escribiendo: un aviso al principio de la pantalla
+   * se pierde en cuanto el hilo crece, y confundir un ensayo con una conversación real
+   * es el único error de esta pantalla que tendría consecuencias.
+   *
+   * `primerMensaje` sólo precarga el redactor con el guion elegido; **no se envía
+   * solo**. Quien simula tiene que pulsar Enviar igual que un paciente, y así el
+   * componente sigue sin disparar ninguna petición por su cuenta —montarlo nunca
+   * escribe en ROBLE—, que es lo que hace que `key` baste para reiniciar el hilo.
+   */
+  simulacion?: { id: string; primerMensaje?: string };
   /** Se llama tras cada turno para que la vista recargue lo que cambió en ROBLE. */
   alResponder?: (respuesta: RespuestaAgente) => void;
   alVencerSesion?: () => void;
@@ -54,6 +70,7 @@ export function Conversacion({
   saludo,
   previos,
   marcador = 'Cuéntame qué te pasa…',
+  simulacion,
   alResponder,
   alVencerSesion,
 }: Props) {
@@ -63,7 +80,7 @@ export function Conversacion({
     ...(previos ?? []),
     { quien: 'agente', texto: saludo },
   ]);
-  const [borrador, setBorrador] = useState('');
+  const [borrador, setBorrador] = useState(simulacion?.primerMensaje ?? '');
   const [esperando, setEsperando] = useState(false);
   const [caso, setCaso] = useState(casoId ?? '');
   const fondo = useRef<HTMLDivElement>(null);
@@ -86,6 +103,7 @@ export function Conversacion({
         mensaje,
         ...(caso ? { casoId: caso } : {}),
         ...(agente ? { agente } : {}),
+        ...(simulacion ? { simulacion: { id: simulacion.id } } : {}),
       });
 
       // El caso lo asigna el backend en el primer turno; a partir de ahí se
@@ -130,6 +148,17 @@ export function Conversacion({
           Asistente CareSync
         </h2>
       </header>
+      {simulacion && (
+        <p className="simulacion-banda" role="note">
+          <IconoAlerta />
+          <span>
+            <strong>Simulación.</strong> Nada de esta conversación le pasa a un paciente
+            de verdad: no se abre ningún caso, no se agenda, no se avisa a nadie y no se
+            dispara la alarma de urgencias. El hilo sí queda guardado, para poder
+            revisarlo después.
+          </span>
+        </p>
+      )}
       <div className="hilo">
         {turnos.map((turno, indice) => (
           <Burbuja key={indice} turno={turno} />

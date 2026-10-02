@@ -23,6 +23,9 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 | Lógica de una herramienta | `lambdas/herramientas/{triaje,agenda,seguimiento}.py` |
 | El bucle del modelo, caché, guardrail, tope de vueltas | `lambdas/orquestador/bedrock_conversa.py` |
 | Autorización, traspaso, historial, respuesta de `/agente` | `lambdas/orquestador/handler.py` |
+| El modo simulación de `/agente` (triaje de prueba sin efecto) | `_simular` y el bloque final de `lambdas/orquestador/handler.py` + `lambdas/pruebas/prueba_simulacion.py` |
+| Lo que ve el profesional: agenda, historial de triajes, simulador | `app/src/vistas/Profesional.tsx` (las tres pestañas), `HistorialDeTriajes.tsx`, `SimuladorDeTriaje.tsx` |
+| Leer el hilo de un caso desde la PWA | `app/src/conversaciones.ts` (dos miradas: la de la persona y la del profesional) |
 | Criterios clínicos, niveles, matriz CMU/CAE | `protocolos/triaje-v0.md` (fuente única; se copia al paquete al construir) |
 | Texto de emergencia | `protocolos/ruta-emergencia.md` (fuente única, la usan los 3 agentes) |
 | Evaluación del triaje | `evaluacion/casos_evaluacion.json` + `evaluacion/evaluar_triaje.py` |
@@ -47,7 +50,12 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 4. **El protocolo tiene una sola copia** (`protocolos/`). Nunca lo repitas dentro de
    un prompt en Python: `construir_paquetes.sh` lo inyecta en el paquete.
 5. **`ESCALAMIENTO`** en mayúsculas, literal, en `triaje.escalar_urgencia`: es el
-   patrón del filtro de métrica de CloudWatch. Renombrarlo deja muda la alarma.
+   patrón del filtro de métrica de CloudWatch. Renombrarlo deja muda la alarma. Y al
+   revés: **la simulación no puede emitir ese literal nunca**, ni cuando el modelo
+   escala. Sus eventos van en minúsculas (`simulacion_atendida`, `simulacion_decision`
+   …). Que el filtro mire hoy sólo el grupo de la función de herramientas no es la
+   garantía: ampliarlo a todos los grupos es una línea de Terraform, y entonces cada
+   simulación levantaría a alguien de la cama.
 6. **`escalar_urgencia` nunca lanza excepción** y siempre devuelve el texto de la
    ruta de emergencia, aunque fallen las cuatro escrituras.
 7. **El agente no promete contacto humano.** No hay teléfono ni nadie mirando la
@@ -55,6 +63,16 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 8. **Un fallo de herramienta se anota como `[sistema]` en la conversación**
    (`_dejar_constancia_de_los_fallos`). Sin esa nota el modelo defiende en el turno
    siguiente una cita que nunca se agendó.
+9. **La simulación no produce efectos, y se puede comprobar leyendo.** `_simular` no
+   recibe el token —sin token no hay forma de llegar a la función de herramientas— y
+   ninguna función del bloque llama a `_ejecutor`, `_lambda().invoke`, `abrir_caso`,
+   `caso_visible`, `caso_abierto_de` ni `actualizar_caso`. Lo comprueba
+   `prueba_simulacion.py` recorriendo el árbol del archivo, no el texto. Sólo escribe
+   dos cosas: el hilo en `conversaciones` y la decisión en `eventos`.
+10. **Un paciente nunca simula** (`ROLES_QUE_SIMULAN`). Si pudiera, una urgencia real
+    quedaría atendida por un sandbox que no marca el caso, no escribe
+    `urgencia_escalada` y no emite `ESCALAMIENTO`: la persona leería la ruta de
+    emergencia y nadie se enteraría.
 
 ## Trampas verificadas (ya costaron tiempo una vez)
 
@@ -83,6 +101,18 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 - **La consola de Windows es cp1252.** Un `print()` con `≥`, `…`, `⚠` o emoji
   revienta con `UnicodeEncodeError` en la máquina del equipo. La salida de consola
   va en ASCII; el Unicode sólo en archivos escritos con `encoding="utf-8"`.
+- **`evento(log, nombre, nivel=N)` hace desaparecer la línea.** `nivel` es un
+  parámetro propio de `evento()`: el nivel de log. Pasarle el nivel de urgencia del
+  protocolo (1 a 4) manda la línea por debajo de `DEBUG` y el evento entero —nombre y
+  campos— no sale en CloudWatch, sin que nada falle. Pasó en `caso_canalizado` y se
+  descubrió al buscar en el log una canalización que sí había ocurrido; el campo se
+  llama ahora `nivel_urgencia`. **Lo encontró el frente de infraestructura en un
+  archivo de agentes: queda para que Kevin lo revise.**
+- **El atributo `hidden` pierde contra cualquier clase con `display`.** Lo oculta la
+  hoja del navegador, y una regla de autor —`.pila { display: flex }`— la gana sin
+  importar la especificidad. La vista del profesional esconde así su pestaña de
+  agenda, y hasta que se añadió `[hidden] { display: none !important }` al reset de
+  `estilos.css` se pintaban dos pestañas a la vez.
 - **`log.exception(nombre, extra={...})` no imprime ese `extra`.** El formateador de
   `registro.py` sólo lee la clave `datos`. Usa `excepcion(log, nombre, campo=valor)`,
   que además sanea los campos sensibles.
@@ -141,13 +171,12 @@ para siempre. La evaluación ya no depende de eso: el rol `user` de ROBLE tiene
 `casos:update`, y los evaluadores cierran su propio caso al terminar cada
 conversación (`evaluacion/cuenta_roble.py`).
 
-Las únicas pruebas del repositorio son las de los evaluadores
-(`evaluacion/prueba_*.py`), y **CI todavía no las corre**: `revision.yml` sólo
-comprueba sintaxis y tipos (`terraform validate`, `compileall`, `tsc --noEmit`,
-`node --check`). Añadirlas es una línea, pero ese archivo lo lleva Alejandro. Del
-lado de las Lambdas no hay ninguna prueba, y `permitida()`, `_argumentos()`,
-`agente_por_defecto()` e `_intervalo()` son funciones puras que se prueban sin AWS
-ni ROBLE.
+**CI sí corre las pruebas**, y esta sección decía lo contrario hasta que se comprobó:
+el paso «pruebas» de `revision.yml` llama a `scripts/pruebas.sh`, que las busca **por
+patrón** —`lambdas/pruebas/prueba_*.py` y `evaluacion/prueba_*.py`— así que una prueba
+nueva entra en CI sin tocar el flujo. Son 8 archivos y ninguno toca la red, AWS ni un
+token de ROBLE: `entorno.py` sustituye `boto3`, `requests` y el SDK de ROBLE cuando
+faltan. Antes de dar por hecho que algo no se prueba, `scripts/pruebas.sh`.
 
 ## Cómo verificar un cambio
 

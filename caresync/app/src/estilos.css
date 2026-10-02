@@ -98,6 +98,19 @@
   box-sizing: border-box;
 }
 
+/*
+ * `hidden` por encima de cualquier clase.
+ *
+ * El atributo lo oculta desde la hoja del navegador, que pierde contra cualquier
+ * regla de autor: un `.pila` o un `.columnas` con `display: flex` o `grid` deja
+ * visible lo que el atributo decía esconder. La vista del profesional esconde así la
+ * pestaña de agenda —desmontarla perdería el plan a medio escribir—, y sin esta línea
+ * se pintaban dos pestañas a la vez.
+ */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--papel);
@@ -1174,7 +1187,8 @@ label small {
 .casos li,
 .cupos li,
 .indicaciones li,
-.evolucion li {
+.evolucion li,
+.triajes-bitacora li {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -1187,7 +1201,8 @@ label small {
 .casos li:last-child,
 .cupos li:last-child,
 .indicaciones li:last-child,
-.evolucion li:last-child {
+.evolucion li:last-child,
+.triajes-bitacora li:last-child {
   border-bottom: 0;
 }
 
@@ -1771,12 +1786,159 @@ code {
   padding: 0.12rem 0.4rem;
 }
 
+/* ------------------------------------------- historial de triajes del profesional */
+
+/*
+ * La transcripción en sólo lectura reusa `.hilo` y `.burbuja`, y aquí sólo está lo
+ * que cambia por ser una lectura y no una conversación.
+ *
+ * El reparto de lados es al revés que en el chat del paciente, y es deliberado: quien
+ * mira esta pantalla no escribió ninguna de estas líneas, así que **la persona
+ * atendida se queda con la burbuja resaltada** —es de quien se habla— y el agente
+ * pasa al lado derecho pero en neutro. Usar `.burbuja.yo` para el agente habría
+ * pintado al modelo con el color que en las otras cuatro vistas significa «esto lo
+ * dije yo».
+ */
+.hilo-lectura {
+  /* Dentro de una `.tarjeta` el padding de `.hilo` se suma al de la tarjeta y la
+     conversación acaba con un margen del doble de ancho que el resto de la ficha. */
+  padding: 0.2rem 0;
+  scroll-behavior: smooth;
+}
+
+/* Tiene `tabIndex` para poder desplazarla sin ratón —alto fijo y contenido que
+   desborda—, y sin esto el foco no se vería. */
+.hilo-lectura:focus-visible {
+  outline: 2px solid var(--primario);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+.hilo-agente {
+  align-self: flex-end;
+  border-radius: 17px 5px 17px 17px;
+  background: var(--papel);
+  border: 1px solid var(--borde);
+}
+
+.hilo-agente .hilo-hora {
+  text-align: right;
+}
+
+/* El personal del centro escribió sobre el caso, no en la conversación con la
+   persona: va del mismo lado que ella pero con el borde partido, para que nadie le
+   atribuya a la persona atendida una pregunta de la administración. */
+.hilo-personal {
+  background: transparent;
+  border: 1px dashed var(--borde);
+  color: var(--tinta-suave);
+}
+
+/* La nota interna ya se distingue por el ámbar de `.burbuja.sistema`; el cuerpo más
+   pequeño es lo que la saca del ritmo de lectura de la conversación. */
+.hilo-nota p {
+  font-size: 0.82rem;
+}
+
+.hilo-hora {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+/* La severidad de la bitácora, con la misma escala de color que los niveles de
+   urgencia: `info` se queda con el neutro de `.etiqueta` y no se repite aquí. */
+.triajes-severidad-alta {
+  background: var(--ambar-claro);
+  color: var(--ambar);
+  border-color: transparent;
+}
+
+.triajes-severidad-critica {
+  background: var(--rojo);
+  color: #fff;
+  border-color: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  .triajes-severidad-critica {
+    color: #1a0808;
+  }
+}
+
+/* ------------------------------------------------- simulador de triaje */
+
+/*
+ * La columna de apoyo del simulador es más ancha que la de `.rejilla-contenido`
+ * porque lleva tres fichas con datos —lo que decidió el modelo, la valoración con sus
+ * dos selectores y el historial— y no una barra de ayuda. Con 19 rem los selectores
+ * del formulario quedaban a una palabra por línea.
+ */
+.simulacion-columnas {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(21rem, 0.8fr);
+  gap: 1.1rem;
+  align-items: start;
+}
+
+/*
+ * La banda que dice que esto es un ensayo.
+ *
+ * Va a sangre entre la cabecera del chat y el hilo, alineada con el 1.4rem de los
+ * dos, porque tiene que leerse como parte de la conversación y no como un aviso de la
+ * pantalla: lo que no puede pasar es confundir un ensayo con un turno real.
+ *
+ * **Ámbar y no rojo.** Dentro de este mismo hilo el rojo ya significa «urgencia
+ * escalada» (`.aviso.urgente`, `.acciones li.urgente`), y esta banda dice justo lo
+ * contrario: que nada de esto está pasando de verdad.
+ */
+.simulacion-banda {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.75rem 1.4rem;
+  border-bottom: 1px solid var(--ambar-borde);
+  background: var(--ambar-claro);
+  color: var(--ambar);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.simulacion-banda .icono {
+  flex: none;
+  margin-top: 0.15em;
+}
+
+/*
+ * Si el modelo coincidió con el criterio del profesional.
+ *
+ * Son los colores de `.escala.bien` y `.escala.mal`, y no los de los estados de un
+ * caso: aquí no se marca en qué estado está nadie, sino si el triaje acertó. Un día
+ * que se cambie el color de `e-atendido` no debería mover el significado de esta
+ * pantalla.
+ */
+.simulacion-coincide {
+  background: var(--verde-claro);
+  color: var(--verde);
+  border-color: transparent;
+}
+
+.simulacion-discrepa {
+  background: var(--rojo-claro);
+  color: var(--rojo);
+  border-color: transparent;
+}
+
 /* ------------------------------------------------------------------ responsive */
 
 @media (max-width: 900px) {
   .columnas,
   .profesional .columnas,
-  .rejilla-contenido {
+  .rejilla-contenido,
+  .simulacion-columnas {
     grid-template-columns: minmax(0, 1fr);
   }
 
