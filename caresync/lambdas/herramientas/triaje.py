@@ -130,7 +130,13 @@ def canalizar_caso(
         severidad="alta" if nivel <= 2 else "info",
         detalle={"centro": centro, "nivel_urgencia": nivel, "resumen": resumen},
     )
-    evento(log, "caso_canalizado", caso_id=caso_id, centro=centro, nivel=nivel)
+    # `nivel_urgencia` y no `nivel`: `evento()` tiene un parámetro propio llamado
+    # `nivel`, que es el nivel de log. Pasarle el del protocolo mandaba la línea con
+    # nivel 1 a 4 —por debajo de DEBUG— y el evento `caso_canalizado` desaparecía
+    # entero del log: ni la línea, ni el caso, ni el centro. Nada fallaba, así que no
+    # se notó hasta que alguien fue a buscar en CloudWatch una canalización que sí
+    # había ocurrido.
+    evento(log, "caso_canalizado", caso_id=caso_id, centro=centro, nivel_urgencia=nivel)
 
     # Nivel 1 es una emergencia por definición del protocolo: canalizarla sin
     # escalar dejaría a la persona esperando una cita.
