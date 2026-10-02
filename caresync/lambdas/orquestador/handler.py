@@ -13,6 +13,11 @@ Lo que hace, en orden:
 Lo que NO hace: acceder a datos. Cualquier lectura o escritura del dominio pasa
 por el módulo de acceso, y cualquier acción con efecto por la función de
 herramientas. Este archivo coordina.
+
+Hay un segundo camino, el **modo simulación** (`simulacion: true` en el cuerpo):
+un profesional se pone en los zapatos de un paciente para evaluar al modelo, y
+nada de lo que pase ahí tiene efecto real. Vive al final del archivo, separado del
+camino real a propósito; ver la sección «simulación».
 """
 
 from __future__ import annotations
@@ -25,8 +30,9 @@ from typing import Any
 import boto3
 import requests
 
-from caresync_comun import respuesta
+from caresync_comun import reloj, respuesta
 from caresync_comun.catalogo_herramientas import (
+    CATALOGO,
     especificaciones,
     necesita_caso,
     permitida,
@@ -43,10 +49,12 @@ from caresync_comun.registro import evento, registro
 from caresync_comun.roble_acceso import (
     ADMIN_CAE,
     ADMIN_CMU,
+    CASO_ABIERTO,
     CASO_CERRADO,
     PACIENTE,
     PROFESIONAL,
     AccesoRoble,
+    Actor,
     fila_id,
 )
 
@@ -134,6 +142,14 @@ def _atender(entrada: dict[str, Any]) -> dict[str, Any]:
 
     acceso = AccesoRoble.desde_token(token)
     try:
+        # Dos caminos que no se cruzan, y la bifurcación está aquí arriba a
+        # propósito: así se puede comprobar leyendo que la simulación no pasa por
+        # `_conversar`. El token no se le pasa porque no tiene a quién invocar —sin
+        # token no hay forma de llegar a la función de herramientas—, y eso es lo
+        # que hace que «nada de la simulación tiene efecto real» sea verificable y
+        # no una promesa.
+        if _pide_simulacion(cuerpo):
+            return _simular(acceso, mensaje=mensaje, cuerpo=cuerpo)
         return _conversar(acceso, token=token, mensaje=mensaje, cuerpo=cuerpo)
     finally:
         acceso.cerrar()
@@ -545,3 +561,522 @@ def _ejecutor(*, token: str, caso_id: str, agente: str):
         return datos if isinstance(datos, dict) else {"resultado": datos}
 
     return ejecutar
+
+
+# ------------------------------------------------------------------ simulación
+#
+# Un profesional se pone en los zapatos de un paciente y corre un triaje de
+# prueba, para ver qué decide el modelo y compararlo con su propio criterio. Todo
+# este bloque es un camino de código aparte, y la separación es la garantía:
+# ninguna función de aquí abajo llama a `_ejecutor`, a `_lambda().invoke`, a
+# `acceso.abrir_caso`, a `acceso.caso_visible`, a `caso_abierto_de` ni a
+# `actualizar_caso`. Lo único que escribe son los turnos de la conversación y los
+# eventos de la bitácora, las dos cosas que el rol `user` de ROBLE puede crear.
+#
+# Lo que sí sigue vivo es lo que se está evaluando: el prompt, el protocolo, el
+# guardarrail de Bedrock y las salvaguardas. Una simulación que los esquivara no
+# mediría nada.
+
+# Quién puede simular. Un **paciente nunca**, y no es una cuestión de jerarquía:
+# si un paciente pudiera pedir `simulacion: true`, una urgencia real —un dolor de
+# pecho escrito en la vista del paciente— quedaría atendida por un sandbox que no
+# marca el caso, no escribe el evento `urgencia_escalada` y, sobre todo, no emite
+# `ESCALAMIENTO`, así que no dispara la alarma de CloudWatch y nadie se entera. La
+# persona recibiría el texto de la ruta de emergencia y el sistema no habría hecho
+# nada. El modo existe para evaluar, y quien evalúa es el equipo de atención.
+ROLES_QUE_SIMULAN = frozenset({PROFESIONAL, ADMIN_CMU, ADMIN_CAE})
+
+# Hoy sólo se simula el triaje: es el agente que se está evaluando y el único cuyas
+# herramientas se pueden ejecutar en seco sin inventarle datos a nadie. Simular al
+# de agenda obligaría a fabricar cupos y profesionales, y ofrecerle a la persona una
+# hora que no existe no mide nada. Pedir otro agente es un 400 explícito y no un
+# cambio silencioso: si la vista cree que evalúa agenda y se le responde con triaje,
+# la medición queda contaminada sin que nadie lo note.
+AGENTES_SIMULABLES = frozenset({agentes.TRIAJE})
+
+LIMITE_SLUG = 40
+_ALFABETO_SLUG = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-")
+
+# El paciente que se le presenta al modelo. Sin esto el prompt diría «hablas con
+# Ana Gómez, cuyo rol es profesional» y el triaje no se comportaría como el que
+# atiende a un paciente: preguntaría por el caso de otra persona en vez de por
+# cómo se siente quien escribe, y lo que se mediría sería otro agente.
+#
+# Es sintético y sirve **sólo** para `agentes.instrucciones(...)`. Las escrituras
+# siguen yendo por `acceso`, cuyo `actor` es el profesional de verdad, así que en
+# `eventos` queda su `actor_user_id` y su `actor_rol`. Invariante 1 intacto: la
+# identidad la pone el orquestador, no el modelo, y aquí tampoco la pone el modelo
+# —la pone esta constante.
+_PACIENTE_SIMULADO = Actor(
+    user_id="",
+    email="",
+    nombre="una persona de la comunidad universitaria",
+    rol=PACIENTE,
+)
+
+# Copia de `triaje._plazo`, que vive en el otro paquete de despliegue. Importarlo
+# significaría que el orquestador puede ejecutar las herramientas de verdad, que es
+# exactamente lo que esta separación impide. Si cambian los plazos del protocolo, este
+# diccionario hay que tocarlo a mano.
+_PLAZO_SIMULADO = {1: "ahora", 2: "72 horas", 3: "7 días", 4: "sin cita"}
+
+
+def _pide_simulacion(cuerpo: dict[str, Any]) -> bool:
+    """¿Esta petición es una simulación?
+
+    Se admite el booleano de JSON y también el texto, con la misma lista de
+    verdaderos que usa la validación de argumentos de la función de herramientas:
+    un cliente que serializa `true` como cadena no debería acabar corriendo una
+    conversación real por accidente.
+    """
+    valor = cuerpo.get("simulacion")
+    if isinstance(valor, bool):
+        return valor
+    return str(valor or "").strip().lower() in ("true", "1", "si", "sí", "yes")
+
+
+def _slug_de_simulacion(valor: Any) -> str:
+    """Saneado del `simulacion_id` que manda la vista.
+
+    El slug acaba dentro de `conversaciones.caso_id`, que es la clave por la que se
+    lee el hilo, así que no puede llevar nada raro: minúsculas, `[a-z0-9-]` y 40
+    caracteres. Lo que no encaja se convierte en guion en vez de descartarse, para
+    que «Dolor de pecho» siga siendo legible como `dolor-de-pecho` en la bitácora.
+
+    Si no viene o queda vacío se genera uno del reloj: la alternativa —fallar con un
+    400— obligaría a la vista a inventar identificadores para algo que es de usar y
+    tirar.
+    """
+    crudo = str(valor or "").strip().lower()
+    limpio = "".join(c if c in _ALFABETO_SLUG else "-" for c in crudo)
+    while "--" in limpio:
+        limpio = limpio.replace("--", "-")
+    limpio = limpio.strip("-")[:LIMITE_SLUG].strip("-")
+    return limpio or reloj.ahora().strftime("s-%Y%m%d-%H%M%S")
+
+
+def _simular(
+    acceso: AccesoRoble, *, mensaje: str, cuerpo: dict[str, Any]
+) -> dict[str, Any]:
+    """Corre un triaje de prueba sin efecto real, para evaluar al modelo.
+
+    **Sólo simula el equipo de atención** (`ROLES_QUE_SIMULAN`). Un paciente nunca:
+    si pudiera pedir `simulacion: true`, una urgencia real escrita en la vista del
+    paciente quedaría atendida por este sandbox, que no marca el caso, no escribe el
+    evento `urgencia_escalada` y no emite `ESCALAMIENTO`, así que no dispara la alarma
+    de CloudWatch y nadie se entera. La persona leería la ruta de emergencia y el
+    sistema no habría hecho nada. Rol no autorizado, `SinPermiso`.
+
+    Lo que cambia respecto a `_conversar`, y por qué:
+
+    * **No hay caso.** `caso_id` queda vacío, nada se escribe en `casos` y el hilo
+      se guarda bajo `simulacion:<user_id>:<slug>`. El truco ya estaba en el camino
+      real (`hilo_id = caso_id or f"consulta:{actor.user_id}"`): `caso_id` es texto
+      libre en `conversaciones`, y una columna nueva no era opción porque ROBLE no
+      admite `alter`. El prefijo además deja dicho quién simuló.
+    * **Un solo agente y una sola vuelta de `conversar`.** No hay traspaso: el
+      agente de agenda consultaría disponibilidad de cupos reales y ofrecería horas
+      que sí existen. La respuesta lo dice en `agentes`.
+    * **Las herramientas se declaran pero se ejecutan en seco.** Ver
+      `_ejecutor_simulado`.
+    * **El prompt recibe un paciente sintético y un caso sintético**, porque sin
+      ellos no se está midiendo al agente de triaje sino a otra cosa.
+
+    Lo que no cambia: el guardarrail, las salvaguardas, la garantía de la ruta de
+    emergencia, la constancia de los fallos y la memoria del hilo entre turnos.
+    """
+    actor = acceso.actor
+    if actor.rol not in ROLES_QUE_SIMULAN:
+        raise SinPermiso(f"El rol «{actor.rol}» no puede correr una simulación")
+
+    solicitado = str(cuerpo.get("agente") or "").strip().lower() or agentes.TRIAJE
+    if solicitado not in AGENTES_SIMULABLES:
+        raise SolicitudInvalida(
+            f"Todavía no se puede simular el agente «{solicitado}»",
+            publico="Por ahora sólo se puede simular el triaje.",
+        )
+    agente = agentes.AGENTES[solicitado]
+
+    slug = _slug_de_simulacion(cuerpo.get("simulacion_id"))
+    hilo_id = f"simulacion:{actor.user_id}:{slug}"
+
+    # El turno de la persona se anota como `paciente` y no con el rol real de quien
+    # escribe. Es el papel que se está interpretando: con `autor="profesional"`,
+    # `_historial` le pondría delante la marca `[profesional que atiende]`, el modelo
+    # dejaría de hablarle a un paciente y lo que se mediría sería el triaje
+    # atendiendo a un profesional —otro comportamiento, otra medición. De quién es la
+    # simulación queda constancia en dos sitios que no dependen de esto: el prefijo
+    # `simulacion:<user_id>` del hilo y el `actor_user_id` de cada evento
+    # `simulacion_triaje`.
+    acceso.anotar_mensaje(
+        caso_id=hilo_id, agente=agente.clave, autor=PACIENTE, contenido=mensaje
+    )
+
+    # Mismo historial que el camino real: la simulación tiene memoria de un turno a
+    # otro, que es justo lo que hace falta para evaluar una conversación de cinco
+    # preguntas y no cinco primeros turnos.
+    hilo = _historial(acceso, hilo_id)
+    hilo.append({"role": "user", "content": [{"text": mensaje}]})
+
+    decisiones: list[dict[str, Any]] = []
+    resultado = bedrock_conversa.conversar(
+        sistema=agentes.instrucciones(
+            agente,
+            actor=_PACIENTE_SIMULADO,
+            # Un caso sintético que no se escribe en ninguna parte. Con `caso=None`,
+            # `instrucciones` le dice al modelo que «las herramientas que necesitan un
+            # caso no están disponibles aquí», y entonces no llamaría a
+            # `canalizar_caso` ni a `escalar_urgencia`: no habría nada que evaluar.
+            caso={"_id": hilo_id, "estado": CASO_ABIERTO},
+        ),
+        mensajes=hilo,
+        herramientas=_herramientas_simuladas(agente),
+        ejecutar=_ejecutor_simulado(acceso, hilo_id=hilo_id, slug=slug, decisiones=decisiones),
+    )
+
+    texto = _con_la_ruta_de_emergencia(
+        resultado.texto, resultado.usos, intervino=resultado.intervino_guardrail
+    )
+
+    if texto:
+        acceso.anotar_mensaje(
+            caso_id=hilo_id, agente=agente.clave, autor="agente", contenido=texto
+        )
+    # Invariante 8 también aquí: si una herramienta simulada devolvió error, el turno
+    # siguiente tiene que encontrarlo escrito. Sin esa nota el modelo defiende en el
+    # turno siguiente una canalización que no ocurrió, y el profesional estaría
+    # evaluando una conversación que no se corresponde con lo que decidió el modelo.
+    _dejar_constancia_de_los_fallos(
+        acceso, hilo_id=hilo_id, agente=agente.clave, usos=resultado.usos
+    )
+
+    # Nombres de evento en minúsculas, y ni uno con el literal `ESCALAMIENTO`. De ese
+    # literal cuelga el filtro de métrica de CloudWatch (`infra/observabilidad.tf`,
+    # `pattern = "ESCALAMIENTO"`, texto plano y sensible a mayúsculas) y de ahí la
+    # alarma que avisa a una persona. Que el filtro mire hoy el grupo de la función de
+    # herramientas y esto corra en el orquestador no es la garantía: ampliar el filtro
+    # a todos los grupos de CareSync es una línea de Terraform, y entonces cada
+    # simulación levantaría a alguien de la cama.
+    evento(
+        log,
+        "simulacion_atendida",
+        caso_id=hilo_id,
+        simulacion_id=slug,
+        agentes=[agente.clave],
+        herramientas=[u.nombre for u in resultado.usos],
+        tokens_entrada=resultado.tokens_entrada,
+        tokens_salida=resultado.tokens_salida,
+        tokens_cacheados=resultado.tokens_cacheados,
+        guardrail=resultado.intervino_guardrail,
+        salvaguardas=sorted(set(resultado.salvaguardas)),
+    )
+
+    return respuesta.ok(
+        {
+            "respuesta": texto,
+            # Siempre `null`: no hay caso y no lo habrá. Si aquí fuera un objeto, la
+            # vista creería que el hilo tiene sujeto y lo reenviaría como `caso_id`
+            # en el turno siguiente.
+            "caso": None,
+            "agentes": [agente.clave],
+            "acciones": [
+                {"herramienta": u.nombre, "ok": u.ok, "resultado": u.resultado}
+                for u in resultado.usos
+            ],
+            "salvaguardas_intervinieron": resultado.intervino_guardrail,
+            "salvaguardas_detalle": sorted(set(resultado.salvaguardas)),
+            "simulacion": True,
+            # El slug ya saneado, no el que llegó: la vista lo necesita para volver a
+            # escribir en el mismo hilo en el turno siguiente.
+            "simulacion_id": slug,
+            # Sólo existe en simulación. Es lo que el profesional juzga: qué centro
+            # eligió el modelo, con qué nivel, con qué resumen y si escaló. `acciones`
+            # no sirve para eso porque no lleva los argumentos.
+            "decisiones": decisiones,
+        }
+    )
+
+
+def _herramientas_simuladas(agente: agentes.Agente) -> list[dict[str, Any]]:
+    """Las herramientas del agente, todas, sin filtrar por rol ni por caso.
+
+    Al contrario que `_herramientas_de`, aquí no se llama a `permitida(nombre, rol)`:
+    el rol real es `profesional` y `canalizar_caso` es sólo de pacientes, así que el
+    filtro dejaría al modelo sin la decisión que se le quiere medir. Tampoco se filtra
+    por `necesita_caso`, porque el caso sintético existe para el prompt.
+
+    No se toca `permitida()` ni el catálogo, y la autorización de verdad sigue
+    intacta: lo que hace que esto sea seguro no es un filtro, es que **ninguna llamada
+    sale de este proceso**. El ejecutor de abajo no habla con la función de
+    herramientas, que de todos modos volvería a comprobar el rol antes del efecto.
+    """
+    return especificaciones(agente.herramientas)
+
+
+def _ejecutor_simulado(
+    acceso: AccesoRoble, *, hilo_id: str, slug: str, decisiones: list[dict[str, Any]]
+):
+    """Devuelve el ejecutor en seco: valida igual, responde igual, no hace nada.
+
+    Lo que el modelo recibe tiene la **misma forma** que el resultado real
+    (`lambdas/herramientas/triaje.py`), con un `simulado: True` añadido para que ni
+    el modelo ni la vista confundan esto con un efecto. La forma importa: si
+    `canalizar_caso` no devolviera `agendar` y `plazo`, el modelo cerraría de otra
+    manera y lo que se mediría no sería lo que pasa en producción.
+
+    Los argumentos se validan antes, porque un error de validación es parte de lo que
+    se evalúa: si el modelo llama a `canalizar_caso` sin `resumen`, en producción
+    recibe un error y tiene que reintentar, y eso es exactamente lo que el
+    profesional tiene que ver.
+    """
+
+    def ejecutar(nombre: str, argumentos: dict[str, Any]) -> dict[str, Any]:
+        herramienta = CATALOGO.get(nombre)
+        simulador = _SIMULADORES.get(nombre)
+        if not herramienta or not simulador:
+            salida = _error_simulado(nombre, f"No existe la herramienta «{nombre}»")
+        else:
+            try:
+                limpios = _argumentos_simulados(nombre, herramienta, argumentos)
+                salida = simulador(limpios)
+            except SolicitudInvalida as exc:
+                # Igual que en la función de herramientas: el error de dominio sale
+                # dentro del resultado y no como excepción, para que el modelo lo
+                # explique en vez de romper la conversación.
+                salida = _error_simulado(nombre, exc.mensaje, publico=exc.publico)
+
+        ok = not salida.get("error")
+        decisiones.append(
+            {
+                "herramienta": nombre,
+                "argumentos": dict(argumentos) if isinstance(argumentos, dict) else {},
+                "resultado": salida,
+                "ok": ok,
+            }
+        )
+
+        # La bitácora recoge sólo las herramientas que en producción escribirían algo:
+        # consultar el estado no decide nada y cada fila en ROBLE gasta de la cuota de
+        # 100 operaciones por minuto y por IP, que una tanda de simulaciones agota.
+        if herramienta and herramienta.escribe:
+            _anotar_decision_simulada(
+                acceso,
+                hilo_id=hilo_id,
+                slug=slug,
+                nombre=nombre,
+                argumentos=argumentos,
+                ok=ok,
+            )
+        return salida
+
+    return ejecutar
+
+
+def _error_simulado(nombre: str, detalle: str, publico: str = "") -> dict[str, Any]:
+    """Un error con la misma forma que devuelve la función de herramientas."""
+    evento(log, "simulacion_herramienta_rechazada", herramienta=nombre, detalle=detalle)
+    return {
+        "error": publico or SolicitudInvalida.publico,
+        "herramienta": nombre,
+        "simulado": True,
+    }
+
+
+def _argumentos_simulados(
+    nombre: str, herramienta: Any, crudos: dict[str, Any]
+) -> dict[str, Any]:
+    """Lo mínimo de `_argumentos()` que hace falta para que el modelo vea lo mismo.
+
+    Es una copia reducida de la validación que vive en `herramientas/handler.py`, y la
+    copia es el precio de no tener aquí ningún camino que pueda producir un efecto:
+    ese módulo es otro paquete de despliegue y traerlo implicaría poder llamarlo.
+    Se comprueban las tres cosas que cambian lo que el modelo recibe —claves no
+    declaradas, argumentos requeridos y `enum`— y se recortan los enteros a su rango,
+    igual que allí. El esquema completo ya lo valida Bedrock.
+    """
+    if not isinstance(crudos, dict):
+        raise SolicitudInvalida(f"Los argumentos de {nombre} no son un objeto")
+
+    limpios: dict[str, Any] = {}
+    for clave, esquema in herramienta.propiedades.items():
+        if clave not in crudos or crudos[clave] is None:
+            continue
+        valor = crudos[clave]
+        if esquema.get("type") == "integer":
+            try:
+                numero = int(float(str(valor).strip()))
+            except (TypeError, ValueError) as exc:
+                raise SolicitudInvalida(f"{nombre}.{clave} debe ser un entero") from exc
+            minimo, maximo = esquema.get("minimum"), esquema.get("maximum")
+            if minimo is not None:
+                numero = max(int(minimo), numero)
+            if maximo is not None:
+                numero = min(int(maximo), numero)
+            limpios[clave] = numero
+            continue
+        texto = str(valor).strip()
+        opciones = esquema.get("enum")
+        if opciones and texto not in opciones:
+            raise SolicitudInvalida(
+                f"{nombre}.{clave} debe ser uno de: {', '.join(map(str, opciones))}"
+            )
+        limpios[clave] = texto
+
+    faltan = [c for c in herramienta.requeridos if c not in limpios]
+    if faltan:
+        raise SolicitudInvalida(f"A {nombre} le faltan argumentos: {', '.join(faltan)}")
+    return limpios
+
+
+def _anotar_decision_simulada(
+    acceso: AccesoRoble,
+    *,
+    hilo_id: str,
+    slug: str,
+    nombre: str,
+    argumentos: dict[str, Any],
+    ok: bool,
+) -> None:
+    """Deja la decisión en la bitácora, para poder contarlas después.
+
+    La vista del profesional lista estos eventos para llevar la cuenta de cuánto
+    coincidió el modelo con su criterio, así que el `detalle` lleva el centro y el
+    nivel cuando los haya: sin ellos el evento no sirve para comparar nada.
+
+    La severidad es `info` siempre, incluso en un nivel 1. Un escalamiento simulado
+    con severidad `critica` aparecería en la bitácora igual que uno de verdad, y
+    quien revise los casos urgentes perdería el tiempo en uno que nunca existió.
+
+    Si la escritura falla, la simulación no se cae: el profesional pierde el registro
+    de la decisión, pero no la conversación que estaba evaluando.
+    """
+    detalle: dict[str, Any] = {
+        "simulacion_id": slug,
+        "herramienta": nombre,
+        "ok": ok,
+        "simulado": True,
+    }
+    if isinstance(argumentos, dict):
+        for clave in ("centro", "nivel_urgencia", "motivo", "resumen"):
+            if argumentos.get(clave) not in (None, ""):
+                detalle[clave] = argumentos[clave]
+
+    try:
+        acceso.registrar_evento(
+            caso_id=hilo_id, tipo="simulacion_triaje", severidad="info", detalle=detalle
+        )
+    except Exception as exc:  # noqa: BLE001 - la simulación sigue sin su bitácora
+        evento(
+            log,
+            "simulacion_sin_bitacora",
+            caso_id=hilo_id,
+            herramienta=nombre,
+            detalle=type(exc).__name__,
+        )
+
+    # El campo se llama `nivel_urgencia` y no `nivel`: `evento()` tiene un parámetro
+    # propio llamado `nivel` —el nivel de log— y pasarle un 1 como campo del evento no
+    # falla, registra la línea con nivel 1, por debajo de DEBUG, y la línea desaparece
+    # del log entera.
+    evento(
+        log,
+        "simulacion_decision",
+        caso_id=hilo_id,
+        simulacion_id=slug,
+        herramienta=nombre,
+        centro=detalle.get("centro"),
+        nivel_urgencia=detalle.get("nivel_urgencia"),
+        ok=ok,
+    )
+
+
+# ------------------------------------------- resultados en seco, por herramienta
+
+def _simular_canalizar_caso(argumentos: dict[str, Any]) -> dict[str, Any]:
+    """Misma forma que `triaje.canalizar_caso`, sin tocar el caso.
+
+    El nivel 1 se trata igual que en el real: ahí `canalizar_caso` llama a
+    `escalar_urgencia` y devuelve `agendar: False` con la ruta de emergencia en
+    `decir_a_la_persona`. Si aquí no se reprodujera, el nivel 1 —la decisión más
+    importante que puede tomar el triaje— sería lo único que la simulación no
+    permitiría evaluar.
+    """
+    centro = argumentos["centro"]
+    nivel = int(argumentos["nivel_urgencia"])
+
+    if nivel == 1:
+        return {
+            "ok": True,
+            "simulado": True,
+            "centro": centro,
+            "nivel_urgencia": nivel,
+            "agendar": False,
+            "decir_a_la_persona": agentes.RUTA_EMERGENCIA,
+        }
+
+    return {
+        "ok": True,
+        "simulado": True,
+        "centro": centro,
+        "nivel_urgencia": nivel,
+        "agendar": True,
+        "plazo": _PLAZO_SIMULADO.get(nivel, "7 días"),
+        # El real dice aquí que el caso pasa al agente de agenda. En la simulación no
+        # hay traspaso, y dejar esa frase haría que el modelo se despidiera prometiendo
+        # una cita que nadie va a buscar.
+        "siguiente": (
+            "Cierra tú aquí: dile a la persona a qué centro queda canalizada y en qué "
+            "plazo. No agendes ni prometas una hora."
+        ),
+    }
+
+
+def _simular_escalar_urgencia(argumentos: dict[str, Any]) -> dict[str, Any]:
+    """Misma forma que `triaje.escalar_urgencia`, sin ninguna de sus cuatro escrituras.
+
+    `avisado_el_equipo` va en `False` por la misma razón por la que no se emite
+    `ESCALAMIENTO`: no se avisó a nadie, y decirle al modelo que sí le haría
+    prometerle a la persona un contacto humano que no existe (invariante 7).
+    """
+    return {
+        "ok": True,
+        "simulado": True,
+        "decir_a_la_persona": agentes.RUTA_EMERGENCIA,
+        "avisado_el_equipo": False,
+        "agendar": False,
+        "instruccion": (
+            "Di ese texto tal cual, antes de cualquier otra cosa. No agendes ni "
+            "sigas preguntando por síntomas. Después acompaña a la persona."
+        ),
+    }
+
+
+def _simular_consultar_estado_caso(_argumentos: dict[str, Any]) -> dict[str, Any]:
+    """Un caso recién abierto, sin leer ROBLE.
+
+    Plausible y vacío a propósito: es el estado en el que de verdad está un caso
+    cuando el triaje lo consulta en su primer turno, y así el modelo no se ahorra
+    ninguna pregunta que en producción tendría que hacer.
+    """
+    return {
+        "simulado": True,
+        "estado": CASO_ABIERTO,
+        "centro": None,
+        "nivel_urgencia": None,
+        "motivo": "Caso de prueba abierto en esta simulación",
+        "resumen_triaje": None,
+        "abierto_desde": reloj.humano(reloj.ahora()),
+        "citas": [],
+        "tiene_plan": False,
+        "indicaciones_activas": 0,
+    }
+
+
+# Qué se puede ejecutar en seco. Una herramienta del agente que no esté aquí devuelve
+# error de dominio en vez de inventarse un resultado: un resultado improvisado se
+# evaluaría como si fuera el del sistema.
+_SIMULADORES = {
+    "canalizar_caso": _simular_canalizar_caso,
+    "escalar_urgencia": _simular_escalar_urgencia,
+    "consultar_estado_caso": _simular_consultar_estado_caso,
+}
