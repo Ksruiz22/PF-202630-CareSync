@@ -157,6 +157,28 @@ export interface EventoCaso extends Fila {
   creado_en?: string;
 }
 
+/**
+ * Una llamada a herramienta que el modelo **habría** hecho, y no hizo.
+ *
+ * Sólo existe en el modo simulación de `POST /agente`: el backend corre el turno
+ * entero pero sustituye la ejecución de cada herramienta por esta anotación, así que
+ * `resultado` es lo que la herramienta *habría* devuelto y no el efecto de haberla
+ * ejecutado. Nada de esto abrió un caso, agendó, mandó un correo ni disparó la alarma
+ * de urgencias.
+ *
+ * Las dos que importan para juzgar el triaje son `canalizar_caso`, con `{ centro,
+ * nivel_urgencia, resumen }` en `argumentos`, y `escalar_urgencia`, con `{ motivo }`.
+ * `argumentos` queda como `Record<string, unknown>` a propósito: los nombres los pone
+ * el catálogo de herramientas del backend, y declararlos aquí uno por uno sería una
+ * segunda copia de ese catálogo que se quedaría vieja sola.
+ */
+export interface DecisionSimulada {
+  herramienta: string;
+  argumentos: Record<string, unknown>;
+  resultado: unknown;
+  ok: boolean;
+}
+
 /** Lo que devuelve `POST /agente`. Debe coincidir con `_conversar` del orquestador. */
 export interface RespuestaAgente {
   respuesta: string;
@@ -176,6 +198,19 @@ export interface RespuestaAgente {
   agentes: string[];
   acciones: Array<{ herramienta: string; ok: boolean; resultado?: unknown }>;
   salvaguardas_intervinieron: boolean;
+  /**
+   * Los tres campos de abajo **sólo llegan cuando el turno fue una simulación**, y por
+   * eso son opcionales: en un turno normal el backend no los manda.
+   *
+   * Que `simulacion` sea `true` es la confirmación de que no hubo efecto real, no un
+   * adorno: un turno que se pidió como simulación y vuelve sin esta marca —o con un
+   * `caso` que no es nulo— significa que algo se ejecutó de verdad, y quien lo monte
+   * debería decirlo en voz alta antes de que el profesional siga escribiendo.
+   */
+  simulacion?: boolean;
+  /** El slug ya saneado por el backend. Se usa éste, no el que propuso la PWA. */
+  simulacion_id?: string;
+  decisiones?: DecisionSimulada[];
 }
 
 export interface Turno {
