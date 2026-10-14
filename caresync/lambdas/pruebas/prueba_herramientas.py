@@ -138,6 +138,68 @@ def probar_canalizar() -> None:
                     {"inicio": "2026-10-01T09:00:00-05:00"}) is not None)
 
 
+class _AccesoConAgenda(AccesoFalso):
+    """Un cupo libre a las 08:30 de Bogotá, y un `insert` que miente como el de ROBLE.
+
+    ROBLE guarda las fechas sin zona y, al releerlas, las devuelve en UTC sin sufijo
+    («2026-10-14T13:30»). Pero la fila que devuelve al **insertar** viene con la hora
+    reinterpretada en la zona de su servidor, Colombia: «2026-10-14T18:30:00.000Z».
+    Así lo mostró una cita real del 14/10 que el agente confirmó a las 13:30.
+    """
+
+    CUPO = {"_id": "cupo-1", "centro": "CMU", "profesional_id": "p-1", "inicio": "2026-10-14T13:30",
+            "fin": "2026-10-14T14:00", "estado": "libre", "modalidad": "presencial"}
+
+    def citas_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+        return []
+
+    def cupos_libres(self, **_filtros: Any) -> list[dict[str, Any]]:
+        return [dict(self.CUPO)]
+
+    def reservar_cupo(self, *, cupo_id: str, caso_id: str) -> dict[str, Any]:
+        return {**self.CUPO, "estado": "reservado", "caso_id": caso_id}
+
+    def confirmar_cita(self, *, cupo_id: str, caso_id: str) -> dict[str, Any]:
+        return self._escribir("cita", {"caso_id": caso_id, "centro": "CMU", "profesional_nombre": "Dra. Prueba",
+                                       "inicio": "2026-10-14T18:30:00.000Z"})
+
+
+def probar_agendar() -> None:
+    print("\nAgendar una cita")
+    agenda.correo.config = lambda: type("Sin", (), {"envia_correo": False, "correo_remitente": ""})()
+    acceso = _AccesoConAgenda(ActorFalso("paciente"))
+    salida = agenda.agendar_cita(acceso, {"_id": "k", "centro": "CMU", "nivel_urgencia": 2},
+                                 {"inicio": "2026-10-14T08:30:00-05:00"})
+    comprobar("la hora que se le confirma a la persona es la del cupo: 08:30 de Bogotá",
+              "08:30" in str(salida.get("cuando")), str(salida.get("cuando")))
+    evento_cita = [d for que, d in acceso.escrito if que == "evento" and d.get("tipo") == "cita_agendada"]
+    comprobar("y la bitácora guarda la del cupo, no la que devolvió el insert",
+              evento_cita and evento_cita[0]["detalle"]["inicio"] == "2026-10-14T13:30")
+
+
+def probar_notificar_sin_correo() -> None:
+    print("\nAvisar al profesional cuando el correo no sale")
+
+    class _ConCita(AccesoFalso):
+        def citas_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+            return [{"_id": "c-1", "inicio": "2026-10-14T13:30", "centro": "CMU", "profesional_id": "p-1",
+                     "profesional_nombre": "Dra. Prueba"}]
+
+        def eventos_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+            return []
+
+        def profesional(self, profesional_id: str) -> dict[str, Any]:
+            return {"email": "dra.prueba@ejemplo.edu.co"}
+
+    agenda.correo.config = lambda: type("Sin", (), {"envia_correo": False, "correo_remitente": ""})()
+    salida = agenda.notificar_profesional(_ConCita(ActorFalso("paciente")),
+                                          {"_id": "k", "paciente_nombre": "X", "nivel_urgencia": 2}, {})
+    instruccion = str(salida.get("instruccion", ""))
+    comprobar("sin correo, no le pide al agente prometer contacto (invariante 7)",
+              salida.get("enviado") is False and "contactará" not in instruccion
+              and "no prometas" in instruccion, instruccion)
+
+
 class _AccesoConEvolucion(AccesoFalso):
     def __init__(self, previas: list[int]) -> None:
         super().__init__(ActorFalso("paciente"))
@@ -211,6 +273,8 @@ def main() -> int:
     for prueba in (
         probar_escalar_urgencia,
         probar_canalizar,
+        probar_agendar,
+        probar_notificar_sin_correo,
         probar_retroceso,
         probar_horarios_legibles,
     ):
