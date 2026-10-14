@@ -136,7 +136,7 @@ hasta donde dé.
 > Si trabajas en infraestructura o en la PWA, pregúntalo antes de darlo por hecho: el
 > cronograma del informe sí tiene fechas comprometidas con los asesores.
 
-## Estado (al 26 de septiembre de 2026)
+## Estado (al 14 de octubre de 2026)
 
 > Esta sección caduca. Si al leerla la fecha queda lejos, contrástala con `git log` y
 > con `GET /salud` antes de fiarte, y actualízala o bórrala.
@@ -149,11 +149,19 @@ Hecho: infraestructura aplicada, PWA publicada, 14 tablas, 3 Lambdas, catálogo 
 herramientas, protocolo con fundamento, criterios medibles e historial de revisiones,
 banco de 40 casos **con guion de respuestas** y banco adversarial de 24 intentos.
 
-**Medido**, por primera vez, con el antes y el después en `evaluacion/informes/`
-(el índice está en su `README.md`). Con los PR #18 a #21 desplegados: alarmas
-escaladas 36/36 en tres corridas (M2), centro correcto 23/26 (M1, 88,5 %), un
-sub-triaje (M3), ninguna respuesta prohibida en el banco adversarial (M8) y ninguna
-consulta legítima bloqueada.
+**Medido**, con el antes y el después en `evaluacion/informes/` (el índice está en su
+`README.md`). La última corrida, del 14/10, midió esta versión antes de fusionarla,
+con el orquestador en local contra el Bedrock, la salvaguarda y el ROBLE reales:
+alarmas escaladas 36/36 en tres corridas (M2), centro correcto 25/26 (M1, 96,2 %),
+ningún sub-triaje en casos de nivel 2 (M3), ninguna respuesta prohibida en 26
+intentos adversariales (M8) y ninguna consulta legítima bloqueada.
+
+La consulta del profesional se probó de punta a punta el 14/10 con una médica de
+prueba: triaje y cita por los agentes, plan dictado por voz (Transcribe), ordenado,
+revisado y guardado, y seguimiento con evolución, adherencia y alertas. Esa prueba
+destapó y dejó corregidos cuatro fallos que estaban en producción: la hora de la cita
+confirmada corrida cinco horas, la promesa de que «el centro la contactará», la
+evolución registrada dos veces y la adherencia que no se registraba.
 
 La salvaguarda deniega dos temas, diagnóstico y prescripción. Había un tercero,
 `sustituir_urgencia`, y se quitó: reconocía el asunto de la urgencia y no la postura,
@@ -164,15 +172,19 @@ Pendiente:
 
 - **Operación** (Alejandro): el remitente de SES; las credenciales de servicio en
   Parameter Store; la causa de un 500 puntual del 26/09 hacia las 19:33
-  (`fallo_no_previsto` en CloudWatch), que no se reprodujo al repetir el caso; y el
-  filtro `MISCONDUCT` de entrada, que todavía corta «certificado para justificar una
-  falla».
-- **Agenda**: al 26/09 no hay ningún cupo libre a futuro en ninguno de los dos
-  centros. Los profesionales y sus horarios existen, pero los cupos publicados
-  vencieron el 24/09, y sin publicarlos de nuevo desde la vista administrativa el
-  agente de agenda responde siempre que no hay espacios.
-- **Triaje**: dos sobre-derivaciones a urgencias y un sub-triaje, descritos caso por
-  caso en el índice de informes.
+  (`fallo_no_previsto` en CloudWatch), que no se reprodujo al repetir el caso; y medir
+  después de aplicar los dos filtros que bajó esta versión (`HATE` de salida,
+  `MISCONDUCT` de entrada). `VIOLENCE` de salida cortó una respuesta legítima el 14/10.
+- **Agenda**: los únicos cupos a futuro son los de la médica de prueba (14 y 15/10).
+  Los de los demás profesionales vencieron el 24/09; sin publicarlos desde la vista
+  administrativa, el agente de agenda responde que no hay espacios.
+- **Triaje**: una sobre-derivación (`ambiguo-violencia-02`, pregunta 5 del protocolo)
+  y un sub-triaje de nivel 3 a 4 (`cae-09`), descritos en el índice de informes.
+- **Cuentas**: la cuenta del `evaluacion/.env` de Kevin pasó a `admin_plataforma`, así
+  que el evaluador del triaje recibe 403 con ella; hace falta una de paciente. Al
+  escribir una fila de `perfiles` a mano, el `user_id` es `userId` (el `sub` del
+  token) de `GET /auth/<contrato>/me`, **no** su `id`: con el `id`, la cuenta entra
+  como paciente aunque la fila diga otro rol.
 
 Ciclo de vida del caso: `cerrado` lo escribe el profesional desde su consulta, con
 el evento `caso_cerrado` en la bitácora, y un paciente no reabre un caso cerrado
