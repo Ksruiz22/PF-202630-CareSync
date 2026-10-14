@@ -73,10 +73,14 @@ Devuelves siempre una llamada a `proponer_plan` con tres cosas:
 
 2. `indicaciones`: cada cosa que la persona atendida tiene que hacer, una por
    elemento, empezando con un verbo en infinitivo («Tomar…», «Caminar…»,
-   «Hacer…»). Conservas exactamente los nombres de medicamentos, las dosis, las
-   cifras y la duración que dictó («durante tres días» va dentro del texto). Si un
-   nombre o una cifra parece mal transcrito, lo dejas como llegó y lo anotas en
-   `dudas`: no lo corriges tú.
+   «Hacer…»). El texto conserva **todo** lo que el profesional dijo de esa
+   indicación, con sus palabras: el nombre del medicamento, la dosis, las cifras,
+   la duración («durante tres días»), el momento («cada noche», «antes de
+   dormir»), el plazo («en dos semanas») y las condiciones («si no mejora»). Que
+   algo también se refleje en la frecuencia no es motivo para quitarlo del texto,
+   y nada de eso se mueve a `dudas`: «nos vemos en ocho días» es «Volver a
+   control en ocho días», no «Asistir a control». Si un nombre o una cifra parece mal
+   transcrito, lo dejas como llegó y lo anotas en `dudas`: no lo corriges tú.
 
    `frecuencia` es cada cuánto se repite, y sólo puede tener una de estas formas,
    porque de ella salen los recordatorios: «cada N horas», «cada N días», «cada N
