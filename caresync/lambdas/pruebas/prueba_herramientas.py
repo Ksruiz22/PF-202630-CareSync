@@ -200,6 +200,28 @@ def probar_notificar_sin_correo() -> None:
               and "no prometas" in instruccion, instruccion)
 
 
+def probar_adherencia() -> None:
+    print("\nAdherencia con un identificador que no es del plan")
+
+    class _ConPlan(AccesoFalso):
+        def indicaciones_activas(self, caso_id: str) -> list[dict[str, Any]]:
+            return [{"_id": "ind-1", "texto": "Tomar acetaminofén"}, {"_id": "ind-2", "texto": "Hacer gárgaras"}]
+
+        def registrar_adherencia(self, **datos: Any) -> None:
+            self._escribir("adherencia", datos)
+
+    acceso = _ConPlan(ActorFalso("paciente"))
+    salida = seguimiento.registrar_adherencia(acceso, {"_id": "k"}, {"indicacion_id": "de-otro-turno", "cumplida": False})
+    comprobar("no escribe nada sobre un identificador ajeno", acceso.escrito == [])
+    comprobar("y le devuelve al agente las indicaciones de verdad para corregir en la misma vuelta",
+              salida.get("error") and [i["indicacion_id"] for i in salida.get("indicaciones_activas", [])] == ["ind-1", "ind-2"],
+              str(salida))
+
+    salida = seguimiento.registrar_adherencia(acceso, {"_id": "k"}, {"indicacion_id": "ind-2", "cumplida": False, "nota": "duele"})
+    comprobar("con el identificador correcto registra, y el incumplimiento deja evento",
+              salida.get("ok") is True and [que for que, _ in acceso.escrito] == ["adherencia", "evento"])
+
+
 class _AccesoConEvolucion(AccesoFalso):
     def __init__(self, previas: list[int]) -> None:
         super().__init__(ActorFalso("paciente"))
@@ -240,6 +262,27 @@ def probar_retroceso() -> None:
     comprobar("y al agente no se le pide que interprete",
               "no lo interpretes" in str(salida.get("instruccion")))
 
+    # El mismo número hace un momento es el mismo reporte (prueba de punta a punta del
+    # 14/10: el agente registró dos veces el 3 y dejó dos alertas por una caída).
+    hace_un_rato = _AccesoConEvolucion([6, 3])
+    hace_un_rato._previas[-1]["reportado_en"] = seguimiento.reloj.iso(seguimiento.reloj.mas(minutos=-10))
+    salida = seguimiento.registrar_evolucion(hace_un_rato, {"_id": "k", "estado": "en_seguimiento"}, {"escala": 3})
+    comprobar("repetir la escala de hace 10 minutos no escribe ni alerta otra vez",
+              salida.get("repetido") is True and hace_un_rato.escrito == [], str(hace_un_rato.escrito))
+    comprobar("y le recuerda al agente que la adherencia va aparte",
+              "registrar_adherencia" in str(salida.get("instruccion")))
+
+    otro_numero = _AccesoConEvolucion([6])
+    otro_numero._previas[-1]["reportado_en"] = seguimiento.reloj.iso(seguimiento.reloj.mas(minutos=-10))
+    seguimiento.registrar_evolucion(otro_numero, {"_id": "k", "estado": "en_seguimiento"}, {"escala": 3})
+    comprobar("un número distinto hace un momento sí es un reporte nuevo",
+              any(que == "evolucion" for que, _ in otro_numero.escrito))
+
+    al_dia_siguiente = _AccesoConEvolucion([3])
+    seguimiento.registrar_evolucion(al_dia_siguiente, {"_id": "k", "estado": "en_seguimiento"}, {"escala": 3})
+    comprobar("el mismo número otro día también es un dato",
+              any(que == "evolucion" for que, _ in al_dia_siguiente.escrito))
+
     primera = _AccesoConEvolucion([])
     seguimiento.registrar_evolucion(primera, {"_id": "k", "estado": "agendado"}, {"escala": 6})
     comprobar("el primer reporte pasa el caso a seguimiento",
@@ -276,6 +319,7 @@ def main() -> int:
         probar_agendar,
         probar_notificar_sin_correo,
         probar_retroceso,
+        probar_adherencia,
         probar_horarios_legibles,
     ):
         prueba()

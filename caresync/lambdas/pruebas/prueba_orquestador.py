@@ -338,6 +338,17 @@ def probar_instrucciones() -> None:
     comprobar("y mandar a un canal que no está en las instrucciones",
               "No mandas a la persona a otro canal" in agentes._COMUN)
 
+    # Prueba de punta a punta del 14/10: «no hice las gárgaras» acabó en un segundo
+    # registro de evolución, sin adherencia, y el agente dijo «quedó registrado».
+    seguimiento = agentes._SEGUIMIENTO
+    comprobar("seguimiento: la evolución se registra una vez por reporte", "una vez\n   por reporte" in seguimiento)
+    comprobar("seguimiento: lo que hizo o no hizo va a registrar_adherencia",
+              "Eso no se registra con `registrar_evolucion`" in seguimiento)
+    comprobar("seguimiento: no dice «quedó registrado» sin una herramienta que lo registre",
+              "Sólo dices que algo quedó registrado si lo registró una herramienta" in seguimiento)
+    comprobar("seguimiento: ir peor sin señal de alarma no se escala",
+              "Ir peor sin\n   señal de alarma no se escala" in seguimiento)
+
 
 def main() -> int:
     for prueba in (

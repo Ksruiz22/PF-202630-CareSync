@@ -17,10 +17,10 @@ dice a la persona que va peor.
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from typing import Any
 
 from caresync_comun import reloj
-from caresync_comun.errores import SolicitudInvalida
 from caresync_comun.registro import evento, registro
 from caresync_comun.roble_acceso import CASO_SEGUIMIENTO, AccesoRoble, fila_id
 
@@ -30,6 +30,10 @@ log = registro(__name__)
 # empeoramiento y no la variación normal de cómo alguien se siente un día u otro.
 CAIDA_RELEVANTE = int(os.environ.get("CAIDA_RELEVANTE", "3"))
 ESCALA_PREOCUPANTE = int(os.environ.get("ESCALA_PREOCUPANTE", "3"))
+# Dentro de esta ventana, la misma escala que el último reporte es ese reporte otra
+# vez y no uno nuevo. Una hora: nadie reporta dos veces lo mismo tan seguido a
+# propósito, y al día siguiente el mismo número sí es un dato.
+VENTANA_REPETIDO = timedelta(hours=1)
 
 
 # ------------------------------------------------------------------- consultar
@@ -105,6 +109,24 @@ def registrar_evolucion(
     previos = acceso.evolucion_del_caso(caso_id)
     anterior = _escala_de(previos[-1]) if previos else None
 
+    # El mismo número hace un momento es el mismo reporte, no uno nuevo. Pasó en una
+    # prueba de punta a punta: la persona dijo «no hice las gárgaras» y el agente, en
+    # vez de registrar la adherencia, volvió a registrar el 3 de antes. Quedaron dos
+    # filas de evolución y dos alertas de retroceso por una sola caída.
+    if previos and anterior == escala:
+        cuando = reloj.desde_iso(previos[-1].get("reportado_en"))
+        if cuando and reloj.ahora() - cuando < VENTANA_REPETIDO:
+            return {
+                "ok": True,
+                "repetido": True,
+                "escala": escala,
+                "instruccion": (
+                    "Ese reporte ya estaba registrado hace un momento: no se guardó otra "
+                    "vez. Si la persona habló de una indicación, eso va con "
+                    "registrar_adherencia."
+                ),
+            }
+
     acceso.registrar_evolucion(caso_id=caso_id, escala=escala, nota=nota)
     _marcar_en_seguimiento(acceso, caso, caso_id)
 
@@ -178,10 +200,23 @@ def registrar_adherencia(
     activas = {str(fila_id(i)): i for i in acceso.indicaciones_activas(caso_id)}
     indicacion = activas.get(indicacion_id)
     if not indicacion:
-        raise SolicitudInvalida(
-            "Ese identificador de indicación no está en el plan activo de este caso. "
-            "Vuelve a consultar el plan."
-        )
+        # Se devuelve, no se lanza, y con las indicaciones de verdad: es lo que pasa
+        # cuando el modelo arrastra un identificador de un turno anterior —los
+        # resultados de herramientas no vuelven en el historial—, y así lo corrige en
+        # esta misma vuelta. Lanzado, el modelo leía sólo «No entendí la solicitud»
+        # (el `publico` de serie): en una prueba del 14/10 se quedó sin registrar que
+        # la persona no había hecho las gárgaras.
+        evento(log, "indicacion_no_encontrada", caso_id=caso_id)
+        return {
+            "error": "Ese identificador no está en el plan activo de este caso.",
+            "indicaciones_activas": [
+                {"indicacion_id": clave, "texto": fila.get("texto")} for clave, fila in activas.items()
+            ],
+            "instruccion": (
+                "Elige de esta lista la indicación de la que habló la persona y vuelve a "
+                "llamar a registrar_adherencia con su indicacion_id, ahora."
+            ),
+        }
 
     acceso.registrar_adherencia(
         caso_id=caso_id, indicacion_id=indicacion_id, cumplida=cumplida, nota=nota
