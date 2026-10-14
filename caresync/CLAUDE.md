@@ -25,6 +25,10 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 | Autorización, traspaso, historial, respuesta de `/agente` | `lambdas/orquestador/handler.py` |
 | El modo simulación de `/agente` (triaje de prueba sin efecto) | `_simular` y el bloque final de `lambdas/orquestador/handler.py` + `lambdas/pruebas/prueba_simulacion.py` |
 | Lo que ve el profesional: agenda, historial de triajes, simulador | `app/src/vistas/Profesional.tsx` (las tres pestañas), `HistorialDeTriajes.tsx`, `SimuladorDeTriaje.tsx` |
+| El plan dictado: propuesta, revisión y guardado | `app/src/componentes/EditorDelPlan.tsx` + `app/src/consulta.ts`; en el backend `lambdas/orquestador/plan_propuesta.py` (`POST /plan/propuesta`) |
+| El dictado por voz (Amazon Transcribe en tiempo real) | `app/src/dictado.ts` (micrófono, remuestreo, *event stream*) + `lambdas/orquestador/dictado.py` (`POST /dictado/sesion`, la URL firmada) |
+| El progreso del paciente: alertas, evolución, adherencia | `app/src/componentes/Progreso.tsx` |
+| Qué frecuencias generan recordatorios | `lambdas/comun/caresync_comun/frecuencia.py` (la usan recordatorios y la propuesta del plan) y su espejo `app/src/frecuencia.ts` |
 | Leer el hilo de un caso desde la PWA | `app/src/conversaciones.ts` (dos miradas: la de la persona y la del profesional) |
 | Criterios clínicos, niveles, matriz CMU/CAE | `protocolos/triaje-v0.md` (fuente única; se copia al paquete al construir) |
 | Texto de emergencia | `protocolos/ruta-emergencia.md` (fuente única, la usan los 3 agentes) |
@@ -46,7 +50,12 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
    declarar las herramientas y otra vez en `herramientas/handler.py` antes del
    efecto. Un prompt no es un control de acceso.
 3. **El plan clínico lo escribe el profesional.** No existe herramienta que cree o
-   modifique una indicación, y no se añade.
+   modifique una indicación, y no se añade. `POST /plan/propuesta` no lo cambia:
+   ordena en resumen e indicaciones lo que el profesional dictó, **no escribe nada**, y
+   lo que llega a ROBLE es lo que él corrige y confirma, guardado por la PWA con su
+   token. Esa ruta corre sin la salvaguarda de los agentes —negaría la prescripción
+   que el profesional dicta— y por eso sólo la acepta el rol `profesional`
+   (`_solo_profesional`). Si un día guardara la propuesta, este invariante caería.
 4. **El protocolo tiene una sola copia** (`protocolos/`). Nunca lo repitas dentro de
    un prompt en Python: `construir_paquetes.sh` lo inyecta en el paquete.
 5. **`ESCALAMIENTO`** en mayúsculas, literal, en `triaje.escalar_urgencia`: es el
