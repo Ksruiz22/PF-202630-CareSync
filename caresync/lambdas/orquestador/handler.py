@@ -18,6 +18,11 @@ Hay un segundo camino, el **modo simulación** (`simulacion: true` en el cuerpo)
 un profesional se pone en los zapatos de un paciente para evaluar al modelo, y
 nada de lo que pase ahí tiene efecto real. Vive al final del archivo, separado del
 camino real a propósito; ver la sección «simulación».
+
+Y dos rutas que no son de ningún agente, para la consulta del profesional:
+`POST /plan/propuesta` ordena en un plan lo que el profesional dictó o escribió, sin
+guardarlo, y `POST /dictado/sesion` le firma la conexión a Amazon Transcribe para que
+pueda dictar. Están en la sección «consulta del profesional».
 """
 
 from __future__ import annotations
@@ -60,6 +65,8 @@ from caresync_comun.roble_acceso import (
 
 import agentes
 import bedrock_conversa
+import dictado
+import plan_propuesta
 
 log = registro("orquestador")
 
@@ -80,6 +87,10 @@ def manejar(evento_entrada: dict[str, Any], contexto: Any = None) -> dict[str, A
     try:
         if ruta.endswith("/salud") or evento_entrada.get("accion") == "salud":
             return respuesta.ok(_salud())
+        if ruta == "POST /plan/propuesta":
+            return _proponer_plan(evento_entrada)
+        if ruta == "POST /dictado/sesion":
+            return _sesion_de_dictado(evento_entrada)
         return _atender(evento_entrada)
     except ErrorDeCareSync as exc:
         evento(
@@ -153,6 +164,66 @@ def _atender(entrada: dict[str, Any]) -> dict[str, Any]:
         return _conversar(acceso, token=token, mensaje=mensaje, cuerpo=cuerpo)
     finally:
         acceso.cerrar()
+
+
+# ------------------------------------------------------ consulta del profesional
+#
+# Dos ayudas para escribir el plan, y ninguna escribe nada: la propuesta devuelve el
+# texto ordenado para que el profesional lo corrija y lo guarde él desde la PWA, con su
+# token, y el dictado sólo firma una conexión. Por eso ninguna de las dos pasa por la
+# función de herramientas ni toca ROBLE más allá de validar quién llama.
+
+
+def _proponer_plan(entrada: dict[str, Any]) -> dict[str, Any]:
+    acceso = _solo_profesional(entrada)
+    try:
+        cuerpo = respuesta.cuerpo_del_evento(entrada)
+        propuesta = plan_propuesta.proponer(str(cuerpo.get("texto") or ""))
+        # Sin el texto ni la propuesta: lo dictado es un plan de tratamiento, y el log
+        # técnico no es sitio para datos de salud. Las cuentas bastan para saber si la
+        # ruta se usa y si el modelo deja dudas.
+        evento(
+            log,
+            "plan_propuesto",
+            profesional=acceso.actor.user_id,
+            indicaciones=len(propuesta["indicaciones"]),
+            dudas=len(propuesta["dudas"]),
+        )
+        return respuesta.ok(propuesta)
+    finally:
+        acceso.cerrar()
+
+
+def _sesion_de_dictado(entrada: dict[str, Any]) -> dict[str, Any]:
+    acceso = _solo_profesional(entrada)
+    try:
+        sesion = dictado.url_firmada()
+        evento(log, "dictado_firmado", profesional=acceso.actor.user_id)
+        return respuesta.ok(sesion)
+    finally:
+        acceso.cerrar()
+
+
+def _solo_profesional(entrada: dict[str, Any]) -> AccesoRoble:
+    """Quien llama, si es un profesional. El rol lo dice ROBLE, no el cuerpo.
+
+    Las dos rutas son del profesional y de nadie más: la propuesta corre sin la
+    salvaguarda de los agentes —quien prescribe ahí es él— y el dictado abre Transcribe
+    con el rol de la Lambda. Un paciente que las llamara recibiría un 403 aunque la
+    vista nunca le muestre el botón: el permiso se comprueba en el lado del efecto.
+    """
+    token = respuesta.token_del_evento(entrada)
+    if not token:
+        raise NoAutorizado("La petición no trae cabecera Authorization")
+    acceso = AccesoRoble.desde_token(token)
+    if acceso.actor.rol != PROFESIONAL:
+        rol = acceso.actor.rol
+        acceso.cerrar()
+        raise SinPermiso(
+            f"El rol «{rol}» no puede usar las ayudas de la consulta",
+            publico="Esto es sólo para profesionales que atienden.",
+        )
+    return acceso
 
 
 # ------------------------------------------------------------- conversación
