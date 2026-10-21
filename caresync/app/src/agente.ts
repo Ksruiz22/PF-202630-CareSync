@@ -78,32 +78,51 @@ export async function hablar({
   agente,
   simulacion,
 }: PeticionAgente): Promise<RespuestaAgente> {
-  const token = tokenActual();
-  if (!token) throw new ErrorDelAgente(401, 'No hay sesión activa.');
-
   // Un turno con herramientas puede tardar: el modelo hace varias vueltas y cada
   // una escribe en ROBLE. 45 s es holgado y aun así menor que el tiempo de espera
   // de la Lambda, para que el error que vea la persona sea el nuestro.
+  return pedirAlApi<RespuestaAgente>(
+    '/agente',
+    {
+      mensaje,
+      ...(casoId ? { caso_id: casoId } : {}),
+      ...(agente ? { agente } : {}),
+      // Las dos claves van juntas o no va ninguna: el backend lee el modo de
+      // `simulacion` y el hilo de `simulacion_id`, y una sin la otra es una
+      // petición que no sabría dónde escribir.
+      ...(simulacion ? { simulacion: true, simulacion_id: simulacion.id } : {}),
+    },
+    { esperaMs: 45000 }
+  );
+}
+
+/**
+ * Un `POST` al API de CareSync con el token de la sesión.
+ *
+ * Lo usan `hablar` y las ayudas de la consulta del profesional (`consulta.ts`), que
+ * van al mismo orquestador por otras rutas. Los errores salen siempre como
+ * `ErrorDelAgente` con el mensaje público del backend, nunca con el detalle interno.
+ */
+export async function pedirAlApi<T>(
+  ruta: string,
+  cuerpo: unknown,
+  { esperaMs }: { esperaMs: number }
+): Promise<T> {
+  const token = tokenActual();
+  if (!token) throw new ErrorDelAgente(401, 'No hay sesión activa.');
+
   const corte = new AbortController();
-  const reloj = setTimeout(() => corte.abort(), 45000);
+  const reloj = setTimeout(() => corte.abort(), esperaMs);
 
   let respuesta: Response;
   try {
-    respuesta = await fetch(`${API_URL}/agente`, {
+    respuesta = await fetch(`${API_URL}${ruta}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        mensaje,
-        ...(casoId ? { caso_id: casoId } : {}),
-        ...(agente ? { agente } : {}),
-        // Las dos claves van juntas o no va ninguna: el backend lee el modo de
-        // `simulacion` y el hilo de `simulacion_id`, y una sin la otra es una
-        // petición que no sabría dónde escribir.
-        ...(simulacion ? { simulacion: true, simulacion_id: simulacion.id } : {}),
-      }),
+      body: JSON.stringify(cuerpo),
       signal: corte.signal,
     });
   } catch (error) {
@@ -115,18 +134,18 @@ export async function hablar({
     clearTimeout(reloj);
   }
 
-  const cuerpo = await leerCuerpo(respuesta);
+  const leido = await leerCuerpo(respuesta);
 
   if (!respuesta.ok) {
     // El backend manda `{"error": "<mensaje público>"}`; nunca el detalle interno.
     const mensajeError =
-      (typeof cuerpo === 'object' && cuerpo && 'error' in cuerpo
-        ? String((cuerpo as { error: unknown }).error)
+      (typeof leido === 'object' && leido && 'error' in leido
+        ? String((leido as { error: unknown }).error)
         : '') || `El asistente respondió ${respuesta.status}.`;
     throw new ErrorDelAgente(respuesta.status, mensajeError);
   }
 
-  return cuerpo as RespuestaAgente;
+  return leido as T;
 }
 
 async function leerCuerpo(respuesta: Response): Promise<unknown> {

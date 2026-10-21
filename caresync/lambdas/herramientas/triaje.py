@@ -152,6 +152,25 @@ def canalizar_caso(
             "decir_a_la_persona": emergencia["decir_a_la_persona"],
         }
 
+    # Nivel 4 es «sin cita» en el protocolo (E2E-7: orientar sin reservar). Antes
+    # pasaba igual al agente de agenda, que se ponía a buscar espacios para una
+    # duda de información. Sin traspaso, el de triaje cierra el turno; si después la
+    # persona pide una cita, el caso ya está canalizado y la atiende agenda.
+    if nivel == 4:
+        return {
+            "ok": True,
+            "centro": centro,
+            "nivel_urgencia": nivel,
+            "agendar": False,
+            "plazo": _plazo(nivel),
+            "siguiente": (
+                f"Es una orientación sin cita. Dile a la persona que su consulta quedó "
+                f"registrada en el {centro} con lo que te contó, y que si quiere una "
+                "cita para hablarlo con alguien del centro, te lo diga aquí. No le "
+                "prometas cuándo ni cómo le van a responder."
+            ),
+        }
+
     return {
         "ok": True,
         "centro": centro,

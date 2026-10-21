@@ -2037,3 +2037,306 @@ code {
     opacity: 0.6;
   }
 }
+
+/* ------------------------------------------- consulta: plan dictado y progreso */
+
+/* El dictado: el botón y, a su lado, lo que se va oyendo. El parcial va en cursiva y
+   en tinta suave porque todavía puede cambiar; sólo los trozos finales entran al
+   texto. */
+.dictado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.5rem 0 0.2rem;
+}
+
+.dictado button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dictado button.grabando {
+  border-color: var(--coral);
+  color: var(--coral);
+  background: var(--coral-claro);
+}
+
+.estado-dictado {
+  flex: 1;
+  min-width: 10rem;
+  font-size: 0.82rem;
+  color: var(--tinta-suave);
+}
+
+.estado-dictado em {
+  font-style: italic;
+}
+
+.dictado .aviso {
+  flex-basis: 100%;
+}
+
+/* La revisión de la propuesta. Las dudas van primero y en ámbar: no son un error,
+   pero el botón de guardar está debajo y hay que leerlas antes. */
+.dudas {
+  background: var(--ambar-claro);
+  border: 1px solid var(--ambar-borde);
+  color: var(--ambar);
+  border-radius: var(--radio-control);
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.84rem;
+}
+
+.dudas p {
+  margin: 0 0 0.3rem;
+}
+
+.dudas ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+
+.indicaciones-editables {
+  border: 0;
+  padding: 0;
+  margin: 0 0 0.8rem;
+}
+
+.indicaciones-editables legend {
+  font-weight: 700;
+  font-size: 0.86rem;
+  margin-bottom: 0.4rem;
+}
+
+.indicaciones-editables ol {
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+/* Texto, frecuencia y quitar en una línea mientras quepan; en el celular la
+   frecuencia baja debajo del texto. */
+.indicaciones-editables li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(7rem, 11rem) auto;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--borde);
+}
+
+.indicaciones-editables li label {
+  margin: 0;
+}
+
+.indicaciones-editables input {
+  width: 100%;
+}
+
+.indicaciones-editables .ayuda-frecuencia {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 520px) {
+  .indicaciones-editables li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .indicaciones-editables li label:nth-of-type(2) {
+    grid-column: 1;
+  }
+}
+
+button.icono-solo {
+  display: inline-grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  background: transparent;
+  color: var(--tinta-suave);
+}
+
+button.icono-solo:hover:not(:disabled) {
+  color: var(--coral);
+  border-color: var(--coral-borde);
+}
+
+details.original {
+  margin: 0 0 0.9rem;
+  font-size: 0.84rem;
+}
+
+details.original summary {
+  cursor: pointer;
+  color: var(--primario);
+  font-weight: 700;
+}
+
+details.original p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--tinta-suave);
+  margin: 0.4rem 0 0;
+}
+
+.botonera button.principal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+/* Las alertas de la bitácora. La severidad lleva icono además del color: el color
+   nunca es la única señal. */
+.alertas li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--borde);
+}
+
+.alertas li:last-child {
+  border-bottom: 0;
+}
+
+.alertas .icono {
+  align-self: center;
+  flex: none;
+}
+
+.alerta.s-critica .icono {
+  color: var(--rojo);
+}
+
+.alerta.s-alta .icono {
+  color: var(--coral);
+}
+
+.tarjeta > header .cuenta {
+  min-width: 1.5rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--coral-claro);
+  color: var(--coral);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* La gráfica de evolución: una serie, línea de 2 px, puntos con anillo del color de
+   la superficie, guías finas y la franja de alerta (≤ 3) como un lavado tenue. */
+.grafica-evolucion {
+  position: relative;
+  margin: 0 0 0.6rem;
+}
+
+.grafica-evolucion svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  touch-action: pan-y;
+}
+
+.grafica-evolucion .franja-alerta {
+  fill: var(--coral-claro);
+}
+
+.grafica-evolucion .rotulo-franja {
+  fill: var(--coral);
+  font-size: 11px;
+}
+
+.grafica-evolucion .guia {
+  stroke: var(--borde);
+  stroke-width: 1;
+}
+
+.grafica-evolucion .eje {
+  fill: var(--tinta-suave);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.grafica-evolucion .linea {
+  fill: none;
+  stroke: var(--primario);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.grafica-evolucion .punto {
+  fill: var(--primario);
+  stroke: var(--papel-alto);
+  stroke-width: 2;
+}
+
+.grafica-evolucion .cruz {
+  stroke: var(--tinta-suave);
+  stroke-width: 1;
+}
+
+.grafica-evolucion .valor-final {
+  fill: var(--tinta);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.grafica-evolucion .captura {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.grafica-evolucion .globo {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  max-width: 16rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-control);
+  background: var(--papel-alto);
+  box-shadow: var(--sombra);
+  font-size: 0.78rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.grafica-evolucion .globo span {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--tinta-suave);
+}
+
+/* La adherencia de cada indicación: la tira de los últimos reportes, el más reciente
+   a la derecha. Verde cumplida, coral no: el texto de al lado dice la cuenta, así que
+   el color no es la única señal. */
+.indicaciones .tira {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.indicaciones .marca {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.indicaciones .marca.si {
+  background: var(--verde);
+}
+
+.indicaciones .marca.no {
+  background: var(--coral);
+}

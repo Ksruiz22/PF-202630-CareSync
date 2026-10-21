@@ -100,11 +100,16 @@ Después el agente sigue acompañando a la persona, sin agendar nada.
 
 Si el agente duda entre dos niveles, **elige el más urgente**.
 
-**El nivel 4 es para una necesidad de información o de trámite**, no para una
-situación que está afectando a la persona. Que diga «quiero orientación» no lo
-vuelve nivel 4: el nivel sale de lo que describe, no de la palabra que usa. Una
-situación que dura semanas y ya le afecta el ánimo, el sueño o el día a día es,
-como mínimo, un nivel 3, pida lo que pida.
+**El nivel 4 también se canaliza.** Es una duda de información o de trámite: a la
+persona no le está pasando nada que la afecte, quiere saber algo. El agente no la
+resuelve por su cuenta ni la manda a otro canal; la canaliza al centro que
+corresponde con nivel 4, sin cita, y si la persona después pide una, se le busca.
+
+**Que diga «quiero orientación» no lo vuelve nivel 4.** El nivel sale de lo que
+describe, no de la palabra que usa: si cuenta algo que le está pasando y la afecta
+—un acoso que dura semanas, un malestar que no se va—, es como mínimo un nivel 3.
+Si con lo que contó no queda claro, no se le vuelve a preguntar: se elige el más
+urgente de los dos.
 
 ## Paso 3 — Qué preguntar antes de canalizar
 
@@ -120,7 +125,8 @@ tener lo mínimo para que el profesional llegue con contexto.
 Si en cualquier momento la persona pide directamente una cita y no hay señales
 de alarma, se canaliza **en ese mismo turno** con lo que se tenga: no se retiene
 a nadie en el triaje. Cuenta como pedirla cualquier forma de decirlo —«quiero una
-cita», «quiero hablar con alguien», «que me revisen», «que un médico me diga»—.
+cita», «quiero hablar con alguien», «que me revisen», «que un médico me diga»,
+«quiero orientación»—.
 No se hace «una última pregunta» antes de canalizar, y nunca se repite una
 pregunta que la persona ya respondió, aunque no la haya respondido con las
 palabras exactas: lo que falte lo pregunta el profesional en la consulta.
@@ -252,3 +258,4 @@ de que deje de ser v0:
 | v0.1 | 2026-08-27 | Kevin Ruiz | Se agregó fundamento en Manchester Triage, ESI y literatura de chatbots de triaje; criterios de aceptación medibles; y preguntas pendientes de validación clínica. Sin cambios al Paso 0-3. |
 | v0.2 | 2026-09-26 | Kevin Ruiz | Aclaraciones tras la primera evaluación completa (40 casos): ante la duda sobre una señal del Paso 0 se escala sin confirmar; cómo distinguir «síntoma físico con carga emocional» de «ambos frentes»; «lesión que impide apoyar o caminar» como ejemplo de nivel 2; y pedir cita canaliza en ese mismo turno. Ningún umbral ni ruta cambió de sentido. |
 | v0.3 | 2026-09-26 | Kevin Ruiz | Tras la segunda evaluación completa: «efecto adverso de un medicamento que se sigue tomando» como ejemplo de nivel 2; el nivel 4 es para información o trámite y no se deduce de que la persona pida «orientación»; y una pregunta pendiente para la validación clínica sobre las dos sobre-derivaciones que quedan. Ningún umbral ni ruta cambió de sentido. |
+| v0.4 | 2026-09-26 | Kevin Ruiz | Tras la tercera evaluación completa, que mostró que la aclaración del nivel 4 de la v0.3 se leía como «una duda de información no pasa por el triaje»: el nivel 4 también se canaliza, sin cita; pedir orientación cuenta como pedir una cita; y la duda entre dos niveles se resuelve con el más urgente, no con otra pregunta. Ningún umbral ni ruta cambió de sentido. |

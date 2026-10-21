@@ -47,6 +47,23 @@ resource "aws_apigatewayv2_route" "salud" {
   target    = "integrations/${aws_apigatewayv2_integration.orquestador.id}"
 }
 
+# Las dos ayudas de la consulta del profesional. Van a la misma función porque no
+# tienen efecto propio —la propuesta del plan no guarda nada y el dictado sólo firma
+# una conexión— y el orquestador ya valida el token y el rol contra ROBLE: una función
+# aparte repetiría esa validación para nada. Quién puede llamarlas lo decide el código
+# (`_solo_profesional`), no la ruta.
+resource "aws_apigatewayv2_route" "plan_propuesta" {
+  api_id    = aws_apigatewayv2_api.principal.id
+  route_key = "POST /plan/propuesta"
+  target    = "integrations/${aws_apigatewayv2_integration.orquestador.id}"
+}
+
+resource "aws_apigatewayv2_route" "dictado_sesion" {
+  api_id    = aws_apigatewayv2_api.principal.id
+  route_key = "POST /dictado/sesion"
+  target    = "integrations/${aws_apigatewayv2_integration.orquestador.id}"
+}
+
 resource "aws_apigatewayv2_stage" "predeterminado" {
   api_id      = aws_apigatewayv2_api.principal.id
   name        = "$default"

@@ -216,3 +216,8 @@ class AccesoFalso:
 
     def registrar_evento(self, **datos: Any) -> dict[str, Any]:
         return self._escribir("evento", datos)
+
+    def cerrar(self) -> None:
+        # Las rutas que abren su propio acceso tienen que cerrarlo también cuando
+        # rechazan a quien llama; la prueba lo mira aquí.
+        self.cerrado = True
