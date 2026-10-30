@@ -12,6 +12,7 @@ permisos distintos.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,52 @@ RUTA_EMERGENCIA = _texto(
 ).strip()
 
 
+def _sin_comentarios(texto: str) -> str:
+    """Quita los comentarios HTML: en los archivos de `protocolos/` son para quien los mantiene."""
+    limpio = re.sub(r"<!--.*?-->", "", texto, flags=re.S)
+    return re.sub(r"\n{3,}", "\n\n", limpio).strip()
+
+
+# Lo que el agente puede responder sobre los centros y sobre cómo funciona CareSync.
+# Antes no había nada, y una duda de información tenía dos salidas: «no sé», o
+# canalizarla a un centro que no tiene cómo responderle a la persona.
+ORIENTACION = _sin_comentarios(
+    _texto(
+        "orientacion.md",
+        "INFORMACIÓN DE LOS CENTROS NO DISPONIBLE. No respondas dudas de información: "
+        "canalízalas con nivel 4 y orientacion_resuelta en false.",
+    )
+)
+
+
+def _seccion(texto: str, titulo: str) -> str:
+    """Una sección `## …` del protocolo, desde su título hasta la siguiente.
+
+    Agenda y Seguimiento también escalan urgencias, y hasta el 29/10 se les decía «si
+    aparece una señal de alarma del Paso 0» sin darles el Paso 0: lo suplían con lo
+    que el modelo cree que es una alarma. Se les da la sección sacada del mismo
+    archivo, que sigue siendo la única copia del protocolo (invariante 4).
+    """
+    salida: list[str] = []
+    dentro = False
+    for linea in texto.splitlines():
+        if linea.startswith("## "):
+            if dentro:
+                break
+            dentro = linea[3:].startswith(titulo)
+        if dentro:
+            salida.append(linea)
+    return "\n".join(salida).strip()
+
+
+SENALES_DE_ALARMA = _seccion(PROTOCOLO, "Paso 0") or (
+    "Paso 0 no disponible: ante cualquier cosa que pueda ser una urgencia, escalas."
+)
+NIVELES = _seccion(PROTOCOLO, "Paso 2") or (
+    "Paso 2 no disponible: no cambies el nivel del caso."
+)
+
+
 @dataclass(frozen=True)
 class Agente:
     clave: str
@@ -83,9 +130,16 @@ AGENTES: dict[str, Agente] = {
             "consultar_disponibilidad",
             "consultar_profesionales",
             "agendar_cita",
+            "cancelar_cita",
+            "reprogramar_cita",
             "notificar_profesional",
+            "subir_urgencia",
             "escalar_urgencia",
+            "nuevo_motivo",
         ),
+        # Un problema distinto del de este caso se tría aparte: el orquestador abre
+        # el caso nuevo (lo hace la herramienta) y sigue con el triaje en ese caso.
+        traspaso=("nuevo_motivo", TRIAJE),
     ),
     SEGUIMIENTO: Agente(
         clave=SEGUIMIENTO,
@@ -97,7 +151,9 @@ AGENTES: dict[str, Agente] = {
             "registrar_evolucion",
             "registrar_adherencia",
             "escalar_urgencia",
+            "nuevo_motivo",
         ),
+        traspaso=("nuevo_motivo", TRIAJE),
     ),
 }
 
@@ -191,8 +247,16 @@ Sigues el protocolo que viene abajo al pie de la letra. No es una guía: es la
 
 Todo triaje termina en una de dos herramientas: `escalar_urgencia` o
 `canalizar_caso`. También una duda de información o de trámite, que se canaliza con
-nivel 4: no la resuelves tú, no le dices a la persona que no necesita pasar por
-aquí y no la mandas a otro sitio. El centro la recibe con tu resumen.
+nivel 4. Si la respuesta está en la información de los centros, se la das con esas
+palabras y canalizas con `orientacion_resuelta` en true: no queda nada pendiente y
+el caso se cierra. Si no está, no la resuelves tú, no le dices a la persona que no
+necesita pasar por aquí y no la mandas a otro sitio: canalizas con
+`orientacion_resuelta` en false y el centro la recibe con tu resumen.
+
+La única excepción es un mensaje que no tiene nada que ver con la salud ni con el
+CMU y el CAE, como una pregunta por la biblioteca o por una nota. Ese no se
+canaliza: dices en una frase qué hace CareSync y que con eso no puedes ayudar. Un
+saludo no es una excepción, es el comienzo: pregúntale qué le pasa.
 
 Orden de trabajo, en cada turno y en este orden:
 1. ¿Hay algo que podría ser una señal de alarma del Paso 0? Entonces llamas a
@@ -213,6 +277,10 @@ Orden de trabajo, en cada turno y en este orden:
    resultado de `canalizar_caso`: con nivel 2 o 3, otro agente sigue contigo para
    la cita en la misma conversación; con nivel 4 no hay cita que buscar.
 
+Si la situación actual dice que la conversación estuvo detenida más de un día y
+todavía no canalizaste, lo primero es preguntar cómo sigue: lo que la persona contó
+antes puede haber cambiado, y el nivel se decide con lo de ahora.
+
 --- PROTOCOLO DE TRIAJE (v0, sin validación clínica) ---
 {protocolo}
 --- FIN DEL PROTOCOLO ---
@@ -226,6 +294,7 @@ situaciones distintas, y la "Situación actual" de abajo dice en cuál estás.
 
 Orden de trabajo:
 1. `consultar_disponibilidad` para ver los espacios libres del centro del caso.
+   Con nivel 2 o 3 la herramienta ya busca dentro del plazo del nivel.
 2. Ofreces a la persona **dos o tres opciones como máximo**, con día y hora en
    lenguaje natural ("mañana a las 10:20"). Nunca le muestres identificadores.
 3. Cuando elija, `agendar_cita` con el `inicio` de ese espacio, copiado tal cual
@@ -240,10 +309,10 @@ mientras tengas delante la respuesta de `consultar_disponibilidad`. Si la person
 acepta una opción que ofreciste antes de tu último mensaje, vuelves a llamar a
 `consultar_disponibilidad` y agendas con lo que devuelva esa llamada.
 
-Si no hay ningún espacio en la ventana consultada, amplías la búsqueda una vez.
-Si sigue sin haber, lo dices claro: el caso queda registrado y puede volver a
-intentarlo más tarde. No inventes un cupo y no prometas que alguien la va a
-contactar.
+Si la herramienta dice que no hay espacio dentro del plazo, se lo dices así y le
+ofreces lo que trae, con su fecha. Si no trae nada, lo dices claro: el caso queda
+registrado y puede volver a intentarlo más tarde. No inventes un cupo y no
+prometas que alguien la va a contactar.
 
 Si el nivel de urgencia del caso es 1, no agendas: recuerdas la ruta de
 emergencia.
@@ -252,6 +321,39 @@ Si es 4, es una orientación sin cita: la consulta ya quedó registrada en el ce
 y no buscas espacios por tu cuenta. Sólo si la persona pide una cita sigues el
 orden de trabajo de arriba.
 
+Si la persona quiere cancelar o cambiar su cita:
+- Cancelar: `cancelar_cita` con `confirmado` en false. Te devuelve la cita, y le
+  preguntas si confirma que cancela la de ese día y esa hora. Sólo si te dice que
+  sí, la llamas otra vez con `confirmado` en true.
+- Cambiar: `consultar_disponibilidad`, le ofreces opciones y, cuando elija,
+  `reprogramar_cita` con el `inicio` de esa opción y `confirmado` en false. Le dices
+  las dos fechas y le preguntas. Sólo si te dice que sí, otra vez con el mismo
+  `inicio` y `confirmado` en true.
+- `confirmado` en true sólo después de que la persona oyó la fecha y dijo que sí.
+  Cancelar suelta su espacio, y otra persona lo puede tomar al minuto siguiente.
+- Después de cancelar o cambiar no llames a `notificar_profesional`: las dos
+  herramientas avisan solas.
+
+Si `consultar_estado_caso` muestra una cita con `ya_paso` en true y la persona no
+te dice que fue, pregúntale. Si no fue, no la regañes: ofrécele otra cita con el
+orden de trabajo de arriba.
+
+Si la persona cuenta que empeoró:
+- Con una señal de alarma de las de abajo, `escalar_urgencia` de inmediato.
+- Sin señal de alarma, comparas lo que cuenta con los niveles de abajo. Si ahora
+  corresponde a un nivel más urgente, `subir_urgencia`. La herramienta te dice si
+  su cita queda después del nuevo plazo, y entonces le ofreces adelantarla.
+
+Si la persona trae un problema de salud distinto del de este caso, y no el mismo
+que empeora, llamas a `nuevo_motivo`. Ese problema se tría aparte, en un caso
+nuevo y en esta misma conversación; no le hagas tú las preguntas del triaje.
+
+--- Del protocolo de triaje: señales de alarma y niveles ---
+{senales}
+
+{niveles}
+--- Fin ---
+
 **Sin caso**, que es el personal del centro preguntando por su operación:
 
 Ahí respondes preguntas generales, y para eso tienes dos herramientas:
@@ -259,8 +361,8 @@ Ahí respondes preguntas generales, y para eso tienes dos herramientas:
 y cuántos espacios libres le quedan— y `consultar_disponibilidad`, para los huecos
 del centro ordenados por cercanía. Úsalas en vez de contestar de memoria.
 
-Lo que necesita un caso no lo puedes hacer ahí: agendar, avisar a un profesional o
-mirar cómo va alguien. Si te lo piden, lo dices en una frase —que el caso se elige
+Lo que necesita un caso no lo puedes hacer ahí: agendar, cancelar o cambiar una
+cita, avisar a un profesional o mirar cómo va alguien. Si te lo piden, lo dices en una frase —que el caso se elige
 en el tablero— y desde ahí sí lo haces. No pidas nombres ni cédulas para buscar a
 nadie: no tienes con qué buscarlo y el caso no se deduce de lo que te escriban.
 Aquí no hay una persona consultando por su salud: no preguntes cómo se siente
@@ -297,6 +399,14 @@ persona algo que no pasó, y el profesional no lo va a ver.
 
 No interpretas la evolución en voz alta ("vas mejorando", "eso es normal"). Lo
 que registras lo lee el profesional, que es quien saca conclusiones.
+
+Si la persona trae un problema de salud distinto del que trata este plan, llamas a
+`nuevo_motivo`: se tría aparte, en un caso nuevo y en esta misma conversación, y
+este plan sigue igual. No lo registres como evolución ni le hagas tú el triaje.
+
+--- Del protocolo de triaje: señales de alarma ---
+{senales}
+--- Fin ---
 """
 
 _POR_AGENTE = {TRIAJE: _TRIAJE, AGENDA: _AGENDA, SEGUIMIENTO: _SEGUIMIENTO}
@@ -315,7 +425,9 @@ def instrucciones(
     hay caso, en vez de describirle uno con todos los campos vacíos —que el modelo
     leía como un caso real recién abierto y trataba de completar.
     """
-    especifico = _POR_AGENTE[agente.clave].format(protocolo=PROTOCOLO)
+    especifico = _POR_AGENTE[agente.clave].format(
+        protocolo=PROTOCOLO, senales=SENALES_DE_ALARMA, niveles=NIVELES
+    )
 
     situacion = [
         f"Hoy es {reloj.humano(reloj.ahora())} (hora de Bogotá).",
@@ -358,6 +470,14 @@ def instrucciones(
             "Primero llamas a `escalar_urgencia`, sin escribir nada antes en ese mismo "
             "mensaje. Después dices esto, textualmente y antes que cualquier otra cosa:",
             RUTA_EMERGENCIA,
+            # La llevan los tres agentes: a cualquiera le pueden preguntar dónde queda
+            # el CMU o cómo se cancela una cita.
+            "## Información de los centros",
+            "Es la única información que tienes sobre el CMU, el CAE y cómo funciona "
+            "CareSync. Respondes con ella las dudas de información, con tus palabras y "
+            "sin añadir nada. Si lo que te preguntan no está aquí, dices que no lo "
+            "tienes.",
+            ORIENTACION,
             f"## Tu papel: {agente.nombre}",
             especifico,
             "## Situación actual",

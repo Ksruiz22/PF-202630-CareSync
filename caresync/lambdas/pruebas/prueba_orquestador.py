@@ -20,12 +20,14 @@ Cada bloque protege algo que ya se rompió una vez o que rompería en silencio:
 
 from __future__ import annotations
 
+import json
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from entorno import AccesoFalso, ActorFalso, cargar, comprobar, fallos, preparar  # noqa: E402
+from entorno import LAMBDAS, AccesoFalso, ActorFalso, cargar, comprobar, fallos, preparar  # noqa: E402
 
 preparar()
 
@@ -172,6 +174,12 @@ def probar_herramientas_declaradas() -> None:
               "escalar_urgencia" not in con_caso)
     comprobar("agenda para el paciente: no consulta profesionales",
               "consultar_profesionales" not in _nombres(de(agenda, "paciente", con_caso=True)))
+    para_paciente = set(_nombres(de(agenda, "paciente", con_caso=True)))
+    comprobar("agenda para el paciente: cancela, cambia, sube la urgencia y abre un caso nuevo",
+              {"cancelar_cita", "reprogramar_cita", "subir_urgencia", "nuevo_motivo"} <= para_paciente,
+              str(sorted(para_paciente)))
+    comprobar("el centro cancela y cambia, pero no abre casos a nombre de nadie",
+              "cancelar_cita" in con_caso and "nuevo_motivo" not in con_caso)
     comprobar("triaje para el paciente: estado, escalar y canalizar",
               _nombres(de(triaje, "paciente", con_caso=True))
               == ["consultar_estado_caso", "escalar_urgencia", "canalizar_caso"])
@@ -193,7 +201,16 @@ def probar_traspaso() -> None:
     comprobar("canalizar con éxito pasa a agenda", orquestador._traspaso(triaje, bien) == "agenda")
     comprobar("una canalización fallida no traspasa", orquestador._traspaso(triaje, mal) is None)
     comprobar("sin canalizar no hay traspaso", orquestador._traspaso(triaje, nada) is None)
-    comprobar("agenda no traspasa a nadie", orquestador._traspaso(agenda, bien) is None)
+    comprobar("agenda no traspasa por una canalización", orquestador._traspaso(agenda, bien) is None)
+
+    nuevo = Resultado(texto="", usos=[Uso("nuevo_motivo", {}, {"ok": True, "caso_nuevo": "c-2"}, True)])
+    fallido = Resultado(texto="", usos=[Uso("nuevo_motivo", {}, {"error": "x"}, False)])
+    seguimiento = agentes.AGENTES["seguimiento"]
+    comprobar("un problema nuevo pasa de agenda a triaje", orquestador._traspaso(agenda, nuevo) == "triaje")
+    comprobar("y de seguimiento a triaje", orquestador._traspaso(seguimiento, nuevo) == "triaje")
+    comprobar("sabe cuál es el caso nuevo", orquestador._caso_nuevo(nuevo) == "c-2")
+    comprobar("si no se abrió, no hay caso nuevo ni traspaso",
+              orquestador._caso_nuevo(fallido) == "" and orquestador._traspaso(agenda, fallido) is None)
 
     for nivel, resultado in (
         (1, {"ok": True, "agendar": False, "decir_a_la_persona": "ruta"}),
@@ -212,6 +229,79 @@ def probar_traspaso() -> None:
 
     nota = orquestador._nota_de_traspaso({"centro": "CMU", "nivel_urgencia": 3})
     comprobar("la nota de traspaso lleva la marca [sistema]", nota.startswith("[sistema]"), nota)
+
+    contexto = orquestador._contexto_del_traspaso({"centro": "CMU", "nivel_urgencia": 2})
+    comprobar("agenda recibe el plazo del nivel con el traspaso", "72 horas" in contexto, contexto)
+
+
+def probar_pausa() -> None:
+    print("\nUna conversación retomada días después (T5)")
+
+    reloj = orquestador.reloj
+    hace = lambda **delta: reloj.iso(reloj.ahora() - timedelta(**delta))  # noqa: E731
+    pausa = orquestador._pausa
+    comprobar("un mensaje de hace una hora no es una pausa",
+              pausa([{"creado_en": hace(hours=1)}, {"creado_en": hace()}]) == "")
+    tres = pausa([{"creado_en": hace(days=3, hours=2)}, {"creado_en": hace()}])
+    comprobar("tres días sí, y lo dice con la fecha", "3 días" in tres and "detenida" in tres, tres)
+    comprobar("un día se dice en singular", "1 día:" in pausa([{"creado_en": hace(days=1, hours=1)},
+                                                              {"creado_en": hace()}]))
+    comprobar("sin un mensaje anterior no hay pausa", pausa([{"creado_en": hace()}]) == "")
+    comprobar("sin fechas no inventa una", pausa([{"contenido": "x"}, {"contenido": "y"}]) == "")
+    comprobar("el triaje vuelve a preguntar cómo sigue antes de canalizar",
+              "estuvo detenida más de un día" in agentes._TRIAJE)
+
+
+def probar_cambio_de_caso() -> None:
+    """T1: el problema nuevo se tría en su propio caso, en el mismo turno."""
+    print("\nUn problema nuevo sigue en un caso aparte (T1)")
+
+    Resultado, Uso = bedrock_conversa.Resultado, bedrock_conversa.Uso
+    viejo = {"_id": "viejo", "estado": "en_seguimiento", "centro": "CAE", "nivel_urgencia": 3}
+    nuevo = {"_id": "nuevo", "estado": "abierto"}
+
+    class _Acceso(AccesoFalso):
+        def caso(self, caso_id: str) -> dict:
+            return {"viejo": viejo, "nuevo": nuevo}[caso_id]
+
+    acceso = _Acceso(ActorFalso("paciente"), casos={"viejo": viejo}, abierto=viejo)
+    vueltas = iter([
+        Resultado(texto="Eso lo vemos aparte.",
+                  usos=[Uso("nuevo_motivo", {"motivo": "rodilla"}, {"ok": True, "caso_nuevo": "nuevo"}, True)]),
+        Resultado(texto="¿Desde cuándo te duele la rodilla?"),
+    ])
+    llamadas: list[dict] = []
+
+    def conversar(**argumentos):
+        llamadas.append(argumentos)
+        return next(vueltas)
+
+    original = orquestador.bedrock_conversa.conversar
+    orquestador.bedrock_conversa.conversar = conversar
+    try:
+        respuesta = orquestador._conversar(acceso, token="t", mensaje="Además me duele la rodilla",
+                                           cuerpo={"caso_id": "viejo"})
+    finally:
+        orquestador.bedrock_conversa.conversar = original
+    cuerpo = json.loads(respuesta["body"])
+
+    comprobar("atiende seguimiento y después triaje", cuerpo["agentes"] == ["seguimiento", "triaje"],
+              str(cuerpo["agentes"]))
+    comprobar("la respuesta ya es del caso nuevo, y la vista sigue en él",
+              cuerpo["caso"]["id"] == "nuevo", str(cuerpo["caso"]))
+    comprobar("el triaje empieza sólo con el mensaje de la persona, no con el hilo del otro caso",
+              [b["text"] for m in llamadas[1]["mensajes"] for b in m["content"]] == ["Además me duele la rodilla"])
+    comprobar("y con las instrucciones del triaje", "Agente de Triaje" in llamadas[1]["sistema"])
+    escritos = [(d["caso_id"], d["autor"], d["contenido"]) for que, d in acceso.escrito if que == "mensaje"]
+    comprobar("cada caso guarda lo suyo: el viejo, lo que dijo seguimiento; el nuevo, el mensaje y el triaje",
+              escritos == [
+                  ("viejo", "paciente", "Además me duele la rodilla"),
+                  ("viejo", "agente", "Eso lo vemos aparte."),
+                  ("nuevo", "paciente", "Además me duele la rodilla"),
+                  ("nuevo", "agente", "¿Desde cuándo te duele la rodilla?"),
+              ], str(escritos))
+    comprobar("la persona recibe las dos cosas en una sola respuesta",
+              cuerpo["respuesta"] == "Eso lo vemos aparte.\n\n¿Desde cuándo te duele la rodilla?")
 
 
 def probar_constancia_de_fallos() -> None:
@@ -349,6 +439,38 @@ def probar_instrucciones() -> None:
     comprobar("seguimiento: ir peor sin señal de alarma no se escala",
               "Ir peor sin\n   señal de alarma no se escala" in seguimiento)
 
+    # Hasta el 29/10 agenda y seguimiento escalaban «ante una señal del Paso 0» sin
+    # tener el Paso 0. Se les da del mismo archivo del protocolo (invariante 4).
+    #
+    # Los archivos de `protocolos/` se copian junto a la Lambda al construir los
+    # paquetes, así que aquí `agentes` carga sus textos de respaldo. Las funciones se
+    # prueban contra los archivos de verdad, y el prompt contra lo que haya cargado.
+    protocolos = LAMBDAS.parent / "protocolos"
+    protocolo = (protocolos / "triaje-v0.md").read_text(encoding="utf-8")
+    senales = agentes._seccion(protocolo, "Paso 0")
+    niveles = agentes._seccion(protocolo, "Paso 2")
+    comprobar("del protocolo sale el Paso 0 entero y sólo él",
+              senales.startswith("## Paso 0") and "Dolor en el pecho" in senales and "## Paso 1" not in senales)
+    comprobar("y el Paso 2 con sus niveles", niveles.startswith("## Paso 2") and "Prioritario" in niveles)
+    orientacion = agentes._sin_comentarios((protocolos / "orientacion.md").read_text(encoding="utf-8"))
+    comprobar("la información de los centros llega sin los comentarios para quien la mantiene",
+              "Centro Médico Uninorte" in orientacion and "<!--" not in orientacion
+              and "Pendiente de los centros" not in orientacion)
+
+    paciente = ActorFalso("paciente")
+    caso = {"_id": "k", "estado": "agendado", "centro": "CMU", "nivel_urgencia": 3}
+    prompts = {clave: agentes.instrucciones(a, actor=paciente, caso=caso) for clave, a in agentes.AGENTES.items()}
+    comprobar("agenda lleva las señales de alarma y los niveles",
+              agentes.SENALES_DE_ALARMA in prompts["agenda"] and agentes.NIVELES in prompts["agenda"])
+    comprobar("seguimiento lleva las señales de alarma",
+              agentes.SENALES_DE_ALARMA in prompts["seguimiento"])
+    comprobar("los tres llevan la información de los centros",
+              all(agentes.ORIENTACION in p for p in prompts.values()))
+    comprobar("agenda: cancelar y cambiar piden confirmación antes del efecto",
+              "`confirmado` en true sólo después de que la persona oyó la fecha" in agentes._AGENDA)
+    comprobar("triaje: lo que no es de salud no se canaliza, pero un saludo sí se atiende",
+              "Ese no se\ncanaliza" in agentes._TRIAJE and "Un\nsaludo no es una excepción" in agentes._TRIAJE)
+
 
 def main() -> int:
     for prueba in (
@@ -357,6 +479,8 @@ def main() -> int:
         probar_resolver_caso,
         probar_herramientas_declaradas,
         probar_traspaso,
+        probar_pausa,
+        probar_cambio_de_caso,
         probar_constancia_de_fallos,
         probar_ruta_de_emergencia_garantizada,
         probar_detalle_de_la_salvaguarda,

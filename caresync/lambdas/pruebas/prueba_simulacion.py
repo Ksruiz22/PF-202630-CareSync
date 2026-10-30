@@ -340,12 +340,28 @@ def probar_resultados_en_seco() -> None:
     comprobar("y la ruta llega a la respuesta aunque el modelo no la diga",
               cuerpo["respuesta"] == agentes.RUTA_EMERGENCIA)
 
+    # Los textos del cierre son una copia de los de la herramienta real, que es otro
+    # paquete de despliegue. Se comparan contra el original para que no se separen.
+    triaje_real = cargar("herramientas", "triaje")
+
     _c, cuerpo, _r = correr(_profesional(), llamadas=[_canalizar(centro="CMU", nivel=4)])
     nivel_4 = cuerpo["acciones"][0]["resultado"]
     comprobar("canalizar nivel 4: sin cita, igual que el real",
               nivel_4["agendar"] is False and nivel_4["plazo"] == "sin cita")
     comprobar("canalizar nivel 4: el mismo cierre que el real, sin prometer respuesta",
-              "CMU" in nivel_4["siguiente"] and "No le prometas" in nivel_4["siguiente"])
+              nivel_4["siguiente"] == triaje_real._siguiente_orientacion_registrada("CMU")
+              and "No le digas que le van a responder" in nivel_4["siguiente"])
+
+    resuelta = ("canalizar_caso", {**_canalizar(centro="CMU", nivel=4)[1], "orientacion_resuelta": "false"})
+    _c, cuerpo, _r = correr(_profesional(), llamadas=[resuelta])
+    comprobar("un «false» que llega como texto no cierra la orientación",
+              cuerpo["acciones"][0]["resultado"]["cerrado"] is False)
+    resuelta[1]["orientacion_resuelta"] = True
+    _c, cuerpo, _r = correr(_profesional(), llamadas=[resuelta])
+    cerrada = cuerpo["acciones"][0]["resultado"]
+    comprobar("una orientación resuelta cierra el caso, con el mismo texto que el real",
+              cerrada["cerrado"] is True
+              and cerrada["siguiente"] == triaje_real._SIGUIENTE_ORIENTACION_RESUELTA)
 
     _c, cuerpo, _r = correr(_profesional(), llamadas=[("escalar_urgencia", {"motivo": "dolor de pecho"})])
     escalado = cuerpo["acciones"][0]["resultado"]

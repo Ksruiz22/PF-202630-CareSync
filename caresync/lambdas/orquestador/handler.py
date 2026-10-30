@@ -35,7 +35,7 @@ from typing import Any
 import boto3
 import requests
 
-from caresync_comun import reloj, respuesta
+from caresync_comun import plazos, reloj, respuesta
 from caresync_comun.catalogo_herramientas import (
     CATALOGO,
     especificaciones,
@@ -262,12 +262,21 @@ def _conversar(
     # dentro del bucle y no se arrastran al traspaso, porque el segundo agente
     # declara otras herramientas y la API rechaza un historial que referencia
     # herramientas que ya no existen.
-    hilo = _historial(acceso, hilo_id)
+    filas = acceso.mensajes(hilo_id, maximo=20)
+    hilo = _historial_de_filas(filas)
     hilo.append({"role": "user", "content": [{"text": mensaje}]})
+    pausa = _pausa(filas)
 
     participantes: list[str] = []
     usos_totales: list[bedrock_conversa.Uso] = []
     texto_final = ""
+    # Lo que se guarda en el hilo de este caso. Es lo mismo que `texto_final` salvo
+    # cuando la conversación cambia de caso a mitad del turno (`nuevo_motivo`): lo
+    # que dijo el primer agente se queda en el hilo del caso viejo, y la persona
+    # recibe las dos cosas en una sola respuesta.
+    texto_del_hilo = ""
+    usos_del_hilo: list[bedrock_conversa.Uso] = []
+    caso_anterior = ""
     tokens = {"entrada": 0, "salida": 0, "cacheados": 0}
     intervino = False
     salvaguardas: set[str] = set()
@@ -276,7 +285,12 @@ def _conversar(
     # traspaso. Un tercero sería una cadena que la persona no puede seguir.
     for salto in range(2):
         participantes.append(agente.clave)
-        contexto_extra = _contexto_del_traspaso(caso or {}) if salto else ""
+        if not salto:
+            contexto_extra = pausa
+        elif caso_anterior:
+            contexto_extra = _contexto_del_caso_nuevo()
+        else:
+            contexto_extra = _contexto_del_traspaso(caso or {})
 
         resultado = bedrock_conversa.conversar(
             sistema=agentes.instrucciones(
@@ -288,16 +302,42 @@ def _conversar(
         )
 
         usos_totales.extend(resultado.usos)
+        usos_del_hilo.extend(resultado.usos)
         tokens["entrada"] += resultado.tokens_entrada
         tokens["salida"] += resultado.tokens_salida
         tokens["cacheados"] += resultado.tokens_cacheados
         intervino = intervino or resultado.intervino_guardrail
         salvaguardas.update(resultado.salvaguardas)
         texto_final = "\n\n".join(t for t in (texto_final, resultado.texto) if t)
+        texto_del_hilo = "\n\n".join(t for t in (texto_del_hilo, resultado.texto) if t)
 
         siguiente = _traspaso(agente, resultado)
         if not siguiente:
             break
+
+        nuevo = _caso_nuevo(resultado)
+        if nuevo:
+            # El problema nuevo sigue en su propio caso. Lo dicho hasta aquí se queda
+            # en el hilo del caso viejo, y el nuevo empieza con el mensaje de la
+            # persona, que es lo que su triaje tiene que leer.
+            if texto_del_hilo:
+                acceso.anotar_mensaje(
+                    caso_id=hilo_id, agente=agente.clave, autor="agente", contenido=texto_del_hilo
+                )
+            _dejar_constancia_de_los_fallos(
+                acceso, hilo_id=hilo_id, agente=agente.clave, usos=usos_del_hilo
+            )
+            texto_del_hilo, usos_del_hilo = "", []
+            caso_anterior, caso_id, hilo_id = caso_id, nuevo, nuevo
+            caso = acceso.caso(caso_id)
+            agente = agentes.AGENTES[siguiente]
+            if actor.rol not in agente.roles:
+                break
+            acceso.anotar_mensaje(
+                caso_id=hilo_id, agente=agente.clave, autor=actor.rol, contenido=mensaje
+            )
+            hilo = [{"role": "user", "content": [{"text": mensaje}]}]
+            continue
 
         # El caso cambió de estado dentro de la herramienta: hay que releerlo
         # para que el siguiente agente vea el centro y el nivel de urgencia. Aquí
@@ -313,10 +353,11 @@ def _conversar(
         hilo.append({"role": "user", "content": [{"text": _nota_de_traspaso(caso)}]})
 
     texto_final = _con_la_ruta_de_emergencia(texto_final, usos_totales, intervino=intervino)
+    texto_del_hilo = _con_la_ruta_de_emergencia(texto_del_hilo, usos_del_hilo, intervino=intervino)
 
-    if texto_final:
+    if texto_del_hilo:
         acceso.anotar_mensaje(
-            caso_id=hilo_id, agente=participantes[-1], autor="agente", contenido=texto_final
+            caso_id=hilo_id, agente=participantes[-1], autor="agente", contenido=texto_del_hilo
         )
 
     # La constancia de los fallos va fuera de ese `if`: un turno puede salir sin
@@ -324,7 +365,7 @@ def _conversar(
     # que la bitácora diga qué no se hizo. Colgada del texto, el turno siguiente
     # arrancaba sin saber que la herramienta había fallado.
     _dejar_constancia_de_los_fallos(
-        acceso, hilo_id=hilo_id, agente=participantes[-1], usos=usos_totales
+        acceso, hilo_id=hilo_id, agente=participantes[-1], usos=usos_del_hilo
     )
 
     if caso_id:
@@ -333,6 +374,7 @@ def _conversar(
         log,
         "conversacion_atendida",
         caso_id=hilo_id,
+        caso_anterior=caso_anterior or None,
         agentes=participantes,
         herramientas=[u.nombre for u in usos_totales],
         tokens_entrada=tokens["entrada"],
@@ -425,8 +467,36 @@ def _historial(acceso: AccesoRoble, hilo_id: str) -> list[dict[str, Any]]:
     Reconstruir bloques `toolUse`/`toolResult` de turnos viejos obligaría a
     guardar identificadores de la API en la base y no aporta nada al hilo.
     """
+    return _historial_de_filas(acceso.mensajes(hilo_id, maximo=20))
+
+
+def _pausa(filas: list[dict[str, Any]]) -> str:
+    """Una línea para la situación actual si la conversación estuvo detenida un día o más.
+
+    El historial le llega al modelo sin fechas, así que un «desde hace dos días»
+    escrito hace una semana se leía como de hoy y el triaje decidía el nivel con un
+    dato viejo. La última fila es el mensaje que se acaba de anotar: la pausa es la
+    que hay entre él y la anterior. Sale de la misma lectura del historial, sin otra
+    operación contra la cuota de ROBLE.
+    """
+    if len(filas) < 2:
+        return ""
+    actual = reloj.desde_iso(filas[-1].get("creado_en"))
+    anterior = reloj.desde_iso(filas[-2].get("creado_en"))
+    if not actual or not anterior:
+        return ""
+    dias = int((actual - anterior).total_seconds() // 86400)
+    if dias < 1:
+        return ""
+    return (
+        f"La conversación estuvo detenida {dias} {'día' if dias == 1 else 'días'}: el "
+        f"mensaje anterior a este es del {reloj.humano(anterior)}."
+    )
+
+
+def _historial_de_filas(filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
     mensajes: list[dict[str, Any]] = []
-    for fila in acceso.mensajes(hilo_id, maximo=20):
+    for fila in filas:
         contenido = str(fila.get("contenido") or "").strip()
         if not contenido:
             continue
@@ -532,11 +602,29 @@ def _traspaso(agente: agentes.Agente, resultado: bedrock_conversa.Resultado) -> 
 
 
 def _contexto_del_traspaso(caso: dict[str, Any]) -> str:
+    nivel = plazos.nivel_de(caso)
+    plazo = f" (cita dentro de {plazos.texto_de(nivel)})" if plazos.plazo_de(nivel) else ""
     return (
         f"El agente anterior acaba de canalizar este caso al {caso.get('centro')} "
-        f"con nivel de urgencia {caso.get('nivel_urgencia')}. Continúas tú, en la misma "
-        "conversación: no te presentes de nuevo ni repitas lo que ya se dijo."
+        f"con nivel de urgencia {caso.get('nivel_urgencia')}{plazo}. Continúas tú, en la "
+        "misma conversación: no te presentes de nuevo ni repitas lo que ya se dijo."
     )
+
+
+def _contexto_del_caso_nuevo() -> str:
+    return (
+        "La persona trajo un problema distinto del de su otro caso, y este caso se abrió "
+        "para él. Empiezas su triaje en la misma conversación: no te presentes de nuevo "
+        "ni le preguntes por el otro caso, que sigue su curso."
+    )
+
+
+def _caso_nuevo(resultado: bedrock_conversa.Resultado) -> str:
+    """El caso que abrió `nuevo_motivo` en esta vuelta, si abrió uno."""
+    for uso in resultado.usos:
+        if uso.nombre == "nuevo_motivo" and uso.ok and isinstance(uso.resultado, dict):
+            return str(uso.resultado.get("caso_nuevo") or "")
+    return ""
 
 
 def _dejar_constancia_de_los_fallos(
@@ -695,7 +783,9 @@ _PACIENTE_SIMULADO = Actor(
 # significaría que el orquestador puede ejecutar las herramientas de verdad, que es
 # exactamente lo que esta separación impide. Si cambian los plazos del protocolo, este
 # diccionario hay que tocarlo a mano.
-_PLAZO_SIMULADO = {1: "ahora", 2: "72 horas", 3: "7 días", 4: "sin cita"}
+# Los mismos plazos que usa la herramienta real, del mismo sitio: con una copia aparte
+# aquí, un cambio del protocolo dejaría al simulador evaluando otro plazo.
+_PLAZO_SIMULADO = plazos.TEXTO
 
 
 def _pide_simulacion(cuerpo: dict[str, Any]) -> bool:
@@ -991,6 +1081,16 @@ def _argumentos_simulados(
                 numero = min(int(maximo), numero)
             limpios[clave] = numero
             continue
+        if esquema.get("type") == "boolean":
+            # Como en la función de herramientas. Sin esto, un `false` llegaba como el
+            # texto «False», que es verdadero, y `orientacion_resuelta` en false cerraba
+            # el caso simulado.
+            limpios[clave] = (
+                valor
+                if isinstance(valor, bool)
+                else str(valor).strip().lower() in ("true", "1", "si", "sí", "yes")
+            )
+            continue
         texto = str(valor).strip()
         opciones = esquema.get("enum")
         if opciones and texto not in opciones:
@@ -1094,7 +1194,10 @@ def _simular_canalizar_caso(argumentos: dict[str, Any]) -> dict[str, Any]:
     # El nivel 4 es «sin cita» también en el real, y su `siguiente` no habla de
     # traspaso, así que aquí va el mismo texto: lo que se evalúa es cómo cierra el
     # triaje una duda de información, y con otra instrucción cerraría de otra forma.
+    # Los textos son copia de los de `herramientas/triaje.py`, que es otro paquete de
+    # despliegue y no se puede importar desde aquí.
     if nivel == 4:
+        resuelta = bool(argumentos.get("orientacion_resuelta"))
         return {
             "ok": True,
             "simulado": True,
@@ -1102,11 +1205,20 @@ def _simular_canalizar_caso(argumentos: dict[str, Any]) -> dict[str, Any]:
             "nivel_urgencia": nivel,
             "agendar": False,
             "plazo": _PLAZO_SIMULADO[4],
+            "cerrado": resuelta,
             "siguiente": (
-                f"Es una orientación sin cita. Dile a la persona que su consulta quedó "
-                f"registrada en el {centro} con lo que te contó, y que si quiere una "
-                "cita para hablarlo con alguien del centro, te lo diga aquí. No le "
-                "prometas cuándo ni cómo le van a responder."
+                "La duda quedó resuelta con la información de los centros y el caso se "
+                "cerró: no queda nada pendiente. Si la persona necesita algo más, lo "
+                "cuenta aquí y se le atiende desde el principio. No le prometas ningún "
+                "seguimiento."
+            )
+            if resuelta
+            else (
+                f"Es una orientación sin cita que no se resolvió con la información de los "
+                f"centros. Dile a la persona que su consulta quedó registrada en el {centro} "
+                "con lo que te contó, y que si quiere hablarlo con alguien del centro le "
+                "buscas una cita aquí mismo. No le digas que le van a responder por otra "
+                "vía: el centro ve el caso, pero no tiene cómo escribirle."
             ),
         }
 
