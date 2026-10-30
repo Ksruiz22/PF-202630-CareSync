@@ -38,20 +38,26 @@ ROLES = ("paciente", "profesional", "admin_cmu", "admin_cae", "admin_plataforma"
 def probar_matriz_de_roles() -> None:
     print("\nQuién puede usar qué")
 
+    # Desde el 29/10 la persona y su centro cancelan, cambian y suben la urgencia de una
+    # cita; abrir un caso para un problema nuevo es sólo de la persona, porque el caso
+    # es suyo y nadie más puede abrírselo.
     esperado = {
         "paciente": {
             "consultar_estado_caso", "canalizar_caso", "escalar_urgencia",
             "consultar_disponibilidad", "agendar_cita", "notificar_profesional",
             "consultar_plan", "registrar_evolucion", "registrar_adherencia",
+            "cancelar_cita", "reprogramar_cita", "subir_urgencia", "nuevo_motivo",
         },
         "profesional": {"consultar_estado_caso", "escalar_urgencia", "consultar_plan"},
         "admin_cmu": {
             "consultar_estado_caso", "consultar_disponibilidad", "consultar_profesionales",
             "agendar_cita", "notificar_profesional",
+            "cancelar_cita", "reprogramar_cita", "subir_urgencia",
         },
         "admin_cae": {
             "consultar_estado_caso", "consultar_disponibilidad", "consultar_profesionales",
             "agendar_cita", "notificar_profesional",
+            "cancelar_cita", "reprogramar_cita", "subir_urgencia",
         },
         # Reparte roles; no conversa ni lee historias clínicas.
         "admin_plataforma": set(),
@@ -81,10 +87,11 @@ def probar_invariantes_del_catalogo() -> None:
 
     escriben = {nombre for nombre, h in CATALOGO.items() if h.escribe}
     comprobar(
-        "sólo escriben las seis de siempre; ninguna toca el plan (invariante 3)",
+        "sólo escriben las diez conocidas; ninguna toca el plan (invariante 3)",
         escriben == {
             "canalizar_caso", "escalar_urgencia", "agendar_cita",
             "notificar_profesional", "registrar_evolucion", "registrar_adherencia",
+            "cancelar_cita", "reprogramar_cita", "subir_urgencia", "nuevo_motivo",
         },
         str(sorted(escriben)),
     )

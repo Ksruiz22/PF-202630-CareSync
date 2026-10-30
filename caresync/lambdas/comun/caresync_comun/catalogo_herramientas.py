@@ -96,8 +96,58 @@ CATALOGO: dict[str, Herramienta] = {
                     "señales de alarma revisadas y lo que la persona pide. Máximo 8 líneas."
                 ),
             },
+            "orientacion_resuelta": {
+                "type": "boolean",
+                "description": (
+                    "Sólo con nivel 4. true si ya le respondiste la duda con la "
+                    "información de los centros y no pidió una cita: el caso se cierra. "
+                    "false si la duda no está en esa información o si quiere una cita."
+                ),
+            },
         },
         requeridos=("centro", "nivel_urgencia", "resumen"),
+        roles=frozenset({PACIENTE}),
+        escribe=True,
+    ),
+    "subir_urgencia": Herramienta(
+        nombre="subir_urgencia",
+        descripcion=(
+            "Sube el nivel de urgencia de un caso que espera su cita, cuando la persona "
+            "cuenta que empeoró sin señal de alarma. Sólo sube, nunca baja, y no llega "
+            "a nivel 1: una señal de alarma es escalar_urgencia. Dice si la cita que ya "
+            "tiene queda después del nuevo plazo."
+        ),
+        propiedades={
+            "nivel_urgencia": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4,
+                "description": "El nuevo nivel según el Paso 2 del protocolo: 2 o 3.",
+            },
+            "motivo": {
+                "type": "string",
+                "description": "Qué contó la persona que cambió, en una frase.",
+            },
+        },
+        requeridos=("nivel_urgencia", "motivo"),
+        roles=frozenset({PACIENTE, ADMIN_CMU, ADMIN_CAE}),
+        escribe=True,
+    ),
+    "nuevo_motivo": Herramienta(
+        nombre="nuevo_motivo",
+        descripcion=(
+            "Abre un caso aparte cuando la persona trae un problema de salud distinto "
+            "del que lleva este caso, y pasa la conversación al triaje de ese caso "
+            "nuevo. Este caso sigue igual. No la uses para algo que es parte de lo "
+            "mismo, como un síntoma que empeora."
+        ),
+        propiedades={
+            "motivo": {
+                "type": "string",
+                "description": "El problema nuevo, con las palabras de la persona.",
+            },
+        },
+        requeridos=("motivo",),
         roles=frozenset({PACIENTE}),
         escribe=True,
     ),
@@ -122,9 +172,10 @@ CATALOGO: dict[str, Herramienta] = {
         nombre="consultar_disponibilidad",
         descripcion=(
             "Lista los espacios libres del centro, del más próximo al más lejano. El centro "
-            "es el del caso si hay uno, y si no el de quien pregunta. De cada espacio "
-            "devuelve «cuando» para decírselo a la persona e «inicio», que es lo que "
-            "necesita agendar_cita."
+            "es el del caso si hay uno, y si no el de quien pregunta. Con un caso de nivel "
+            "2 o 3 busca dentro del plazo de su nivel y, si no hay, lo dice y trae lo "
+            "primero que haya después. De cada espacio devuelve «cuando» para decírselo a "
+            "la persona e «inicio», que es lo que necesitan agendar_cita y reprogramar_cita."
         ),
         propiedades={
             "dias_adelante": {
@@ -187,6 +238,79 @@ CATALOGO: dict[str, Herramienta] = {
             },
         },
         requeridos=("inicio",),
+        roles=frozenset({PACIENTE, ADMIN_CMU, ADMIN_CAE}),
+        escribe=True,
+    ),
+    "cancelar_cita": Herramienta(
+        nombre="cancelar_cita",
+        descripcion=(
+            "Cancela la cita que el caso tiene por delante y devuelve el espacio a la "
+            "agenda. Llámala primero con confirmado en false: te devuelve la cita para "
+            "que le preguntes a la persona. Sólo cuando confirme, otra vez con true."
+        ),
+        propiedades={
+            "confirmado": {
+                "type": "boolean",
+                "description": (
+                    "true sólo si la persona ya confirmó que cancela esa cita, después de "
+                    "que le dijiste el día y la hora."
+                ),
+            },
+            "motivo": {
+                "type": "string",
+                "description": "Por qué la cancela, si lo dijo.",
+            },
+            "cita_actual": {
+                "type": "string",
+                "description": (
+                    "Sólo si el caso tiene más de una cita por delante: el «inicio» de la "
+                    "que se cancela, copiado de consultar_estado_caso."
+                ),
+            },
+        },
+        requeridos=("confirmado",),
+        roles=frozenset({PACIENTE, ADMIN_CMU, ADMIN_CAE}),
+        escribe=True,
+    ),
+    "reprogramar_cita": Herramienta(
+        nombre="reprogramar_cita",
+        descripcion=(
+            "Cambia la cita que el caso tiene por delante por otro espacio de "
+            "consultar_disponibilidad. Toma primero el nuevo y después suelta el "
+            "anterior. Llámala primero con confirmado en false para preguntarle a la "
+            "persona; sólo cuando confirme, otra vez con true y el mismo «inicio»."
+        ),
+        propiedades={
+            "inicio": {
+                "type": "string",
+                "description": (
+                    "Fecha y hora de inicio del espacio nuevo, copiada literalmente del "
+                    "campo «inicio» de consultar_disponibilidad. Hora de Bogotá."
+                ),
+            },
+            "profesional": {
+                "type": "string",
+                "description": (
+                    "Nombre del profesional, sólo si hay varios espacios a la misma hora "
+                    "y la persona eligió uno."
+                ),
+            },
+            "confirmado": {
+                "type": "boolean",
+                "description": (
+                    "true sólo si la persona ya confirmó el cambio, después de que le "
+                    "dijiste las dos fechas."
+                ),
+            },
+            "cita_actual": {
+                "type": "string",
+                "description": (
+                    "Sólo si el caso tiene más de una cita por delante: el «inicio» de la "
+                    "que se cambia, copiado de consultar_estado_caso."
+                ),
+            },
+        },
+        requeridos=("inicio", "confirmado"),
         roles=frozenset({PACIENTE, ADMIN_CMU, ADMIN_CAE}),
         escribe=True,
     ),

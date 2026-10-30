@@ -12,12 +12,18 @@ Pruebas de las herramientas que no pueden fallar en silencio.
 - **El retroceso en el seguimiento se detecta** con los umbrales del E2E-2: una
   caída de 3 puntos o una escala de 3 o menos dejan el evento que ve el profesional.
 - **El horario de un profesional se lee como lo diría una persona.**
+- **La cita respeta el plazo del nivel** y no se ofrece un espacio que empieza ya.
+- **Cancelar y cambiar una cita piden confirmación**, y cambiarla toma el espacio
+  nuevo antes de soltar el viejo.
+- **Una cita que ya pasó no deja a la persona sin salida.**
+- **La urgencia sólo sube**, y un problema nuevo abre un caso aparte.
 """
 
 from __future__ import annotations
 
 import logging
 import sys
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +33,8 @@ from entorno import AccesoFalso, ActorFalso, cargar, comprobar, fallos, lanza, p
 
 preparar()
 
-from caresync_comun.errores import Conflicto, ErrorDeConfiguracion  # noqa: E402
+from caresync_comun.errores import Conflicto, ErrorDeConfiguracion, SolicitudInvalida  # noqa: E402
+from caresync_comun.roble_acceso import cita_por_delante  # noqa: E402
 
 triaje = cargar("herramientas", "triaje")
 agenda = cargar("herramientas", "agenda")
@@ -127,10 +134,33 @@ def probar_canalizar() -> None:
     comprobar("nivel 4: queda canalizado, pero sin cita (E2E-7)",
               salida.get("agendar") is False and salida.get("plazo") == "sin cita"
               and any(d.get("estado") == "canalizado" for que, d in orientacion.escrito if que == "caso"))
+    # Decía «no le prometas cuándo ni cómo le van a responder», que daba a entender
+    # que alguien iba a responder: el centro no tiene cómo escribirle a la persona.
     comprobar("nivel 4: le dice al agente qué decir, sin prometer respuesta",
-              "CMU" in salida.get("siguiente", "") and "No le prometas" in salida.get("siguiente", ""))
+              "CMU" in salida.get("siguiente", "")
+              and "No le digas que le van a responder" in salida.get("siguiente", ""))
     comprobar("nivel 4: no escala",
               not any(d.get("estado") == "urgencia_escalada" for que, d in orientacion.escrito if que == "caso"))
+    comprobar("nivel 4 sin resolver: el caso sigue abierto para el centro",
+              salida.get("cerrado") is False
+              and not any(d.get("tipo") == "orientacion_entregada" for que, d in orientacion.escrito if que == "evento"))
+
+    resuelta = AccesoFalso(ActorFalso("paciente"))
+    salida = triaje.canalizar_caso(resuelta, {"_id": "k", "estado": "abierto"},
+                                   {"centro": "CMU", "nivel_urgencia": 4, "resumen": "Certificado",
+                                    "orientacion_resuelta": True})
+    cambios = [d for que, d in resuelta.escrito if que == "caso"]
+    comprobar("nivel 4 resuelto con la información de los centros: el caso se cierra (T2)",
+              salida.get("cerrado") is True and cambios and cambios[0].get("estado") == "cerrado"
+              and cambios[0].get("centro") == "CMU" and cambios[0].get("nivel_urgencia") == 4)
+    comprobar("y deja la orientación entregada en la bitácora",
+              any(d.get("tipo") == "orientacion_entregada" for que, d in resuelta.escrito if que == "evento"))
+
+    tres = AccesoFalso(ActorFalso("paciente"))
+    triaje.canalizar_caso(tres, {"_id": "k", "estado": "abierto"},
+                          {"centro": "CMU", "nivel_urgencia": 3, "resumen": "x", "orientacion_resuelta": True})
+    comprobar("orientacion_resuelta no cierra nada que no sea nivel 4",
+              any(d.get("estado") == "canalizado" for que, d in tres.escrito if que == "caso"))
 
     comprobar("una cita para un caso de nivel 1 se rechaza antes de leer la agenda",
               lanza(Conflicto, agenda.agendar_cita, AccesoFalso(ActorFalso("paciente")),
@@ -294,6 +324,286 @@ def probar_retroceso() -> None:
               not any(que == "caso" for que, _ in cerrado.escrito))
 
 
+def _sin_correo() -> Any:
+    return type("Sin", (), {"envia_correo": False, "correo_remitente": ""})()
+
+
+def _iso(momento: Any) -> str:
+    """Una fecha como las guarda ROBLE: en UTC y sin sufijo."""
+    return momento.strftime("%Y-%m-%dT%H:%M:00")
+
+
+def _iso_utc(**delta: Any) -> str:
+    return _iso(agenda.reloj.ahora() + timedelta(**delta))
+
+
+def _franja(**delta: Any) -> dict[str, str]:
+    """Inicio y fin de un espacio de 30 minutos que empieza a `delta` de ahora."""
+    inicio = agenda.reloj.ahora() + timedelta(**delta)
+    return {"inicio": _iso(inicio), "fin": _iso(inicio + timedelta(minutes=30))}
+
+
+def _cupo(cupo_id: str, **delta: Any) -> dict[str, Any]:
+    return {"_id": cupo_id, "centro": "CMU", "profesional_id": "p-1", "estado": "libre",
+            **_franja(**delta)}
+
+
+def _cita(cita_id: str, cupo_id: str, **delta: Any) -> dict[str, Any]:
+    return {"_id": cita_id, "cupo_id": cupo_id, "centro": "CMU", "profesional_id": "p-1",
+            "profesional_nombre": "Dra. Prueba", "estado": "confirmada", **_franja(**delta)}
+
+
+def _caso(**datos: Any) -> dict[str, Any]:
+    return {"_id": "k", "centro": "CMU", "nivel_urgencia": 3, "estado": "agendado",
+            "paciente_nombre": "Ana", "paciente_email": "", **datos}
+
+
+class _AgendaViva(AccesoFalso):
+    """Una agenda en memoria que filtra por fechas como la de verdad.
+
+    `cupos_libres` aplica `desde` y `hasta` igual que `roble_acceso`, así que lo que
+    se prueba es qué ventana pide cada herramienta, y no lo que devuelve un doble que
+    ignora las fechas.
+    """
+
+    def __init__(self, *, cupos: list[dict[str, Any]] = (), citas: list[dict[str, Any]] = (),
+                 reserva_falla: bool = False) -> None:
+        super().__init__(ActorFalso("paciente"))
+        self.cupos = [dict(c) for c in cupos]
+        self.citas = [dict(c) for c in citas]
+        self.eventos: list[dict[str, Any]] = []
+        self.reserva_falla = reserva_falla
+
+    def liberar_reservas_vencidas(self, *, minutos: int) -> int:
+        return 0
+
+    def cupos_libres(self, *, centro: str, desde: Any = None, hasta: Any = None,
+                     maximo: int = 10) -> list[dict[str, Any]]:
+        inicio = desde or agenda.reloj.ahora()
+        libres = []
+        for cupo in self.cupos:
+            momento = agenda.reloj.desde_iso(cupo["inicio"])
+            if momento and momento >= inicio and (hasta is None or momento <= hasta):
+                libres.append((momento, cupo))
+        libres.sort(key=lambda par: par[0])
+        return [cupo for _, cupo in libres[:maximo]]
+
+    def profesional(self, profesional_id: str) -> dict[str, Any]:
+        return {"nombre": "Dra. Prueba", "email": "dra.prueba@ejemplo.edu.co"}
+
+    def citas_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+        return list(self.citas)
+
+    def eventos_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+        return list(self.eventos)
+
+    def registrar_evento(self, **datos: Any) -> dict[str, Any]:
+        self.eventos.append({**datos, "creado_en": agenda.reloj.iso()})
+        return self._escribir("evento", datos)
+
+    def reservar_cupo(self, *, cupo_id: str, caso_id: str) -> dict[str, Any]:
+        if self.reserva_falla:
+            raise Conflicto("Otra persona tomó ese espacio mientras lo reservábamos")
+        return self._escribir("reserva", {"cupo_id": cupo_id})
+
+    def confirmar_cita(self, *, cupo_id: str, caso_id: str) -> dict[str, Any]:
+        cupo = next(c for c in self.cupos if c["_id"] == cupo_id)
+        cita = _cita(f"cita-{cupo_id}", cupo_id)
+        cita.update(inicio=cupo["inicio"], fin=cupo["fin"])
+        self.citas.append(cita)
+        return self._escribir("cita", cita)
+
+    def cancelar_cita(self, cita: dict[str, Any]) -> bool:
+        self._escribir("cancelada", {"cita_id": cita["_id"]})
+        return True
+
+    def liberar_cupo(self, cupo_id: str) -> None:
+        self._escribir("cupo_liberado", {"cupo_id": cupo_id})
+
+
+def probar_plazo_del_nivel() -> None:
+    print("\nLa ventana de la cita la pone el nivel (A1 y A8)")
+    agenda.correo.config = _sin_correo
+    iso_local = agenda.reloj.iso_local
+
+    en_dos_dias, en_cinco_dias = _cupo("c2", days=2), _cupo("c5", days=5)
+    acceso = _AgendaViva(cupos=[en_cinco_dias, en_dos_dias])
+    salida = agenda.consultar_disponibilidad(acceso, _caso(nivel_urgencia=2), {"dias_adelante": 30})
+    comprobar("nivel 2: sólo ofrece lo que cabe en 72 horas, aunque el modelo pida 30 días",
+              [o["inicio"] for o in salida["opciones"]] == [iso_local(en_dos_dias["inicio"])]
+              and salida["dentro_del_plazo"] is True, str(salida.get("opciones")))
+
+    acceso = _AgendaViva(cupos=[en_cinco_dias])
+    salida = agenda.consultar_disponibilidad(acceso, _caso(nivel_urgencia=2), {})
+    comprobar("sin espacio en el plazo, lo dice y ofrece lo primero que hay después",
+              salida["dentro_del_plazo"] is False and len(salida["opciones"]) == 1
+              and "72 horas" in salida["instruccion"], salida.get("instruccion"))
+    comprobar("y le prohíbe al agente prometer un espacio o un contacto",
+              "No prometas" in salida["instruccion"])
+    comprobar("queda anotado en la bitácora del caso",
+              [e["tipo"] for e in acceso.eventos] == ["sin_cupo_en_plazo"])
+    agenda.consultar_disponibilidad(acceso, _caso(nivel_urgencia=2), {})
+    comprobar("una segunda consulta el mismo día no lo anota otra vez",
+              [e["tipo"] for e in acceso.eventos] == ["sin_cupo_en_plazo"])
+
+    acceso = _AgendaViva(cupos=[en_cinco_dias])
+    salida = agenda.consultar_disponibilidad(acceso, _caso(nivel_urgencia=3), {})
+    comprobar("nivel 3: cinco días caben en su plazo de 7", salida["dentro_del_plazo"] is True)
+
+    ya = _cupo("c0", minutes=10)
+    acceso = _AgendaViva(cupos=[ya, en_dos_dias])
+    salida = agenda.consultar_disponibilidad(acceso, _caso(nivel_urgencia=3), {})
+    comprobar("un espacio que empieza en 10 minutos no se ofrece: no alcanza a llegar",
+              iso_local(ya["inicio"]) not in [o["inicio"] for o in salida["opciones"]])
+
+    acceso = _AgendaViva(cupos=[en_cinco_dias])
+    salida = agenda.consultar_disponibilidad(acceso, _caso(nivel_urgencia=4), {"dias_adelante": 7})
+    comprobar("nivel 4 que pidió cita: sin plazo, la ventana la pide el modelo",
+              "dentro_del_plazo" not in salida and len(salida["opciones"]) == 1)
+
+
+def probar_cancelar() -> None:
+    print("\nCancelar una cita (A2)")
+    agenda.correo.config = _sin_correo
+
+    acceso = _AgendaViva(citas=[_cita("cita-1", "cupo-1", days=2)])
+    salida = agenda.cancelar_cita(acceso, _caso(), {"confirmado": False})
+    comprobar("sin confirmar no escribe nada y devuelve la cita para preguntar",
+              salida.get("confirmar_primero") is True and acceso.escrito == []
+              and bool(salida["cita"]["cuando"]))
+
+    salida = agenda.cancelar_cita(acceso, _caso(), {"confirmado": True, "motivo": "un viaje"})
+    comprobar("confirmado: cancela la cita", salida.get("ok") is True
+              and any(que == "cancelada" for que, _ in acceso.escrito))
+    comprobar("y el caso vuelve a canalizado, para poder pedir otra",
+              any(d.get("estado") == "canalizado" for que, d in acceso.escrito if que == "caso"))
+    comprobar("con el motivo en la bitácora",
+              any(e["tipo"] == "cita_cancelada" and e["detalle"]["motivo"] == "un viaje"
+                  for e in acceso.eventos))
+
+    pasada = _AgendaViva(citas=[_cita("cita-1", "cupo-1", days=-3)])
+    comprobar("una cita que ya pasó no se cancela",
+              lanza(SolicitudInvalida, agenda.cancelar_cita, pasada, _caso(), {"confirmado": True})
+              is not None)
+
+    dos = _AgendaViva(citas=[_cita("a", "cupo-a", days=2), _cita("b", "cupo-b", days=4)])
+    salida = agenda.cancelar_cita(dos, _caso(), {"confirmado": True})
+    comprobar("con dos citas por delante pregunta cuál, sin cancelar ninguna",
+              salida.get("motivo") == "varias_citas" and len(salida["citas"]) == 2
+              and not any(que == "cancelada" for que, _ in dos.escrito))
+    elegida = salida["citas"][1]["inicio"]
+    agenda.cancelar_cita(dos, _caso(), {"confirmado": True, "cita_actual": elegida})
+    comprobar("y con cita_actual cancela la elegida",
+              [d["cita_id"] for que, d in dos.escrito if que == "cancelada"] == ["b"])
+
+
+def probar_reprogramar() -> None:
+    print("\nCambiar una cita (A3)")
+    agenda.correo.config = _sin_correo
+
+    nuevo = _cupo("cupo-nuevo", days=2)
+    inicio = agenda.reloj.iso_local(nuevo["inicio"])
+
+    acceso = _AgendaViva(cupos=[nuevo], citas=[_cita("cita-vieja", "cupo-viejo", days=5)])
+    salida = agenda.reprogramar_cita(acceso, _caso(), {"inicio": inicio, "confirmado": False})
+    comprobar("sin confirmar no toca nada y le da las dos fechas para preguntar",
+              salida.get("confirmar_primero") is True and acceso.escrito == []
+              and salida.get("de") and salida.get("a"))
+
+    salida = agenda.reprogramar_cita(acceso, _caso(), {"inicio": inicio, "confirmado": True})
+    orden = [que for que, _ in acceso.escrito]
+    comprobar("toma el espacio nuevo antes de soltar el viejo",
+              "cita" in orden and "cancelada" in orden and orden.index("cita") < orden.index("cancelada"),
+              str(orden))
+    comprobar("confirma la nueva y avisa que no hace falta notificar otra vez",
+              salida.get("ok") is True and salida.get("anterior_cancelada") is True
+              and "no llames a notificar_profesional" in salida.get("instruccion", ""))
+    comprobar("y le manda el resumen al profesional de la cita nueva",
+              any(e["tipo"] == "profesional_notificado" and e["detalle"]["cita_id"] == "cita-cupo-nuevo"
+                  for e in acceso.eventos))
+
+    perdida = _AgendaViva(cupos=[nuevo], citas=[_cita("cita-vieja", "cupo-viejo", days=5)],
+                          reserva_falla=True)
+    salida = agenda.reprogramar_cita(perdida, _caso(), {"inicio": inicio, "confirmado": True})
+    comprobar("si otra persona toma el espacio nuevo, la cita de antes sigue intacta",
+              salida.get("motivo") == "espacio_tomado"
+              and not any(que == "cancelada" for que, _ in perdida.escrito))
+
+
+def probar_cita_pasada() -> None:
+    print("\nUna cita que ya pasó no deja a la persona sin salida (A4)")
+    agenda.correo.config = _sin_correo
+
+    libre = _cupo("cupo-nuevo", days=2)
+    inicio = agenda.reloj.iso_local(libre["inicio"])
+
+    acceso = _AgendaViva(cupos=[libre], citas=[_cita("pasada", "cupo-viejo", days=-2)])
+    salida = agenda.agendar_cita(acceso, _caso(), {"inicio": inicio})
+    comprobar("con una cita pasada que nadie marcó, se puede pedir otra", salida.get("ok") is True)
+
+    acceso = _AgendaViva(cupos=[libre], citas=[_cita("futura", "cupo-viejo", days=1)])
+    error = lanza(Conflicto, agenda.agendar_cita, acceso, _caso(), {"inicio": inicio})
+    comprobar("con una cita por delante no, y le dice cómo cambiarla",
+              error is not None and "reprogramar_cita" in error.publico)
+
+    futura = _cita("x", "y", days=1)
+    comprobar("una cita cancelada no está por delante", not cita_por_delante({**futura, "estado": "cancelada"}))
+    comprobar("una marcada como no asistió tampoco", not cita_por_delante({**futura, "estado": "no_asistio"}))
+    comprobar("una en curso sí: no se pide otra durante la consulta",
+              cita_por_delante({**futura, "inicio": _iso_utc(minutes=-10), "fin": _iso_utc(minutes=20)}))
+    comprobar("sin `fin`, se supone de una hora",
+              cita_por_delante({"estado": "confirmada", "inicio": _iso_utc(minutes=-30)})
+              and not cita_por_delante({"estado": "confirmada", "inicio": _iso_utc(minutes=-90)}))
+
+    reprogramada = _AgendaViva(citas=[{**_cita("vieja", "c-v", days=5), "estado": "cancelada"},
+                                      _cita("nueva", "c-n", days=2)])
+    agenda.notificar_profesional(reprogramada, _caso(), {})
+    comprobar("el aviso al profesional es de la próxima cita, no de la última por fecha",
+              [e["detalle"]["cita_id"] for e in reprogramada.eventos if e["tipo"] == "profesional_notificado"]
+              == ["nueva"])
+
+
+def probar_subir_urgencia() -> None:
+    print("\nEmpeora antes de la cita, sin señal de alarma (T6)")
+    _capturar(triaje)
+
+    acceso = _AgendaViva(citas=[_cita("cita-1", "cupo-1", days=5)])
+    salida = triaje.subir_urgencia(acceso, _caso(nivel_urgencia=3),
+                                   {"nivel_urgencia": 2, "motivo": "Ya no puede apoyar el pie"})
+    comprobar("de 3 a 2: cambia el nivel y deja el evento",
+              any(d.get("nivel_urgencia") == 2 for que, d in acceso.escrito if que == "caso")
+              and any(e["tipo"] == "urgencia_subida" for e in acceso.eventos))
+    comprobar("y avisa que su cita de dentro de cinco días queda fuera de las 72 horas",
+              salida.get("cita_fuera_de_plazo") is True and "reprogramar_cita" in salida["instruccion"])
+
+    acceso = _AgendaViva()
+    salida = triaje.subir_urgencia(acceso, _caso(nivel_urgencia=2), {"nivel_urgencia": 3, "motivo": "x"})
+    comprobar("nunca baja", salida.get("sin_cambio") is True and acceso.escrito == [])
+    comprobar("al nivel 1 no se llega por aquí: eso es escalar_urgencia",
+              lanza(SolicitudInvalida, triaje.subir_urgencia, acceso, _caso(), {"nivel_urgencia": 1, "motivo": "x"})
+              is not None)
+    comprobar("y no se sube en un caso que ya fue atendido",
+              lanza(Conflicto, triaje.subir_urgencia, acceso, _caso(estado="en_seguimiento"),
+                    {"nivel_urgencia": 2, "motivo": "x"}) is not None)
+
+
+def probar_nuevo_motivo() -> None:
+    print("\nUn problema nuevo con un caso abierto (T1)")
+
+    acceso = AccesoFalso(ActorFalso("paciente"))
+    salida = triaje.nuevo_motivo(acceso, {"_id": "viejo", "estado": "en_seguimiento"},
+                                 {"motivo": "Me duele la rodilla"})
+    abiertos = [d for que, d in acceso.escrito if que == "abrir_caso"]
+    comprobar("abre un caso aparte con el problema nuevo como motivo",
+              abiertos and abiertos[0]["motivo"] == "Me duele la rodilla" and salida.get("caso_nuevo"))
+    comprobar("y lo anota en la bitácora del caso viejo",
+              any(d.get("tipo") == "nuevo_motivo" and d.get("caso_id") == "viejo"
+                  for que, d in acceso.escrito if que == "evento"))
+    comprobar("en pleno triaje no abre otro: lo nuevo se cuenta ahí mismo",
+              lanza(Conflicto, triaje.nuevo_motivo, AccesoFalso(ActorFalso("paciente")),
+                    {"_id": "k", "estado": "abierto"}, {"motivo": "x"}) is not None)
+
+
 def probar_horarios_legibles() -> None:
     print("\nHorarios dichos como una persona")
 
@@ -321,6 +631,12 @@ def main() -> int:
         probar_retroceso,
         probar_adherencia,
         probar_horarios_legibles,
+        probar_plazo_del_nivel,
+        probar_cancelar,
+        probar_reprogramar,
+        probar_cita_pasada,
+        probar_subir_urgencia,
+        probar_nuevo_motivo,
     ):
         prueba()
 

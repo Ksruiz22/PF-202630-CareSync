@@ -19,14 +19,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from caresync_comun import correo, reloj
+from caresync_comun import correo, plazos, reloj
 from caresync_comun.config import config
-from caresync_comun.errores import Conflicto
+from caresync_comun.errores import Conflicto, SolicitudInvalida
 from caresync_comun.registro import evento, registro
 from caresync_comun.roble_acceso import (
+    CASO_ABIERTO,
+    CASO_AGENDADO,
     CASO_CANALIZADO,
+    CASO_CERRADO,
     CASO_URGENTE,
     AccesoRoble,
+    cita_por_delante,
     fila_id,
 )
 
@@ -70,9 +74,13 @@ def consultar_estado_caso(
     citas = [
         {
             "cuando": reloj.humano(c.get("inicio")),
+            # Lo que piden `cancelar_cita` y `reprogramar_cita` en `cita_actual` cuando
+            # hay más de una cita por delante.
+            "inicio": reloj.iso_local(c.get("inicio")),
             "centro": c.get("centro"),
             "profesional": c.get("profesional_nombre"),
             "estado": c.get("estado"),
+            "ya_paso": not cita_por_delante(c) and c.get("estado") in (None, "", "confirmada"),
         }
         for c in acceso.citas_del_caso(caso_id)
     ]
@@ -110,6 +118,11 @@ def canalizar_caso(
     centro = argumentos["centro"]
     nivel = int(argumentos["nivel_urgencia"])
     resumen = str(argumentos["resumen"])[:2000]
+    # Una duda que el agente ya resolvió con la información de los centros no deja
+    # nada pendiente, así que el caso se cierra aquí. Abierto, se quedaba en
+    # `canalizado` para siempre —nadie cierra un nivel 4, porque no hay cita ni
+    # profesional— y el siguiente problema de esa persona caía en agenda sin triaje.
+    resuelta = nivel == 4 and bool(argumentos.get("orientacion_resuelta"))
 
     # Sin `canalizado_en`: esa columna no existe en `casos` y ROBLE rechaza la
     # actualización entera con un 400 si se envía. Cuándo se canalizó ya está en dos
@@ -118,7 +131,7 @@ def canalizar_caso(
     acceso.actualizar_caso(
         caso_id,
         {
-            "estado": CASO_CANALIZADO,
+            "estado": CASO_CERRADO if resuelta else CASO_CANALIZADO,
             "centro": centro,
             "nivel_urgencia": nivel,
             "resumen_triaje": resumen,
@@ -130,6 +143,10 @@ def canalizar_caso(
         severidad="alta" if nivel <= 2 else "info",
         detalle={"centro": centro, "nivel_urgencia": nivel, "resumen": resumen},
     )
+    if resuelta:
+        acceso.registrar_evento(
+            caso_id=caso_id, tipo="orientacion_entregada", detalle={"centro": centro}
+        )
     # `nivel_urgencia` y no `nivel`: `evento()` tiene un parámetro propio llamado
     # `nivel`, que es el nivel de log. Pasarle el del protocolo mandaba la línea con
     # nivel 1 a 4 —por debajo de DEBUG— y el evento `caso_canalizado` desaparecía
@@ -162,13 +179,11 @@ def canalizar_caso(
             "centro": centro,
             "nivel_urgencia": nivel,
             "agendar": False,
-            "plazo": _plazo(nivel),
-            "siguiente": (
-                f"Es una orientación sin cita. Dile a la persona que su consulta quedó "
-                f"registrada en el {centro} con lo que te contó, y que si quiere una "
-                "cita para hablarlo con alguien del centro, te lo diga aquí. No le "
-                "prometas cuándo ni cómo le van a responder."
-            ),
+            "plazo": plazos.texto_de(nivel),
+            "cerrado": resuelta,
+            "siguiente": _SIGUIENTE_ORIENTACION_RESUELTA
+            if resuelta
+            else _siguiente_orientacion_registrada(centro),
         }
 
     return {
@@ -176,7 +191,7 @@ def canalizar_caso(
         "centro": centro,
         "nivel_urgencia": nivel,
         "agendar": True,
-        "plazo": _plazo(nivel),
+        "plazo": plazos.texto_de(nivel),
         "siguiente": (
             "El caso pasa al agente de agenda, que continúa en esta misma "
             "conversación. No te despidas de la persona."
@@ -184,9 +199,160 @@ def canalizar_caso(
     }
 
 
-def _plazo(nivel: int) -> str:
-    return {1: "ahora", 2: "72 horas", 3: "7 días", 4: "sin cita"}.get(nivel, "7 días")
+# El modo simulación del orquestador devuelve estos mismos textos: lo que se evalúa
+# ahí es cómo cierra el triaje una duda de información, y con otra instrucción
+# cerraría de otra forma. Si cambian aquí, cambian allá.
+_SIGUIENTE_ORIENTACION_RESUELTA = (
+    "La duda quedó resuelta con la información de los centros y el caso se cerró: no "
+    "queda nada pendiente. Si la persona necesita algo más, lo cuenta aquí y se le "
+    "atiende desde el principio. No le prometas ningún seguimiento."
+)
 
+
+def _siguiente_orientacion_registrada(centro: str) -> str:
+    # Decía «no le prometas cuándo ni cómo le van a responder», que daba a entender
+    # que alguien iba a responder. Nadie puede: el centro ve el caso en su panel, pero
+    # lo que escribe el personal no le llega a la persona y el correo no sale.
+    return (
+        f"Es una orientación sin cita que no se resolvió con la información de los "
+        f"centros. Dile a la persona que su consulta quedó registrada en el {centro} "
+        "con lo que te contó, y que si quiere hablarlo con alguien del centro le buscas "
+        "una cita aquí mismo. No le digas que le van a responder por otra vía: el "
+        "centro ve el caso, pero no tiene cómo escribirle."
+    )
+
+
+# ----------------------------------------------------------- subir la urgencia
+
+def subir_urgencia(
+    acceso: AccesoRoble, caso: dict[str, Any], argumentos: dict[str, Any]
+) -> dict[str, Any]:
+    """Sube el nivel de un caso que espera su cita, cuando la persona cuenta que empeoró.
+
+    Sólo sube y nunca baja: el protocolo resuelve toda duda hacia lo más urgente, y
+    bajar un nivel es justo el error que mide M3. Al nivel 1 tampoco se llega por
+    aquí, porque una emergencia no espera una cita: eso es `escalar_urgencia`.
+
+    Antes no había cómo. Agenda podía escalar una urgencia y nada más, así que un
+    «ya no puedo apoyar el pie» tres días antes de una cita de nivel 3 dejaba la cita
+    donde estaba: un sub-triaje que aparecía después del triaje.
+    """
+    caso_id = str(fila_id(caso))
+    nuevo = int(argumentos["nivel_urgencia"])
+    motivo = str(argumentos.get("motivo") or "")[:500]
+
+    if nuevo <= 1:
+        raise SolicitudInvalida(
+            "subir_urgencia no lleva a nivel 1",
+            publico=(
+                "Un nivel 1 es una emergencia: no se sube con esta herramienta, se "
+                "escala con escalar_urgencia."
+            ),
+        )
+    if caso.get("estado") not in (CASO_CANALIZADO, CASO_AGENDADO):
+        raise Conflicto(
+            "Sólo se sube la urgencia de un caso que espera su cita",
+            publico=(
+                "La urgencia sólo se sube en un caso canalizado que todavía espera su "
+                "cita. Si hay una señal de alarma, usa escalar_urgencia."
+            ),
+        )
+
+    anterior = plazos.nivel_de(caso)
+    if anterior and nuevo >= anterior:
+        return {
+            "ok": True,
+            "sin_cambio": True,
+            "nivel_urgencia": anterior,
+            "instruccion": (
+                "El caso ya tiene ese nivel o uno más urgente, así que no cambia: la "
+                "urgencia sólo sube. Sigue con lo que la persona necesita."
+            ),
+        }
+
+    acceso.actualizar_caso(caso_id, {"nivel_urgencia": nuevo})
+    acceso.registrar_evento(
+        caso_id=caso_id,
+        tipo="urgencia_subida",
+        severidad="alta" if nuevo == 2 else "info",
+        detalle={"anterior": anterior, "nuevo": nuevo, "motivo": motivo},
+    )
+    # `nivel_urgencia`, nunca `nivel`: ver la nota de `caso_canalizado` más arriba.
+    evento(log, "urgencia_subida", caso_id=caso_id, anterior=anterior, nivel_urgencia=nuevo)
+
+    limite = reloj.ahora() + (plazos.plazo_de(nuevo) or plazos.PLAZOS[3])
+    proximas = sorted(
+        (c for c in acceso.citas_del_caso(caso_id) if cita_por_delante(c)),
+        key=lambda c: str(c.get("inicio") or ""),
+    )
+    tarde = bool(proximas) and (reloj.desde_iso(proximas[0].get("inicio")) or limite) > limite
+
+    return {
+        "ok": True,
+        "nivel_urgencia": nuevo,
+        "plazo": plazos.texto_de(nuevo),
+        "cita_fuera_de_plazo": tarde,
+        "instruccion": (
+            f"Su cita del {reloj.humano(proximas[0].get('inicio'))} queda después del "
+            f"nuevo plazo ({plazos.texto_de(nuevo)}). Ofrécele adelantarla: consulta la "
+            "disponibilidad y, si elige otra, usa reprogramar_cita."
+            if tarde
+            else (
+                "Sigue con la cita: con el nuevo nivel, consulta la disponibilidad y "
+                "ofrécele un espacio dentro del plazo."
+                if not proximas
+                else "Su cita ya está dentro del nuevo plazo. Díselo y no la muevas."
+            )
+        ),
+    }
+
+
+# --------------------------------------------------------------- nuevo motivo
+
+def nuevo_motivo(
+    acceso: AccesoRoble, caso: dict[str, Any], argumentos: dict[str, Any]
+) -> dict[str, Any]:
+    """Abre un caso aparte para un problema distinto del que lleva este caso.
+
+    Una persona tenía un solo caso vivo, y un problema nuevo caía en el agente del caso
+    viejo: un dolor de rodilla de alguien en seguimiento por ansiedad lo atendía
+    Seguimiento, que no puede canalizar, y si el caso estaba canalizado Agenda le
+    buscaba cita en el centro del caso viejo con el resumen viejo. Ahora el caso viejo
+    sigue su curso y lo nuevo empieza su propio triaje; el orquestador hace el traspaso
+    y cambia de caso en el mismo turno.
+
+    Abre el caso con el token de la persona, como cuando escribe por primera vez, así
+    que no hay forma de abrírselo a otra.
+    """
+    if caso.get("estado") in (None, "", CASO_ABIERTO):
+        raise Conflicto(
+            "El caso todavía está en triaje",
+            publico=(
+                "Este caso todavía está en triaje: lo nuevo se cuenta aquí mismo y el "
+                "triaje lo tiene en cuenta."
+            ),
+        )
+
+    motivo = str(argumentos.get("motivo") or "").strip()[:500]
+    if not motivo:
+        raise SolicitudInvalida("nuevo_motivo sin motivo")
+
+    caso_id = str(fila_id(caso))
+    nuevo = acceso.abrir_caso(motivo=motivo)
+    nuevo_id = str(fila_id(nuevo))
+    acceso.registrar_evento(
+        caso_id=caso_id, tipo="nuevo_motivo", detalle={"caso_nuevo": nuevo_id, "motivo": motivo}
+    )
+
+    return {
+        "ok": True,
+        "caso_nuevo": nuevo_id,
+        "siguiente": (
+            "Lo nuevo sigue en un caso aparte, con su propio triaje, y este caso sigue "
+            "igual. El agente de triaje continúa en esta misma conversación: dile en una "
+            "frase que lo van a ver por separado y no le hagas tú las preguntas."
+        ),
+    }
 
 # --------------------------------------------------------------------- escalar
 
