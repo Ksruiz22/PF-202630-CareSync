@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "CareSync",
+    "slug": "caresync-movil",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "caresync",
+    "plugins": ["expo-secure-store", "expo-notifications"],
+    "android": { "package": "co.edu.uninorte.caresync" },
+    "ios": { "bundleIdentifier": "co.edu.uninorte.caresync" },
+    "web": { "bundler": "metro", "output": "single" }
+  }
+}
