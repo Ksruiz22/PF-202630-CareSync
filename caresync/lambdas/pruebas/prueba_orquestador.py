@@ -291,7 +291,7 @@ def probar_cambio_de_caso() -> None:
               cuerpo["caso"]["id"] == "nuevo", str(cuerpo["caso"]))
     comprobar("el triaje empieza sólo con el mensaje de la persona, no con el hilo del otro caso",
               [b["text"] for m in llamadas[1]["mensajes"] for b in m["content"]] == ["Además me duele la rodilla"])
-    comprobar("y con las instrucciones del triaje", "Agente de Triaje" in llamadas[1]["sistema"])
+    comprobar("y con las instrucciones del triaje", "Agente de Triaje" in "".join(llamadas[1]["sistema"]))
     escritos = [(d["caso_id"], d["autor"], d["contenido"]) for que, d in acceso.escrito if que == "mensaje"]
     comprobar("cada caso guarda lo suyo: el viejo, lo que dijo seguimiento; el nuevo, el mensaje y el triaje",
               escritos == [
@@ -421,6 +421,22 @@ def probar_instrucciones() -> None:
               "k-1" in situacion and "sin centro asignado" in situacion and "sin nivel de urgencia" in situacion)
     comprobar("lo volátil va al final, para que el prefijo se pueda cachear",
               con_caso.index("## Situación actual") > con_caso.index("## Tu papel"))
+
+    # El punto de caché iba al final de todo, con la hora al minuto dentro de lo
+    # cacheado: la caché no servía de un mensaje a otro.
+    fijo, variable = agentes.instrucciones_partidas(
+        agentes.AGENTES["triaje"], actor=paciente, caso={"_id": "k-1", "estado": "abierto"}
+    )
+    bloques = bedrock_conversa.bloques_de_sistema((fijo, variable), usar_cache=True)
+    comprobar("el punto de caché queda entre lo fijo y la situación actual",
+              [list(b) for b in bloques] == [["text"], ["cachePoint"], ["text"]]
+              and "Hoy es" in bloques[2]["text"] and "Hoy es" not in bloques[0]["text"]
+              and "k-1" not in bloques[0]["text"])
+    comprobar("partido o junto, el prompt es el mismo",
+              "\n\n".join((fijo, variable)) == agentes.instrucciones(
+                  agentes.AGENTES["triaje"], actor=paciente, caso={"_id": "k-1", "estado": "abierto"}))
+    comprobar("un texto suelto sigue funcionando, con el punto al final",
+              bedrock_conversa.bloques_de_sistema("x", usar_cache=True) == [{"text": "x"}, {"cachePoint": {"type": "default"}}])
     comprobar("el prompt común declara las marcas de autor",
               "[personal del CMU]" in agentes._COMUN and "[sistema]" in agentes._COMUN)
     comprobar("el prompt común prohíbe prometer contacto humano (invariante 7)",

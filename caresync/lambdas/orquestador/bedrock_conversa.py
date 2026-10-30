@@ -66,6 +66,11 @@ def _bedrock():
     )
 
 
+# El prompt de sistema: un texto, o lo fijo y lo variable por separado para que el
+# punto de caché quede entre los dos. Ver `bloques_de_sistema`.
+Sistema = str | tuple[str, str]
+
+
 @dataclass
 class Uso:
     """Una llamada a herramienta, con lo que devolvió."""
@@ -124,7 +129,7 @@ def _sumar(previo: str, nuevo: str) -> str:
 
 def conversar(
     *,
-    sistema: str,
+    sistema: Sistema,
     mensajes: list[dict[str, Any]],
     herramientas: list[dict[str, Any]],
     ejecutar: Callable[[str, dict[str, Any]], dict[str, Any]],
@@ -232,12 +237,12 @@ def conversar(
     # no dejar a la persona con la conversación colgada.
     evento(log, "vueltas_agotadas", vueltas=max_vueltas)
     cierre = _llamar(
-        sistema=sistema
-        + (
+        sistema=_con_cierre(
+            sistema,
             "\n\nCierra ahora, en dos frases, con lo que de verdad quedó hecho según"
             " los resultados de las herramientas de esta conversación. Lo que no"
             " salió, no salió: no lo des por pendiente de confirmación ni prometas"
-            " que alguien lo va a resolver. No pidas más herramientas."
+            " que alguien lo va a resolver. No pidas más herramientas.",
         ),
         mensajes=historial,
         herramientas=[],
@@ -256,22 +261,41 @@ def conversar(
     return resultado
 
 
+def bloques_de_sistema(sistema: Sistema, *, usar_cache: bool) -> list[dict[str, Any]]:
+    """El prompt de sistema en bloques, con el punto de caché entre lo fijo y lo variable.
+
+    El punto iba al final de todo, así que lo cacheado incluía la situación actual —la
+    hora al minuto y el caso—, que cambia en cada mensaje: la caché sólo servía entre las
+    vueltas de una misma petición. Partido en dos, lo fijo (instrucciones, protocolo,
+    información de los centros) se reutiliza entre mensajes mientras siga en la caché.
+    """
+    fijo, variable = sistema if isinstance(sistema, tuple) else (sistema, "")
+    bloques: list[dict[str, Any]] = [{"text": fijo}]
+    if usar_cache:
+        bloques.append({"cachePoint": {"type": "default"}})
+    if variable:
+        bloques.append({"text": variable})
+    return bloques
+
+
+def _con_cierre(sistema: Sistema, texto: str) -> Sistema:
+    if isinstance(sistema, tuple):
+        return (sistema[0], sistema[1] + texto)
+    return sistema + texto
+
+
 def _llamar(
     *,
-    sistema: str,
+    sistema: Sistema,
     mensajes: list[dict[str, Any]],
     herramientas: list[dict[str, Any]],
     temperatura: float,
     max_tokens: int,
     usar_cache: bool,
 ) -> dict[str, Any]:
-    bloques_sistema: list[dict[str, Any]] = [{"text": sistema}]
-    if usar_cache:
-        bloques_sistema.append({"cachePoint": {"type": "default"}})
-
     peticion: dict[str, Any] = {
         "modelId": MODELO,
-        "system": bloques_sistema,
+        "system": bloques_de_sistema(sistema, usar_cache=usar_cache),
         "messages": mensajes,
         "inferenceConfig": {"maxTokens": max_tokens, "temperature": temperatura},
     }

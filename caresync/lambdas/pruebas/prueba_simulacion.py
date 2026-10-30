@@ -110,7 +110,8 @@ class ConversaFalsa:
 
     def __call__(self, *, sistema, mensajes, herramientas, ejecutar, **_resto):
         self.veces += 1
-        self.sistema = sistema
+        # El orquestador lo pasa partido en lo fijo y lo variable, para la caché.
+        self.sistema = "\n\n".join(sistema) if isinstance(sistema, tuple) else sistema
         self.mensajes = list(mensajes)
         self.herramientas = list(herramientas)
 

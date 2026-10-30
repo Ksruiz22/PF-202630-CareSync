@@ -420,7 +420,21 @@ _POR_AGENTE = {TRIAJE: _TRIAJE, AGENDA: _AGENDA, SEGUIMIENTO: _SEGUIMIENTO}
 def instrucciones(
     agente: Agente, *, actor: Actor, caso: dict[str, Any] | None, contexto: str = ""
 ) -> str:
-    """Prompt completo del agente, con el estado del caso ya resuelto.
+    """Prompt completo del agente, en un solo texto."""
+    return "\n\n".join(
+        instrucciones_partidas(agente, actor=actor, caso=caso, contexto=contexto)
+    )
+
+
+def instrucciones_partidas(
+    agente: Agente, *, actor: Actor, caso: dict[str, Any] | None, contexto: str = ""
+) -> tuple[str, str]:
+    """Prompt completo del agente, con el estado del caso ya resuelto: (fijo, variable).
+
+    El orquestador lo pasa partido para que el punto de caché quede entre las dos
+    partes (`bedrock_conversa.bloques_de_sistema`): lo fijo es igual para cualquier
+    persona que hable con el mismo agente, y la situación actual cambia en cada
+    mensaje.
 
     El estado va en el prompt de sistema y no como un mensaje del usuario porque
     es lo que hace cacheable el prefijo: lo estable arriba, lo volátil abajo.
@@ -458,7 +472,7 @@ def instrucciones(
     if contexto:
         situacion.append(contexto)
 
-    return "\n\n".join(
+    fijo = "\n\n".join(
         [
             _COMUN,
             # La ruta de emergencia la lleva todo agente, no sólo el de triaje:
@@ -485,7 +499,7 @@ def instrucciones(
             ORIENTACION,
             f"## Tu papel: {agente.nombre}",
             especifico,
-            "## Situación actual",
-            "\n".join(f"- {linea}" for linea in situacion),
         ]
     )
+    variable = "## Situación actual\n\n" + "\n".join(f"- {linea}" for linea in situacion)
+    return fijo, variable

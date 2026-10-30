@@ -293,7 +293,7 @@ def _conversar(
             contexto_extra = _contexto_del_traspaso(caso or {})
 
         resultado = bedrock_conversa.conversar(
-            sistema=agentes.instrucciones(
+            sistema=agentes.instrucciones_partidas(
                 agente, actor=actor, caso=caso, contexto=contexto_extra
             ),
             mensajes=hilo,
@@ -887,7 +887,7 @@ def _simular(
 
     decisiones: list[dict[str, Any]] = []
     resultado = bedrock_conversa.conversar(
-        sistema=agentes.instrucciones(
+        sistema=agentes.instrucciones_partidas(
             agente,
             actor=_PACIENTE_SIMULADO,
             # Un caso sintético que no se escribe en ninguna parte. Con `caso=None`,
