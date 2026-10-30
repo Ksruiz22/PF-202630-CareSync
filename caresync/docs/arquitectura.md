@@ -51,17 +51,33 @@ herramientas y quién puede hablarle.
 | Agente | Roles que lo invocan | Herramientas |
 |---|---|---|
 | Triaje | paciente | `consultar_estado_caso`, `escalar_urgencia`, `canalizar_caso` |
-| Agenda y logística | paciente, administrativo (CMU y CAE) | `consultar_estado_caso`, `consultar_disponibilidad`, `consultar_profesionales`, `agendar_cita`, `notificar_profesional`, `escalar_urgencia` |
-| Seguimiento | paciente, profesional | `consultar_estado_caso`, `consultar_plan`, `registrar_evolucion`, `registrar_adherencia`, `escalar_urgencia` |
+| Agenda y logística | paciente, administrativo (CMU y CAE) | `consultar_estado_caso`, `consultar_disponibilidad`, `consultar_profesionales`, `agendar_cita`, `cancelar_cita`, `reprogramar_cita`, `notificar_profesional`, `subir_urgencia`, `escalar_urgencia`, `nuevo_motivo` |
+| Seguimiento | paciente, profesional | `consultar_estado_caso`, `consultar_plan`, `registrar_evolucion`, `registrar_adherencia`, `escalar_urgencia`, `nuevo_motivo` |
 
-**El traspaso es explícito y uno solo:** cuando `canalizar_caso` tiene éxito, el
-caso pasa de triaje a agenda. No hay un enrutador que decida por su cuenta; el
-traspaso está declarado en el propio agente (`traspaso=("canalizar_caso", AGENDA)`)
-y ocurre porque una herramienta concreta funcionó.
+**El traspaso es explícito:** cuando `canalizar_caso` tiene éxito, el caso pasa de
+triaje a agenda. No hay un enrutador que decida por su cuenta; el traspaso está
+declarado en el propio agente (`traspaso=("canalizar_caso", AGENDA)`) y ocurre
+porque una herramienta concreta funcionó.
+
+El otro traspaso va hacia atrás y cambia de caso. Si alguien que está en agenda o en
+seguimiento cuenta un problema de salud distinto, `nuevo_motivo` le abre un caso
+aparte y el orquestador sigue con el triaje de ese caso en el mismo turno. Lo dicho
+hasta ahí se queda en el hilo del caso viejo, el nuevo empieza con el mensaje de la
+persona, y la respuesta lleva el `caso` nuevo, así que la vista sigue en él. Antes,
+una persona tenía un solo caso vivo y lo nuevo caía en el agente del caso viejo, que
+no podía triarlo. Ahora puede haber más de un caso abierto, uno por motivo, y la
+vista del paciente deja elegir entre ellos.
 
 Qué agente atiende cuando la aplicación no pide uno se deduce **del estado del
 caso**, no de la pantalla que llamó (`agente_por_defecto`). Alguien que vuelve a
 escribir tres días después cae en seguimiento en lugar de repetir el triaje.
+
+**Lo que el agente sabe de los centros** está en `protocolos/orientacion.md`, con una
+sola copia como el protocolo, y lo llevan los tres agentes. Sólo dice lo que es cierto
+por cómo funciona CareSync; el edificio, el horario general y los costos los tienen
+que poner los centros. Con ella, una duda de información se responde y su caso se
+cierra, en vez de quedar canalizada a un centro que no tiene cómo responderle a la
+persona: lo que escribe el personal no se le muestra, y el correo todavía no sale.
 
 ### Una conversación puede no ser sobre ningún caso
 
@@ -238,6 +254,29 @@ que el orden no es estético: plan → indicaciones → cita `atendida` → caso
 `en_seguimiento`. La última es la que hace que el siguiente mensaje del paciente lo
 atienda el agente de seguimiento; si algo falla antes, el caso sigue donde estaba y
 se puede repetir sin duplicar el estado final.
+
+**Cancelar una cita** es primero la cita y después el cupo. Si falla lo segundo,
+queda un cupo que no vuelve a la agenda: se pierde, pero no se reparte. Con el orden
+inverso, un cupo libre con una cita confirmada encima lo podría tomar otra persona.
+
+**Cambiar una cita** es tomar el espacio nuevo y sólo después soltar el viejo. Si
+algo falla en medio, la persona conserva una cita; en el peor caso tiene dos, y la
+herramienta se lo dice al agente para que cancele la que sobra. Al revés, un fallo
+entre los dos pasos la dejaba sin ninguna.
+
+Las dos piden confirmación: la herramienta devuelve la cita para que el agente le
+pregunte a la persona, y sólo actúa cuando se la llama otra vez con `confirmado`.
+
+**Una cita que ya pasó no bloquea otra.** Sólo cuenta como vigente una cita
+confirmada que todavía no ha terminado (`cita_por_delante` en `roble_acceso.py`). Antes
+bloqueaba toda cita no cancelada, y quien no llegaba a la suya no podía pedir otra.
+El profesional puede marcar la inasistencia (`no_asistio`) desde su consulta, y eso
+devuelve el caso a agenda.
+
+**El plazo del nivel lo aplica la herramienta**, no el modelo: con nivel 2 o 3,
+`consultar_disponibilidad` busca dentro de 72 horas o de 7 días
+(`caresync_comun/plazos.py`, que sigue el Paso 2 del protocolo). Si no hay nada, lo
+dice, ofrece lo primero que haya después y deja `sin_cupo_en_plazo` en la bitácora.
 
 ### La sesión en `localStorage`
 

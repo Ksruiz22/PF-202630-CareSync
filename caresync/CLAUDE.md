@@ -21,6 +21,9 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 | Cambiar cómo habla o decide un agente | `lambdas/orquestador/agentes.py` (prompts, traspaso, `agente_por_defecto`) |
 | Añadir/cambiar una herramienta | `lambdas/comun/caresync_comun/catalogo_herramientas.py` **y** `lambdas/herramientas/handler.py` (`EJECUTORES`) |
 | Lógica de una herramienta | `lambdas/herramientas/{triaje,agenda,seguimiento}.py` |
+| Cancelar, cambiar una cita, el plazo del nivel | `lambdas/herramientas/agenda.py`; los plazos en `lambdas/comun/caresync_comun/plazos.py` (siguen el Paso 2 del protocolo) |
+| Un problema nuevo con un caso abierto (`nuevo_motivo`) | `lambdas/herramientas/triaje.py` y el cambio de caso en `_conversar` de `lambdas/orquestador/handler.py` |
+| Lo que el agente sabe de los centros | `protocolos/orientacion.md` (fuente única; la llevan los tres agentes) |
 | El bucle del modelo, caché, guardrail, tope de vueltas | `lambdas/orquestador/bedrock_conversa.py` |
 | Autorización, traspaso, historial, respuesta de `/agente` | `lambdas/orquestador/handler.py` |
 | El modo simulación de `/agente` (triaje de prueba sin efecto) | `_simular` y el bloque final de `lambdas/orquestador/handler.py` + `lambdas/pruebas/prueba_simulacion.py` |
@@ -87,7 +90,14 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 
 - **Columnas que no existen → 400 en toda la actualización.** `casos` no tiene
   `canalizado_en` ni `escalado_en`. Antes de escribir un campo nuevo, compruébalo
-  contra `ESQUEMA` en `bootstrap_roble.mjs`. ROBLE no deja hacer `alter`.
+  contra `ESQUEMA` en `bootstrap_roble.mjs`. Ninguna cuenta de la aplicación tiene
+  `alter`; una columna nueva la agrega quien tiene el contrato, con `ALTER TABLE ADD
+  COLUMN` en la Consola SQL (`docs/runbook-roble.md`), **antes** de desplegar el código
+  que la escribe.
+- **En las pruebas, `agentes.py` no tiene los protocolos.** `protocolos/` se copia
+  junto a la Lambda al construir los paquetes, así que las pruebas cargan los textos
+  de respaldo. Lo que dependa del contenido de un protocolo se prueba contra el
+  archivo de `protocolos/` (ver `prueba_orquestador.py`), no contra la constante.
 - **`read` sólo compara por igualdad.** Sin rangos, orden ni paginación: todo eso se
   hace en memoria después de leer. No intentes "arreglarlo".
 - **Sin escrituras condicionales ni transacciones.** Reservar es *reservar, releer y
@@ -149,6 +159,13 @@ Hecho: infraestructura aplicada, PWA publicada, 14 tablas, 3 Lambdas, catálogo 
 herramientas, protocolo con fundamento, criterios medibles e historial de revisiones,
 banco de 40 casos **con guion de respuestas** y banco adversarial de 24 intentos.
 
+**En la rama `kr-version-noviembre` (29/10, sin evaluar todavía contra el modelo)**:
+14 herramientas —cancelar y cambiar una cita, subir la urgencia y abrir un caso para
+un problema nuevo—, el plazo del nivel aplicado en la agenda, la inasistencia que
+marca el profesional, la información de los centros en `protocolos/orientacion.md`,
+el protocolo v0.5 y un banco de 43 casos. Va apilada sobre `kr-version-octubre`,
+que tampoco está en `main`.
+
 **Medido**, con el antes y el después en `evaluacion/informes/` (el índice está en su
 `README.md`). La última corrida, del 14/10, midió esta versión antes de fusionarla,
 con el orquestador en local contra el Bedrock, la salvaguarda y el ROBLE reales:
@@ -188,14 +205,16 @@ Pendiente:
 
 Ciclo de vida del caso: `cerrado` lo escribe el profesional desde su consulta, con
 el evento `caso_cerrado` en la bitácora, y un paciente no reabre un caso cerrado
-—ni la vista ni `_resolver_caso` se lo devuelven—. `atendido` sigue sin escribirse:
-guardar el plan pasa el caso directo a `en_seguimiento`, y hoy nada distingue esos
-dos estados.
+—ni la vista ni `_resolver_caso` se lo devuelven—. Desde la v0.5 también se cierra
+solo un nivel 4 cuya duda respondió la información de los centros. `atendido` sigue
+sin escribirse: guardar el plan pasa el caso directo a `en_seguimiento`, y hoy nada
+distingue esos dos estados. Cancelar una cita, o marcar que no asistió, devuelve el
+caso de `agendado` a `canalizado`.
 
 **CI sí corre las pruebas**, y esta sección decía lo contrario hasta que se comprobó:
 el paso «pruebas» de `revision.yml` llama a `scripts/pruebas.sh`, que las busca **por
 patrón** —`lambdas/pruebas/prueba_*.py` y `evaluacion/prueba_*.py`— así que una prueba
-nueva entra en CI sin tocar el flujo. Son 8 archivos y ninguno toca la red, AWS ni un
+nueva entra en CI sin tocar el flujo. Son 9 archivos y ninguno toca la red, AWS ni un
 token de ROBLE: `entorno.py` sustituye `boto3`, `requests` y el SDK de ROBLE cuando
 faltan. Antes de dar por hecho que algo no se prueba, `scripts/pruebas.sh`.
 
