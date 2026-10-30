@@ -73,6 +73,16 @@ data "aws_iam_policy_document" "orquestador" {
     actions   = ["lambda:InvokeFunction"]
     resources = [aws_lambda_function.herramientas.arn]
   }
+
+  # El dictado del plan: la función firma la URL del WebSocket de Transcribe y el
+  # navegador la abre, así que el permiso que se ejerce es el de este rol. Transcribe
+  # no admite recursos concretos para el streaming: el `*` es el único valor posible,
+  # y lo que acota es la acción, que sólo abre una transcripción en tiempo real.
+  statement {
+    sid       = "DictadoDelPlan"
+    actions   = ["transcribe:StartStreamTranscriptionWebSocket"]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "orquestador" {

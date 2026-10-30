@@ -17,25 +17,33 @@
  *   urgencias. Lo real de esa conversación es sólo el modelo.
  *
  * Lo que no cambió: **el plan lo hace el profesional, no el modelo**. Ésta es la
- * única pantalla del prototipo donde una persona escribe datos clínicos a mano, y es
- * a propósito. El agente de seguimiento acompaña sobre un plan que ya existe; no lo
+ * única pantalla del prototipo donde una persona escribe datos clínicos, y es a
+ * propósito. El agente de seguimiento acompaña sobre un plan que ya existe; no lo
  * inventa. Si esta pantalla no existiera, el agente no tendría de dónde sacar las
  * indicaciones y la tentación sería dejar que se las imaginara.
+ *
+ * El plan se puede dictar y dejar que el asistente lo ordene (`EditorDelPlan`), pero
+ * eso no cambia quién lo escribe: la propuesta vuelve a esta pantalla, el profesional
+ * la corrige y sólo lo que confirma se guarda, con su token, en `registrarPlan`.
+ *
+ * De cada paciente se ve además su progreso a lo largo del seguimiento (`Progreso`):
+ * las alertas de la bitácora, la evolución en el tiempo y la adherencia a cada
+ * indicación.
  */
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Aviso, Cabecera, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
 import { IconoCalendario, IconoChispas, IconoDocumento } from '../componentes/Iconos';
+import { EditorDelPlan, type PlanAGuardar } from '../componentes/EditorDelPlan';
+import {
+  AdherenciaPorIndicacion,
+  Alertas,
+  CurvaDeEvolucion,
+  esAlerta,
+} from '../componentes/Progreso';
 import { HistorialDeTriajes } from './HistorialDeTriajes';
 import { SimuladorDeTriaje } from './SimuladorDeTriaje';
-import { bandaDeEscala, escalaVisible, fechaHora, hace, soloFecha } from '../formato';
+import { fechaHora, hace, soloFecha } from '../formato';
 import { mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
 import {
@@ -45,6 +53,7 @@ import {
   type Adherencia,
   type Caso,
   type Cita,
+  type EventoCaso,
   type Evolucion,
   type Indicacion,
   type Plan,
@@ -265,6 +274,7 @@ interface Contexto {
   indicaciones: Indicacion[];
   evoluciones: Evolucion[];
   adherencias: Adherencia[];
+  eventos: EventoCaso[];
 }
 
 function Consulta({
@@ -281,11 +291,6 @@ function Consulta({
   const casoId = idDe(caso);
   const cerrado = caso.estado === 'cerrado';
   const [contexto, setContexto] = useState<Contexto | null>(null);
-  const [resumen, setResumen] = useState('');
-  const [lineas, setLineas] = useState('');
-  const [frecuencia, setFrecuencia] = useState('cada 24 horas');
-  const [guardando, setGuardando] = useState(false);
-  const [aviso, setAviso] = useState('');
   const [error, setError] = useState('');
 
   const cargar = useCallback(async () => {
@@ -296,40 +301,11 @@ function Consulta({
     void cargar();
   }, [cargar]);
 
-  async function guardarPlan(evento: FormEvent) {
-    evento.preventDefault();
-    const indicaciones = lineas
-      .split('\n')
-      .map((linea) => linea.trim())
-      .filter(Boolean);
-
-    if (!resumen.trim() || indicaciones.length === 0) {
-      setError('Hace falta el resumen y al menos una indicación.');
-      return;
-    }
-
-    setGuardando(true);
-    setError('');
-    setAviso('');
-    try {
-      await registrarPlan({
-        casoId,
-        citaId: idDe(cita),
-        autor,
-        resumen: resumen.trim(),
-        indicaciones,
-        frecuencia: frecuencia.trim() || 'cada 24 horas',
-      });
-      setResumen('');
-      setLineas('');
-      setAviso('Plan registrado. El agente de seguimiento ya puede acompañar este caso.');
-      await cargar();
-      alGuardar();
-    } catch (fallo) {
-      setError(mensajeDeError(fallo));
-    } finally {
-      setGuardando(false);
-    }
+  // Los errores de guardar los muestra el editor, junto al botón que los causó.
+  async function guardarPlan(plan: PlanAGuardar) {
+    await registrarPlan({ casoId, citaId: idDe(cita), autor, ...plan });
+    await cargar();
+    alGuardar();
   }
 
   return (
@@ -362,20 +338,18 @@ function Consulta({
         <Cargando que="Cargando el historial" />
       ) : (
         <>
-          {contexto.evoluciones.length > 0 && (
-            <Tarjeta titulo="Lo que ha reportado">
-              <ul className="evolucion">
-                {contexto.evoluciones.map((fila) => (
-                  <li key={idDe(fila)}>
-                    <span className={`escala ${bandaDeEscala(fila.escala)}`}>
-                      {escalaVisible(fila.escala)}
-                    </span>
-                    <span className="texto">{String(fila.nota ?? '')}</span>
-                    <span className="fino">{hace(fila.reportado_en)}</span>
-                  </li>
-                ))}
-              </ul>
-            </Tarjeta>
+          {error && <Aviso tipo="error">{error}</Aviso>}
+
+          {/*
+            El progreso sólo aparece cuando hay de qué: en la primera consulta no hay
+            plan ni reportes, y dos tarjetas vacías encima del formulario esconden lo
+            único que hay que hacer ahí, que es escribir el plan.
+          */}
+          {(contexto.plan || contexto.evoluciones.length > 0 || contexto.eventos.some(esAlerta)) && (
+            <>
+              <Alertas eventos={contexto.eventos} />
+              <CurvaDeEvolucion filas={contexto.evoluciones} />
+            </>
           )}
 
           {contexto.plan && (
@@ -385,28 +359,15 @@ function Consulta({
                 {String(contexto.plan.profesional_nombre ?? '')} ·{' '}
                 {soloFecha(contexto.plan.creado_en)}
               </p>
-              <ul className="indicaciones">
-                {contexto.indicaciones.map((indicacion) => (
-                  <li key={idDe(indicacion)}>
-                    <span className="texto">{String(indicacion.texto ?? '')}</span>
-                    <span className="fino">
-                      {String(indicacion.frecuencia ?? '')} ·{' '}
-                      {contarAdherencia(contexto.adherencias, idDe(indicacion))}
-                    </span>
-                    <button
-                      type="button"
-                      className="enlace"
-                      onClick={() => {
-                        void desactivar(idDe(indicacion))
-                          .then(cargar)
-                          .catch((fallo) => setError(mensajeDeError(fallo)));
-                      }}
-                    >
-                      Desactivar
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <AdherenciaPorIndicacion
+                indicaciones={contexto.indicaciones}
+                adherencias={contexto.adherencias}
+                alDesactivar={(indicacionId) => {
+                  void desactivar(indicacionId)
+                    .then(cargar)
+                    .catch((fallo) => setError(mensajeDeError(fallo)));
+                }}
+              />
               <p className="fino">
                 Al desactivar una indicación se detienen sus recordatorios. Los ya
                 enviados quedan en la bitácora.
@@ -423,55 +384,7 @@ function Consulta({
               </p>
             </Tarjeta>
           ) : (
-            <Tarjeta titulo={contexto.plan ? 'Nuevo plan' : 'Registrar el plan'}>
-              <form className="formulario" onSubmit={guardarPlan}>
-                <label>
-                  Resumen de la consulta
-                  <textarea
-                    value={resumen}
-                    onChange={(e) => setResumen(e.target.value)}
-                    rows={4}
-                    maxLength={2000}
-                    placeholder="Qué se encontró y qué se decidió."
-                    required
-                  />
-                </label>
-
-                <label>
-                  Indicaciones, una por línea
-                  <textarea
-                    value={lineas}
-                    onChange={(e) => setLineas(e.target.value)}
-                    rows={5}
-                    maxLength={2000}
-                    placeholder={'Caminar 20 minutos al día\nEjercicio de respiración antes de dormir'}
-                    required
-                  />
-                </label>
-
-                <label>
-                  Cada cuánto se le pregunta
-                  <input
-                    type="text"
-                    value={frecuencia}
-                    onChange={(e) => setFrecuencia(e.target.value)}
-                    maxLength={60}
-                    placeholder="cada 24 horas"
-                  />
-                </label>
-                <p className="fino">
-                  Se acepta «cada 12 horas», «cada 2 días», «semanal». Los recordatorios
-                  salen entre las 7:00 y las 20:00, hora de Bogotá.
-                </p>
-
-                <button type="submit" className="principal" disabled={guardando}>
-                  {guardando ? 'Guardando…' : 'Guardar plan y cerrar la consulta'}
-                </button>
-
-                {aviso && <Aviso>{aviso}</Aviso>}
-                {error && <Aviso tipo="error">{error}</Aviso>}
-              </form>
-            </Tarjeta>
+            <EditorDelPlan hayPlan={!!contexto.plan} alGuardar={guardarPlan} />
           )}
 
           {!cerrado && (
@@ -588,11 +501,15 @@ async function leerCaso(casoId: string): Promise<Caso | null> {
 }
 
 async function contextoDelCaso(casoId: string): Promise<Contexto> {
-  const [planes, indicaciones, evoluciones, adherencias] = await Promise.all([
+  const [planes, indicaciones, evoluciones, adherencias, eventos] = await Promise.all([
     leer<Plan>('planes', { caso_id: casoId }),
     leer<Indicacion>('indicaciones', { caso_id: casoId }),
     leer<Evolucion>('evolucion', { caso_id: casoId }),
     leer<Adherencia>('adherencia', { caso_id: casoId }),
+    // La bitácora entera del caso; las alertas se eligen en la vista. `read` sólo
+    // filtra por igualdad, así que pedir «los de estos cinco tipos» serían cinco
+    // lecturas en vez de una.
+    leer<EventoCaso>('eventos', { caso_id: casoId }),
   ]);
 
   const plan =
@@ -605,10 +522,10 @@ async function contextoDelCaso(casoId: string): Promise<Contexto> {
     indicaciones: indicaciones.filter(
       (fila) => esVerdad(fila.activa) && (!plan || String(fila.plan_id ?? '') === idDe(plan))
     ),
-    evoluciones: [...evoluciones]
-      .sort((a, b) => String(b.reportado_en ?? '').localeCompare(String(a.reportado_en ?? '')))
-      .slice(0, 8),
+    // Todas y no las últimas ocho: la gráfica muestra el seguimiento entero.
+    evoluciones,
     adherencias,
+    eventos,
   };
 }
 
@@ -636,8 +553,9 @@ async function registrarPlan(datos: {
   citaId: string;
   autor: { userId: string; nombre: string };
   resumen: string;
-  indicaciones: string[];
-  frecuencia: string;
+  // Cada indicación con su frecuencia: «acetaminofén cada 8 horas» y «caminar a
+  // diario» no se recuerdan igual. Antes había una sola para todo el plan.
+  indicaciones: Array<{ texto: string; frecuencia: string }>;
 }): Promise<void> {
   const ahora = new Date().toISOString();
 
@@ -658,11 +576,11 @@ async function registrarPlan(datos: {
 
   await roble.createMany(
     'indicaciones',
-    datos.indicaciones.map((texto) => ({
+    datos.indicaciones.map(({ texto, frecuencia }) => ({
       caso_id: datos.casoId,
       plan_id: planId,
       texto,
-      frecuencia: datos.frecuencia,
+      frecuencia,
       activa: true,
       creado_en: ahora,
     }))
@@ -716,13 +634,6 @@ async function cerrarCaso(
 
 async function desactivar(indicacionId: string): Promise<void> {
   await roble.update('indicaciones', indicacionId, { activa: false });
-}
-
-function contarAdherencia(filas: Adherencia[], indicacionId: string): string {
-  const propias = filas.filter((fila) => String(fila.indicacion_id ?? '') === indicacionId);
-  if (propias.length === 0) return 'sin reportes';
-  const cumplidas = propias.filter((fila) => esVerdad(fila.cumplida)).length;
-  return `${cumplidas}/${propias.length} cumplidas`;
 }
 
 function repartir(citas: Cita[]): { proximas: Cita[]; pasadas: Cita[] } {

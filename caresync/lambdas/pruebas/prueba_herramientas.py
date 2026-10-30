@@ -121,10 +121,105 @@ def probar_canalizar() -> None:
     comprobar("nivel 1: además queda escalado",
               any(d.get("estado") == "urgencia_escalada" for que, d in emergencia.escrito if que == "caso"))
 
+    orientacion = AccesoFalso(ActorFalso("paciente"))
+    salida = triaje.canalizar_caso(orientacion, {"_id": "k", "estado": "abierto"},
+                                   {"centro": "CMU", "nivel_urgencia": 4, "resumen": "Anticonceptivos"})
+    comprobar("nivel 4: queda canalizado, pero sin cita (E2E-7)",
+              salida.get("agendar") is False and salida.get("plazo") == "sin cita"
+              and any(d.get("estado") == "canalizado" for que, d in orientacion.escrito if que == "caso"))
+    comprobar("nivel 4: le dice al agente qué decir, sin prometer respuesta",
+              "CMU" in salida.get("siguiente", "") and "No le prometas" in salida.get("siguiente", ""))
+    comprobar("nivel 4: no escala",
+              not any(d.get("estado") == "urgencia_escalada" for que, d in orientacion.escrito if que == "caso"))
+
     comprobar("una cita para un caso de nivel 1 se rechaza antes de leer la agenda",
               lanza(Conflicto, agenda.agendar_cita, AccesoFalso(ActorFalso("paciente")),
                     {"_id": "k", "centro": "CMU", "nivel_urgencia": 1},
                     {"inicio": "2026-10-01T09:00:00-05:00"}) is not None)
+
+
+class _AccesoConAgenda(AccesoFalso):
+    """Un cupo libre a las 08:30 de Bogotá, y un `insert` que miente como el de ROBLE.
+
+    ROBLE guarda las fechas sin zona y, al releerlas, las devuelve en UTC sin sufijo
+    («2026-10-14T13:30»). Pero la fila que devuelve al **insertar** viene con la hora
+    reinterpretada en la zona de su servidor, Colombia: «2026-10-14T18:30:00.000Z».
+    Así lo mostró una cita real del 14/10 que el agente confirmó a las 13:30.
+    """
+
+    CUPO = {"_id": "cupo-1", "centro": "CMU", "profesional_id": "p-1", "inicio": "2026-10-14T13:30",
+            "fin": "2026-10-14T14:00", "estado": "libre", "modalidad": "presencial"}
+
+    def citas_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+        return []
+
+    def cupos_libres(self, **_filtros: Any) -> list[dict[str, Any]]:
+        return [dict(self.CUPO)]
+
+    def reservar_cupo(self, *, cupo_id: str, caso_id: str) -> dict[str, Any]:
+        return {**self.CUPO, "estado": "reservado", "caso_id": caso_id}
+
+    def confirmar_cita(self, *, cupo_id: str, caso_id: str) -> dict[str, Any]:
+        return self._escribir("cita", {"caso_id": caso_id, "centro": "CMU", "profesional_nombre": "Dra. Prueba",
+                                       "inicio": "2026-10-14T18:30:00.000Z"})
+
+
+def probar_agendar() -> None:
+    print("\nAgendar una cita")
+    agenda.correo.config = lambda: type("Sin", (), {"envia_correo": False, "correo_remitente": ""})()
+    acceso = _AccesoConAgenda(ActorFalso("paciente"))
+    salida = agenda.agendar_cita(acceso, {"_id": "k", "centro": "CMU", "nivel_urgencia": 2},
+                                 {"inicio": "2026-10-14T08:30:00-05:00"})
+    comprobar("la hora que se le confirma a la persona es la del cupo: 08:30 de Bogotá",
+              "08:30" in str(salida.get("cuando")), str(salida.get("cuando")))
+    evento_cita = [d for que, d in acceso.escrito if que == "evento" and d.get("tipo") == "cita_agendada"]
+    comprobar("y la bitácora guarda la del cupo, no la que devolvió el insert",
+              evento_cita and evento_cita[0]["detalle"]["inicio"] == "2026-10-14T13:30")
+
+
+def probar_notificar_sin_correo() -> None:
+    print("\nAvisar al profesional cuando el correo no sale")
+
+    class _ConCita(AccesoFalso):
+        def citas_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+            return [{"_id": "c-1", "inicio": "2026-10-14T13:30", "centro": "CMU", "profesional_id": "p-1",
+                     "profesional_nombre": "Dra. Prueba"}]
+
+        def eventos_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+            return []
+
+        def profesional(self, profesional_id: str) -> dict[str, Any]:
+            return {"email": "dra.prueba@ejemplo.edu.co"}
+
+    agenda.correo.config = lambda: type("Sin", (), {"envia_correo": False, "correo_remitente": ""})()
+    salida = agenda.notificar_profesional(_ConCita(ActorFalso("paciente")),
+                                          {"_id": "k", "paciente_nombre": "X", "nivel_urgencia": 2}, {})
+    instruccion = str(salida.get("instruccion", ""))
+    comprobar("sin correo, no le pide al agente prometer contacto (invariante 7)",
+              salida.get("enviado") is False and "contactará" not in instruccion
+              and "no prometas" in instruccion, instruccion)
+
+
+def probar_adherencia() -> None:
+    print("\nAdherencia con un identificador que no es del plan")
+
+    class _ConPlan(AccesoFalso):
+        def indicaciones_activas(self, caso_id: str) -> list[dict[str, Any]]:
+            return [{"_id": "ind-1", "texto": "Tomar acetaminofén"}, {"_id": "ind-2", "texto": "Hacer gárgaras"}]
+
+        def registrar_adherencia(self, **datos: Any) -> None:
+            self._escribir("adherencia", datos)
+
+    acceso = _ConPlan(ActorFalso("paciente"))
+    salida = seguimiento.registrar_adherencia(acceso, {"_id": "k"}, {"indicacion_id": "de-otro-turno", "cumplida": False})
+    comprobar("no escribe nada sobre un identificador ajeno", acceso.escrito == [])
+    comprobar("y le devuelve al agente las indicaciones de verdad para corregir en la misma vuelta",
+              salida.get("error") and [i["indicacion_id"] for i in salida.get("indicaciones_activas", [])] == ["ind-1", "ind-2"],
+              str(salida))
+
+    salida = seguimiento.registrar_adherencia(acceso, {"_id": "k"}, {"indicacion_id": "ind-2", "cumplida": False, "nota": "duele"})
+    comprobar("con el identificador correcto registra, y el incumplimiento deja evento",
+              salida.get("ok") is True and [que for que, _ in acceso.escrito] == ["adherencia", "evento"])
 
 
 class _AccesoConEvolucion(AccesoFalso):
@@ -167,6 +262,27 @@ def probar_retroceso() -> None:
     comprobar("y al agente no se le pide que interprete",
               "no lo interpretes" in str(salida.get("instruccion")))
 
+    # El mismo número hace un momento es el mismo reporte (prueba de punta a punta del
+    # 14/10: el agente registró dos veces el 3 y dejó dos alertas por una caída).
+    hace_un_rato = _AccesoConEvolucion([6, 3])
+    hace_un_rato._previas[-1]["reportado_en"] = seguimiento.reloj.iso(seguimiento.reloj.mas(minutos=-10))
+    salida = seguimiento.registrar_evolucion(hace_un_rato, {"_id": "k", "estado": "en_seguimiento"}, {"escala": 3})
+    comprobar("repetir la escala de hace 10 minutos no escribe ni alerta otra vez",
+              salida.get("repetido") is True and hace_un_rato.escrito == [], str(hace_un_rato.escrito))
+    comprobar("y le recuerda al agente que la adherencia va aparte",
+              "registrar_adherencia" in str(salida.get("instruccion")))
+
+    otro_numero = _AccesoConEvolucion([6])
+    otro_numero._previas[-1]["reportado_en"] = seguimiento.reloj.iso(seguimiento.reloj.mas(minutos=-10))
+    seguimiento.registrar_evolucion(otro_numero, {"_id": "k", "estado": "en_seguimiento"}, {"escala": 3})
+    comprobar("un número distinto hace un momento sí es un reporte nuevo",
+              any(que == "evolucion" for que, _ in otro_numero.escrito))
+
+    al_dia_siguiente = _AccesoConEvolucion([3])
+    seguimiento.registrar_evolucion(al_dia_siguiente, {"_id": "k", "estado": "en_seguimiento"}, {"escala": 3})
+    comprobar("el mismo número otro día también es un dato",
+              any(que == "evolucion" for que, _ in al_dia_siguiente.escrito))
+
     primera = _AccesoConEvolucion([])
     seguimiento.registrar_evolucion(primera, {"_id": "k", "estado": "agendado"}, {"escala": 6})
     comprobar("el primer reporte pasa el caso a seguimiento",
@@ -200,7 +316,10 @@ def main() -> int:
     for prueba in (
         probar_escalar_urgencia,
         probar_canalizar,
+        probar_agendar,
+        probar_notificar_sin_correo,
         probar_retroceso,
+        probar_adherencia,
         probar_horarios_legibles,
     ):
         prueba()

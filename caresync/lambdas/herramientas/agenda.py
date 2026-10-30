@@ -410,14 +410,19 @@ def agendar_cita(
             evento(log, "cupo_no_liberado", cupo_id=cupo_id)
         raise
 
-    cuando = reloj.humano(cita.get("inicio"))
+    # La hora sale del cupo y no de la cita recién creada. Lo que ROBLE devuelve al
+    # insertar trae las fechas reinterpretadas en la zona de su servidor —Colombia—
+    # y corridas cinco horas: «08:30» volvía como «13:30», el agente se lo confirmaba
+    # así a la persona y la cita guardada seguía siendo a las 08:30. Al releer la
+    # fila la hora sale bien; la respuesta del `insert` es la única que miente.
+    cuando = reloj.humano(cupo.get("inicio"))
     acceso.registrar_evento(
         caso_id=caso_id,
         tipo="cita_agendada",
         detalle={
             "cita_id": fila_id(cita),
             "centro": centro,
-            "inicio": cita.get("inicio"),
+            "inicio": cupo.get("inicio"),
             "profesional": cita.get("profesional_nombre"),
         },
     )
@@ -518,7 +523,14 @@ def notificar_profesional(
         "instruccion": (
             "Dile a la persona que el profesional ya tiene su información."
             if enviado
-            else "El correo no salió. Dile que el centro la contactará y no prometas un aviso."
+            # Decía «dile que el centro la contactará»: una promesa de contacto
+            # humano que nadie va a cumplir (invariante 7), y mientras SES no tenga
+            # remitente salía en cada cita agendada. Lo cierto es lo que sigue.
+            else (
+                "El correo no salió, pero la cita quedó en la agenda del profesional en "
+                "CareSync, con el resumen del caso. Díselo así, y no prometas que alguien "
+                "la va a llamar, escribir o contactar."
+            )
         ),
     }
 

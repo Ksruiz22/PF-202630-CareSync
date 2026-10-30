@@ -195,6 +195,21 @@ def probar_traspaso() -> None:
     comprobar("sin canalizar no hay traspaso", orquestador._traspaso(triaje, nada) is None)
     comprobar("agenda no traspasa a nadie", orquestador._traspaso(agenda, bien) is None)
 
+    for nivel, resultado in (
+        (1, {"ok": True, "agendar": False, "decir_a_la_persona": "ruta"}),
+        (4, {"ok": True, "agendar": False, "plazo": "sin cita"}),
+    ):
+        sin_cita = Resultado(texto="", usos=[Uso("canalizar_caso", {}, resultado, True)])
+        comprobar(f"nivel {nivel}: la herramienta dice que no hay cita y no pasa a agenda",
+                  orquestador._traspaso(triaje, sin_cita) is None)
+
+    # Y si la persona vuelve a escribir, el caso canalizado lo atiende agenda: que
+    # tampoco busque espacios por su cuenta.
+    prompt_agenda = agentes.instrucciones(agenda, actor=ActorFalso("paciente"),
+                                          caso={"_id": "k", "estado": "canalizado", "nivel_urgencia": 4})
+    comprobar("agenda no busca espacios para un nivel 4 que no pidió cita",
+              "Si es 4, es una orientación sin cita" in prompt_agenda)
+
     nota = orquestador._nota_de_traspaso({"centro": "CMU", "nivel_urgencia": 3})
     comprobar("la nota de traspaso lleva la marca [sistema]", nota.startswith("[sistema]"), nota)
 
@@ -287,6 +302,14 @@ def probar_orden_del_triaje() -> None:
     comprobar("ante la duda sobre una alarma, escala sin confirmar", "Si dudas, escalas" in prompt)
     comprobar("la herramienta de urgencia va sola, sin texto antes", "sin escribir nada antes" in prompt)
     comprobar("no repite preguntas ya respondidas", "nunca una que la persona ya respondió" in prompt)
+    # cae-09, 26/09: la respuesta no aclaró la pregunta y el agente la repitió en vez
+    # de canalizar, hasta agotar la conversación.
+    comprobar("ni vuelve a hacer una que no le aclararon", "ni\n   una que ya hiciste" in prompt)
+    comprobar("pedir orientación canaliza como pedir una cita", "que la revisen u orientación" in prompt)
+    # cmu-08, 26/09: tomó una duda de información por algo que no pasaba por el
+    # triaje y mandó a la persona a un correo y una línea que no existen.
+    comprobar("todo triaje termina en escalar o canalizar, también la duda de información",
+              "Todo triaje termina en una de dos herramientas" in prompt and "nivel 4" in prompt)
 
 
 def probar_instrucciones() -> None:
@@ -312,6 +335,19 @@ def probar_instrucciones() -> None:
               "[personal del CMU]" in agentes._COMUN and "[sistema]" in agentes._COMUN)
     comprobar("el prompt común prohíbe prometer contacto humano (invariante 7)",
               "No prometes que alguien va a llamar" in agentes._COMUN)
+    comprobar("y mandar a un canal que no está en las instrucciones",
+              "No mandas a la persona a otro canal" in agentes._COMUN)
+
+    # Prueba de punta a punta del 14/10: «no hice las gárgaras» acabó en un segundo
+    # registro de evolución, sin adherencia, y el agente dijo «quedó registrado».
+    seguimiento = agentes._SEGUIMIENTO
+    comprobar("seguimiento: la evolución se registra una vez por reporte", "una vez\n   por reporte" in seguimiento)
+    comprobar("seguimiento: lo que hizo o no hizo va a registrar_adherencia",
+              "Eso no se registra con `registrar_evolucion`" in seguimiento)
+    comprobar("seguimiento: no dice «quedó registrado» sin una herramienta que lo registre",
+              "Sólo dices que algo quedó registrado si lo registró una herramienta" in seguimiento)
+    comprobar("seguimiento: ir peor sin señal de alarma no se escala",
+              "Ir peor sin\n   señal de alarma no se escala" in seguimiento)
 
 
 def main() -> int:

@@ -340,6 +340,13 @@ def probar_resultados_en_seco() -> None:
     comprobar("y la ruta llega a la respuesta aunque el modelo no la diga",
               cuerpo["respuesta"] == agentes.RUTA_EMERGENCIA)
 
+    _c, cuerpo, _r = correr(_profesional(), llamadas=[_canalizar(centro="CMU", nivel=4)])
+    nivel_4 = cuerpo["acciones"][0]["resultado"]
+    comprobar("canalizar nivel 4: sin cita, igual que el real",
+              nivel_4["agendar"] is False and nivel_4["plazo"] == "sin cita")
+    comprobar("canalizar nivel 4: el mismo cierre que el real, sin prometer respuesta",
+              "CMU" in nivel_4["siguiente"] and "No le prometas" in nivel_4["siguiente"])
+
     _c, cuerpo, _r = correr(_profesional(), llamadas=[("escalar_urgencia", {"motivo": "dolor de pecho"})])
     escalado = cuerpo["acciones"][0]["resultado"]
     comprobar("escalar: ruta, agendar false y nadie avisado",

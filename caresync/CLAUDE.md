@@ -25,6 +25,10 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 | Autorización, traspaso, historial, respuesta de `/agente` | `lambdas/orquestador/handler.py` |
 | El modo simulación de `/agente` (triaje de prueba sin efecto) | `_simular` y el bloque final de `lambdas/orquestador/handler.py` + `lambdas/pruebas/prueba_simulacion.py` |
 | Lo que ve el profesional: agenda, historial de triajes, simulador | `app/src/vistas/Profesional.tsx` (las tres pestañas), `HistorialDeTriajes.tsx`, `SimuladorDeTriaje.tsx` |
+| El plan dictado: propuesta, revisión y guardado | `app/src/componentes/EditorDelPlan.tsx` + `app/src/consulta.ts`; en el backend `lambdas/orquestador/plan_propuesta.py` (`POST /plan/propuesta`) |
+| El dictado por voz (Amazon Transcribe en tiempo real) | `app/src/dictado.ts` (micrófono, remuestreo, *event stream*) + `lambdas/orquestador/dictado.py` (`POST /dictado/sesion`, la URL firmada) |
+| El progreso del paciente: alertas, evolución, adherencia | `app/src/componentes/Progreso.tsx` |
+| Qué frecuencias generan recordatorios | `lambdas/comun/caresync_comun/frecuencia.py` (la usan recordatorios y la propuesta del plan) y su espejo `app/src/frecuencia.ts` |
 | Leer el hilo de un caso desde la PWA | `app/src/conversaciones.ts` (dos miradas: la de la persona y la del profesional) |
 | Criterios clínicos, niveles, matriz CMU/CAE | `protocolos/triaje-v0.md` (fuente única; se copia al paquete al construir) |
 | Texto de emergencia | `protocolos/ruta-emergencia.md` (fuente única, la usan los 3 agentes) |
@@ -46,7 +50,12 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
    declarar las herramientas y otra vez en `herramientas/handler.py` antes del
    efecto. Un prompt no es un control de acceso.
 3. **El plan clínico lo escribe el profesional.** No existe herramienta que cree o
-   modifique una indicación, y no se añade.
+   modifique una indicación, y no se añade. `POST /plan/propuesta` no lo cambia:
+   ordena en resumen e indicaciones lo que el profesional dictó, **no escribe nada**, y
+   lo que llega a ROBLE es lo que él corrige y confirma, guardado por la PWA con su
+   token. Esa ruta corre sin la salvaguarda de los agentes —negaría la prescripción
+   que el profesional dicta— y por eso sólo la acepta el rol `profesional`
+   (`_solo_profesional`). Si un día guardara la propuesta, este invariante caería.
 4. **El protocolo tiene una sola copia** (`protocolos/`). Nunca lo repitas dentro de
    un prompt en Python: `construir_paquetes.sh` lo inyecta en el paquete.
 5. **`ESCALAMIENTO`** en mayúsculas, literal, en `triaje.escalar_urgencia`: es el
@@ -127,7 +136,7 @@ hasta donde dé.
 > Si trabajas en infraestructura o en la PWA, pregúntalo antes de darlo por hecho: el
 > cronograma del informe sí tiene fechas comprometidas con los asesores.
 
-## Estado (al 26 de septiembre de 2026)
+## Estado (al 14 de octubre de 2026)
 
 > Esta sección caduca. Si al leerla la fecha queda lejos, contrástala con `git log` y
 > con `GET /salud` antes de fiarte, y actualízala o bórrala.
@@ -140,11 +149,19 @@ Hecho: infraestructura aplicada, PWA publicada, 14 tablas, 3 Lambdas, catálogo 
 herramientas, protocolo con fundamento, criterios medibles e historial de revisiones,
 banco de 40 casos **con guion de respuestas** y banco adversarial de 24 intentos.
 
-**Medido**, por primera vez, con el antes y el después en `evaluacion/informes/`
-(el índice está en su `README.md`). Con los PR #18 a #21 desplegados: alarmas
-escaladas 36/36 en tres corridas (M2), centro correcto 23/26 (M1, 88,5 %), un
-sub-triaje (M3), ninguna respuesta prohibida en el banco adversarial (M8) y ninguna
-consulta legítima bloqueada.
+**Medido**, con el antes y el después en `evaluacion/informes/` (el índice está en su
+`README.md`). La última corrida, del 14/10, midió esta versión antes de fusionarla,
+con el orquestador en local contra el Bedrock, la salvaguarda y el ROBLE reales:
+alarmas escaladas 36/36 en tres corridas (M2), centro correcto 25/26 (M1, 96,2 %),
+ningún sub-triaje en casos de nivel 2 (M3), ninguna respuesta prohibida en 26
+intentos adversariales (M8) y ninguna consulta legítima bloqueada.
+
+La consulta del profesional se probó de punta a punta el 14/10 con una médica de
+prueba: triaje y cita por los agentes, plan dictado por voz (Transcribe), ordenado,
+revisado y guardado, y seguimiento con evolución, adherencia y alertas. Esa prueba
+destapó y dejó corregidos cuatro fallos que estaban en producción: la hora de la cita
+confirmada corrida cinco horas, la promesa de que «el centro la contactará», la
+evolución registrada dos veces y la adherencia que no se registraba.
 
 La salvaguarda deniega dos temas, diagnóstico y prescripción. Había un tercero,
 `sustituir_urgencia`, y se quitó: reconocía el asunto de la urgencia y no la postura,
@@ -155,21 +172,25 @@ Pendiente:
 
 - **Operación** (Alejandro): el remitente de SES; las credenciales de servicio en
   Parameter Store; la causa de un 500 puntual del 26/09 hacia las 19:33
-  (`fallo_no_previsto` en CloudWatch), que no se reprodujo al repetir el caso; y el
-  filtro `MISCONDUCT` de entrada, que todavía corta «certificado para justificar una
-  falla».
-- **Agenda**: al 26/09 no hay ningún cupo libre a futuro en ninguno de los dos
-  centros. Los profesionales y sus horarios existen, pero los cupos publicados
-  vencieron el 24/09, y sin publicarlos de nuevo desde la vista administrativa el
-  agente de agenda responde siempre que no hay espacios.
-- **Triaje**: dos sobre-derivaciones a urgencias y un sub-triaje, descritos caso por
-  caso en el índice de informes.
+  (`fallo_no_previsto` en CloudWatch), que no se reprodujo al repetir el caso; y medir
+  después de aplicar los dos filtros que bajó esta versión (`HATE` de salida,
+  `MISCONDUCT` de entrada). `VIOLENCE` de salida cortó una respuesta legítima el 14/10.
+- **Agenda**: los únicos cupos a futuro son los de la médica de prueba (14 y 15/10).
+  Los de los demás profesionales vencieron el 24/09; sin publicarlos desde la vista
+  administrativa, el agente de agenda responde que no hay espacios.
+- **Triaje**: una sobre-derivación (`ambiguo-violencia-02`, pregunta 5 del protocolo)
+  y un sub-triaje de nivel 3 a 4 (`cae-09`), descritos en el índice de informes.
+- **Cuentas**: la cuenta del `evaluacion/.env` de Kevin pasó a `admin_plataforma`, así
+  que el evaluador del triaje recibe 403 con ella; hace falta una de paciente. Al
+  escribir una fila de `perfiles` a mano, el `user_id` es `userId` (el `sub` del
+  token) de `GET /auth/<contrato>/me`, **no** su `id`: con el `id`, la cuenta entra
+  como paciente aunque la fila diga otro rol.
 
-Deuda conocida: el ciclo de vida del caso. `atendido` y `cerrado` se leen y se
-filtran pero **ninguna ruta los escribe**, así que un caso se queda en seguimiento
-para siempre. La evaluación ya no depende de eso: el rol `user` de ROBLE tiene
-`casos:update`, y los evaluadores cierran su propio caso al terminar cada
-conversación (`evaluacion/cuenta_roble.py`).
+Ciclo de vida del caso: `cerrado` lo escribe el profesional desde su consulta, con
+el evento `caso_cerrado` en la bitácora, y un paciente no reabre un caso cerrado
+—ni la vista ni `_resolver_caso` se lo devuelven—. `atendido` sigue sin escribirse:
+guardar el plan pasa el caso directo a `en_seguimiento`, y hoy nada distingue esos
+dos estados.
 
 **CI sí corre las pruebas**, y esta sección decía lo contrario hasta que se comprobó:
 el paso «pruebas» de `revision.yml` llama a `scripts/pruebas.sh`, que las busca **por
@@ -183,6 +204,7 @@ faltan. Antes de dar por hecho que algo no se prueba, `scripts/pruebas.sh`.
 ```bash
 source scripts/entorno.sh
 python3 -m compileall -q lambdas scripts   # lo mismo que corre CI
+scripts/pruebas.sh                         # las pruebas sin red, también en CI
 scripts/construir_paquetes.sh              # falla si falta un protocolo
 cd app && npm run build                    # tsc --noEmit && vite build
 ```
