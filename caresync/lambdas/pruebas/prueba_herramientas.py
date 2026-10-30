@@ -33,7 +33,13 @@ from entorno import AccesoFalso, ActorFalso, cargar, comprobar, fallos, lanza, p
 
 preparar()
 
-from caresync_comun.errores import Conflicto, ErrorDeConfiguracion, SolicitudInvalida  # noqa: E402
+from caresync_comun import roble_acceso  # noqa: E402
+from caresync_comun.errores import (  # noqa: E402
+    Conflicto,
+    ErrorDeConfiguracion,
+    NoAutorizado,
+    SolicitudInvalida,
+)
 from caresync_comun.roble_acceso import cita_por_delante  # noqa: E402
 
 triaje = cargar("herramientas", "triaje")
@@ -622,6 +628,24 @@ def probar_horarios_legibles() -> None:
         comprobar(f"activo={valor!r} se lee como {esperado}", agenda._activo({"activo": valor}) is esperado)
 
 
+def probar_sesion_vencida() -> None:
+    print("\nEl token vence a mitad de la petición")
+
+    class _Vencido:
+        """El SDK cuando el token vence y no lo puede refrescar."""
+
+        def read(self, *_args: Any) -> Any:
+            raise roble_acceso.RobleAuthError("Token expirado y no se pudo refrescar")
+
+        create = update = read
+
+    acceso = roble_acceso.AccesoRoble(_Vencido(), ActorFalso("paciente"))
+    comprobar("leer sale como 401 y no como 500",
+              lanza(NoAutorizado, acceso._leer, "casos") is not None)
+    comprobar("escribir también", lanza(NoAutorizado, acceso._crear, "mensajes", {}) is not None)
+    comprobar("y actualizar", lanza(NoAutorizado, acceso._actualizar, "casos", "c-1", {}) is not None)
+
+
 def main() -> int:
     for prueba in (
         probar_escalar_urgencia,
@@ -637,6 +661,7 @@ def main() -> int:
         probar_cita_pasada,
         probar_subir_urgencia,
         probar_nuevo_motivo,
+        probar_sesion_vencida,
     ):
         prueba()
 

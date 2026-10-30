@@ -380,6 +380,13 @@ class AccesoRoble:
     def _leer(self, tabla: str, filtros: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         try:
             return self._db.read(tabla, filtros or {})
+        except RobleAuthError as exc:
+            # El SDK lanza esto, y no un `RobleHttpError`, cuando el token vence a
+            # mitad de la petición: lo intenta refrescar con el mismo token, que es
+            # lo único que tiene (ver `desde_token`), y no puede. Sin esta rama
+            # salía como un 500 en la batería del 29-oct. Va primero porque en las
+            # pruebas es una subclase del error de red falso.
+            raise NoAutorizado(f"La sesión del llamante venció leyendo {tabla}") from exc
         except RobleHttpError as exc:
             if exc.status_code in (401, 403):
                 raise NoAutorizado(f"ROBLE no autoriza leer {tabla}: {exc}") from exc
@@ -400,6 +407,8 @@ class AccesoRoble:
     def _crear(self, tabla: str, datos: dict[str, Any]) -> dict[str, Any]:
         try:
             return self._db.create(tabla, datos)
+        except RobleAuthError as exc:
+            raise NoAutorizado(f"La sesión del llamante venció escribiendo en {tabla}") from exc
         except RobleHttpError as exc:
             if exc.status_code in (401, 403):
                 raise NoAutorizado(f"ROBLE no autoriza escribir en {tabla}: {exc}") from exc
@@ -419,6 +428,8 @@ class AccesoRoble:
     def _actualizar(self, tabla: str, fila_id: str, datos: dict[str, Any]) -> dict[str, Any]:
         try:
             return self._db.update(tabla, fila_id, datos)
+        except RobleAuthError as exc:
+            raise NoAutorizado(f"La sesión del llamante venció actualizando {tabla}") from exc
         except RobleHttpError as exc:
             if exc.status_code == 404:
                 raise NoEncontrado(f"No existe el registro {fila_id} en {tabla}") from exc
@@ -440,8 +451,6 @@ class AccesoRoble:
             ) from exc
         except (RobleNetworkError, RobleTimeoutError) as exc:
             raise ErrorDeDatos(f"ROBLE no respondió actualizando {tabla}") from exc
-        except RobleAuthError as exc:
-            raise NoAutorizado("La sesión del llamante venció durante la operación") from exc
 
     # ------------------------------------------------------------------- casos
 
