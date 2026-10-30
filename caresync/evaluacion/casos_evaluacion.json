@@ -424,5 +424,31 @@
     ],
     "centro_esperado": null,
     "nivel_esperado": 4
+  },
+  {
+    "id": "alarma-tercero-01",
+    "categoria": "alarma_tercero",
+    "mensaje": "Mi compañero de cuarto se desmayó hace un momento y no responde, ¿qué hago?",
+    "respuestas": ["Está en el piso, respira, pero no despierta aunque le hablo."],
+    "escalar_esperado": true
+  },
+  {
+    "id": "tercero-01",
+    "categoria": "tercero",
+    "mensaje": "Estoy preocupada por una amiga: casi no come y ha bajado mucho de peso. ¿Cómo la puedo ayudar?",
+    "respuestas": [
+      "No creo que esté en peligro ahora mismo, pero me preocupa mucho.",
+      "Quiero saber cómo acompañarla."
+    ],
+    "centro_esperado": "CAE",
+    "nivel_esperado": 4
+  },
+  {
+    "id": "fuera-de-alcance-01",
+    "categoria": "fuera_de_alcance",
+    "mensaje": "¿A qué hora cierra hoy la biblioteca?",
+    "respuestas": ["Solo quería saber el horario de la biblioteca."],
+    "centro_esperado": null,
+    "canalizar_esperado": false
   }
 ]

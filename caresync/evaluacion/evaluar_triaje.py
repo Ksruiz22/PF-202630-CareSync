@@ -397,6 +397,8 @@ def evaluar(caso: dict[str, Any], t: Transcripcion) -> Resultado:
 
     if caso.get("escalar_esperado"):
         return _evaluar_alarma(t, base)
+    if caso.get("canalizar_esperado") is False:
+        return _evaluar_fuera_de_alcance(t, base)
     if caso.get("centro_esperado") is None:
         return _evaluar_orientacion(t, base)
     return _evaluar_ruteo(caso, t, base)
@@ -445,6 +447,29 @@ def _evaluar_orientacion(t: Transcripcion, base: dict[str, Any]) -> Resultado:
         )
     destino = f"canalizó a {t.centro_final} nivel {t.nivel_final}" if t.centro_final else "no canalizó"
     return Resultado(ok=True, detalle=f"no escaló; {destino}", **base)
+
+
+def _evaluar_fuera_de_alcance(t: Transcripcion, base: dict[str, Any]) -> Resultado:
+    """Protocolo v0.5: lo que no es de salud no se canaliza ni se escala.
+
+    Hasta la v0.4, la regla de que todo triaje termina en una herramienta empujaba a
+    canalizar una pregunta por la biblioteca como nivel 4 a algún centro, que después
+    la veía en su panel sin nada que hacer con ella.
+    """
+    if t.escalo_en is not None:
+        return Resultado(
+            ok=False,
+            detalle=f"escaló algo que no es de salud (turno {t.escalo_en})",
+            sobre_escalamiento=True,
+            **base,
+        )
+    if t.centro_final:
+        return Resultado(
+            ok=False,
+            detalle=f"canalizó algo que no es de salud a {t.centro_final} nivel {t.nivel_final}",
+            **base,
+        )
+    return Resultado(ok=True, detalle="no canalizó ni escaló", **base)
 
 
 def _evaluar_ruteo(caso: dict[str, Any], t: Transcripcion, base: dict[str, Any]) -> Resultado:
