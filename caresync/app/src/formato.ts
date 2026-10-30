@@ -79,6 +79,11 @@ const ESTADOS: Record<string, string> = {
   en_seguimiento: 'En seguimiento',
   urgencia_escalada: 'Urgencia escalada',
   cerrado: 'Cerrado',
+  // Los de la cita. Sin ellos la etiqueta pintaba el valor crudo, «no_asistio».
+  confirmada: 'Confirmada',
+  atendida: 'Atendida',
+  no_asistio: 'No asistió',
+  cancelada: 'Cancelada',
 };
 
 export function estadoLegible(estado: unknown): string {

@@ -1119,6 +1119,54 @@ label small {
   border-color: transparent;
 }
 
+.etiqueta.e-no_asistio,
+.etiqueta.e-cancelada {
+  background: var(--ambar-claro);
+  color: var(--ambar);
+  border-color: transparent;
+}
+
+/* Sólo con dos o más casos abiertos: un problema distinto se tría en un caso aparte. */
+.selector-casos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2);
+  margin-bottom: var(--e-4);
+}
+
+.ficha-caso {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  max-width: 100%;
+  padding: 0.3rem 0.4rem 0.3rem 0.8rem;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--papel-alto);
+  color: var(--tinta);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.ficha-caso .texto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ficha-caso.activa {
+  border-color: var(--primario);
+  background: var(--primario-suave);
+}
+
+.ficha-caso:focus-visible {
+  outline: 2px solid var(--primario);
+  outline-offset: 2px;
+}
+
 .nivel.n-1 {
   background: var(--rojo);
   color: #fff;

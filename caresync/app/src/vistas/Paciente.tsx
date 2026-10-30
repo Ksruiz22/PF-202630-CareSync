@@ -74,23 +74,38 @@ const VACIO: Panorama = {
 export function Paciente() {
   const { quien, salir } = useSesion();
   const [datos, setDatos] = useState<Panorama>(VACIO);
+  const [abiertos, setAbiertos] = useState<Caso[]>([]);
+  // Cambia sólo cuando la persona elige otro caso, y entonces el chat se vuelve a
+  // montar con el hilo de ese caso. Cuando es el agente el que abre un caso nuevo para
+  // un problema distinto, el chat ya sigue en él por su cuenta —toma el `caso` de la
+  // respuesta— y reiniciarlo le borraría a la persona lo que acaba de leer.
+  const [montaje, setMontaje] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
 
   const userId = quien?.userId ?? '';
 
-  const cargar = useCallback(async () => {
-    if (!userId) return;
-    try {
-      const { vigente, anterior } = await casosDe(userId);
-      setDatos(vigente ? await alrededorDelCaso(vigente) : { ...VACIO, anterior });
-      setError('');
-    } catch (fallo) {
-      setError(mensajeDeError(fallo));
-    } finally {
-      setCargando(false);
-    }
-  }, [userId]);
+  const cargar = useCallback(
+    async (preferido?: string, remontarChat = false) => {
+      if (!userId) return;
+      try {
+        const { abiertos: vivos, anterior } = await casosDe(userId);
+        const caso = vivos.find((fila) => idDe(fila) === preferido) ?? vivos[0] ?? null;
+        const panorama = caso ? await alrededorDelCaso(caso) : { ...VACIO, anterior };
+        // Juntos y después de leer: si el chat se remontara antes de tener el caso
+        // nuevo, se montaría con el hilo del anterior y ya no cambiaría.
+        setAbiertos(vivos);
+        setDatos(panorama);
+        if (remontarChat) setMontaje((n) => n + 1);
+        setError('');
+      } catch (fallo) {
+        setError(mensajeDeError(fallo));
+      } finally {
+        setCargando(false);
+      }
+    },
+    [userId]
+  );
 
   useEffect(() => {
     void cargar();
@@ -118,6 +133,15 @@ export function Paciente() {
         />
 
         {error && <Aviso tipo="error">{error}</Aviso>}
+        {abiertos.length > 1 && (
+          <SelectorDeCasos
+            casos={abiertos}
+            elegido={casoId}
+            alElegir={(id) => {
+              if (id !== casoId) void cargar(id, true);
+            }}
+          />
+        )}
         {nivel === 1 && (
           <Aviso tipo="urgente">
             Tu caso está marcado como emergencia. Si aún no has recibido ayuda, llama
@@ -135,10 +159,14 @@ export function Paciente() {
             </section>
           ) : (
             <Conversacion
+              key={montaje}
               {...(casoId ? { casoId } : {})}
               saludo={saludoSegun(datos.caso)}
               previos={datos.previos}
-              alResponder={() => void cargar()}
+              // El caso de la respuesta, no el que había: si la persona contó un
+              // problema distinto, el agente lo siguió en un caso nuevo y el panel
+              // tiene que mostrar ese.
+              alResponder={(respuesta) => void cargar(respuesta.caso?.id ?? casoId)}
               alVencerSesion={() => void salir()}
             />
           )}
@@ -212,6 +240,12 @@ export function Paciente() {
                         {nombreDeCentro(datos.cita.centro)}
                       </p>
                       <Etiqueta estado={datos.cita.estado} />
+                      {datos.cita.estado === 'confirmada' && !yaPaso(datos.cita) && (
+                        <p className="fino">
+                          Si no puedes ir, escríbelo en la conversación: ahí mismo la
+                          cancelas o la cambias de hora.
+                        </p>
+                      )}
                     </>
                   ) : (
                     <p className="fila-vacia">
@@ -292,28 +326,70 @@ function TarjetaDePrivacidad() {
 }
 
 /**
- * El caso sobre el que se conversa, y el último cerrado si no hay ninguno vigente.
+ * Los casos abiertos de la persona, el más reciente primero, y el último cerrado si no
+ * hay ninguno abierto.
  *
  * `read` de ROBLE sólo filtra por igualdad y no ordena, así que se traen los casos
- * de la persona y se elige aquí: el más reciente que no esté cerrado. Cuando eso
- * deje de caber en una lectura habrá que crear una consulta guardada en ROBLE y
- * llamarla con `executeQuery`; para el número de casos de un estudiante, no hace
- * falta.
+ * de la persona y se ordenan aquí. Cuando eso deje de caber en una lectura habrá que
+ * crear una consulta guardada en ROBLE y llamarla con `executeQuery`; para el número
+ * de casos de un estudiante, no hace falta.
+ *
+ * Puede haber más de un caso abierto desde el 29/10: un problema distinto del que se
+ * está atendiendo se tría en un caso aparte, y el anterior sigue su curso. La vista
+ * muestra uno a la vez y deja elegir el otro.
  *
  * Un caso cerrado nunca es el vigente. Antes, a falta de uno abierto, se devolvía el
  * último aunque estuviera cerrado, y su id viajaba al chat: el siguiente mensaje
  * seguía escribiendo en un caso que el profesional ya había cerrado, en lugar de
  * abrir uno nuevo con su triaje.
  */
-async function casosDe(userId: string): Promise<{ vigente: Caso | null; anterior: Caso | null }> {
+async function casosDe(userId: string): Promise<{ abiertos: Caso[]; anterior: Caso | null }> {
   const casos = (await roble.read('casos', { paciente_user_id: userId })) as Caso[];
-  const abiertos = casos.filter((caso) => caso.estado !== 'cerrado');
+  const abiertos = casos.filter((caso) => caso.estado !== 'cerrado').sort(porFechaDescendente);
   const cerrados = casos.filter((caso) => caso.estado === 'cerrado');
-  const vigente = [...abiertos].sort(porFechaDescendente)[0] ?? null;
   return {
-    vigente,
-    anterior: vigente ? null : ([...cerrados].sort(porFechaDescendente)[0] ?? null),
+    abiertos,
+    anterior: abiertos.length ? null : ([...cerrados].sort(porFechaDescendente)[0] ?? null),
   };
+}
+
+/** Un botón por caso abierto. Sólo aparece cuando hay más de uno. */
+function SelectorDeCasos({
+  casos,
+  elegido,
+  alElegir,
+}: {
+  casos: Caso[];
+  elegido: string;
+  alElegir: (casoId: string) => void;
+}) {
+  return (
+    <nav className="selector-casos" aria-label="Tus casos abiertos">
+      <span className="fino">Tienes {casos.length} casos abiertos:</span>
+      {casos.map((caso) => {
+        const id = idDe(caso);
+        const activo = id === elegido;
+        return (
+          <button
+            key={id}
+            type="button"
+            className={`ficha-caso ${activo ? 'activa' : ''}`}
+            aria-pressed={activo}
+            onClick={() => alElegir(id)}
+          >
+            <span className="texto">{motivoCorto(caso)}</span>
+            <Etiqueta estado={caso.estado} />
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function motivoCorto(caso: Caso): string {
+  const motivo = String(caso.motivo ?? '').trim();
+  if (!motivo) return 'Caso sin motivo';
+  return motivo.length > 40 ? `${motivo.slice(0, 40).trimEnd()}…` : motivo;
 }
 
 async function alrededorDelCaso(caso: Caso): Promise<Panorama> {
@@ -331,12 +407,10 @@ async function alrededorDelCaso(caso: Caso): Promise<Panorama> {
     leer<FilaConversacion>('conversaciones', { caso_id: casoId }),
   ]);
 
-  const activa = citas.filter((cita) => cita.estado !== 'cancelada');
-
   return {
     caso,
     anterior: null,
-    cita: [...activa].sort(porInicioAscendente)[0] ?? null,
+    cita: citaParaMostrar(citas),
     plan: [...planes].sort(porFechaDescendente)[0] ?? null,
     indicaciones: indicaciones.filter((fila) => esVerdad(fila.activa)),
     evoluciones: [...evoluciones].sort(porReporteDescendente).slice(0, 5),
@@ -364,6 +438,23 @@ function porReporteDescendente(a: { reportado_en?: unknown }, b: { reportado_en?
 
 function porInicioAscendente(a: { inicio?: unknown }, b: { inicio?: unknown }): number {
   return String(a.inicio ?? '').localeCompare(String(b.inicio ?? ''));
+}
+
+function yaPaso(cita: Cita): boolean {
+  const inicio = new Date(String(cita.inicio ?? '')).getTime();
+  return Number.isFinite(inicio) && inicio < Date.now();
+}
+
+/**
+ * La cita que se le muestra a la persona: la próxima confirmada, y si no hay, la última.
+ *
+ * Antes era la primera no cancelada por fecha, que con una cita pasada a la que no
+ * llegó y otra nueva pedida después mostraba la vieja.
+ */
+function citaParaMostrar(citas: Cita[]): Cita | null {
+  const vigentes = citas.filter((cita) => cita.estado !== 'cancelada').sort(porInicioAscendente);
+  const proxima = vigentes.find((cita) => cita.estado === 'confirmada' && !yaPaso(cita));
+  return proxima ?? vigentes[vigentes.length - 1] ?? null;
 }
 
 function resumenDeAdherencia(filas: Adherencia[], indicacionId: string): string {
