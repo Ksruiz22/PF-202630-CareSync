@@ -75,7 +75,9 @@ CATALOGO: dict[str, Herramienta] = {
             "Cierra el triaje: fija el centro de atención y el nivel de urgencia del caso. "
             "Llámala UNA sola vez, cuando ya tengas claro si la necesidad es física (CMU) o "
             "de salud mental (CAE) y qué nivel del protocolo aplica. Después de esto el caso "
-            "pasa al agente de agenda."
+            "pasa al agente de agenda. También cierra una duda de información o de trámite: "
+            "nivel 4, al centro del que trata la duda, y orientacion_resuelta en true en el "
+            "mismo turno en que se la respondiste con la información de los centros."
         ),
         propiedades={
             "centro": {
