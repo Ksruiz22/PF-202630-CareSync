@@ -86,6 +86,11 @@ const ESQUEMA = {
     ['resumen_triaje', T.texto, true],
     ['creado_en', T.momento],
     ['actualizado_en', T.momento],
+    // El caso del que nace este: un problema distinto que se tría aparte
+    // (`nuevo_motivo`) o una remisión al otro centro. Columna del 2026-10-29: en una
+    // instalación que ya existía se agrega con `ALTER TABLE ADD COLUMN` desde la
+    // Consola SQL, porque `createTable` se salta las tablas que ya están.
+    ['caso_origen_id', T.texto, true],
   ],
 
   // El hilo completo de la conversación. Es lo más sensible del sistema y por eso
@@ -142,8 +147,15 @@ const ESQUEMA = {
     ['centro', T.texto],
     ['inicio', T.momento],
     ['fin', T.momento],
+    // confirmada | atendida | no_asistio | cancelada. Texto libre: un estado nuevo no
+    // pide columna.
     ['estado', T.texto],
     ['creado_en', T.momento],
+    // Del 2026-10-29, para conectar el plan con la agenda. `tipo`: primera | control |
+    // sesion, y nulo es primera. `indicacion_id`: la indicación del plan que pidió
+    // esta cita, en un control o en una sesión de una serie.
+    ['tipo', T.texto, true],
+    ['indicacion_id', T.texto, true],
   ],
 
   planes: [
@@ -152,6 +164,8 @@ const ESQUEMA = {
     ['profesional_nombre', T.texto, true],
     ['resumen', T.texto],
     ['creado_en', T.momento],
+    // La consulta en la que se escribió. Con controles, un caso tiene varias.
+    ['cita_id', T.texto, true],
   ],
 
   indicaciones: [
@@ -161,6 +175,21 @@ const ESQUEMA = {
     ['frecuencia', T.texto, true],
     ['activa', T.logico],
     ['creado_en', T.momento],
+    // Del 2026-10-29: qué tipo de tratamiento es, porque cada tipo se acompaña distinto.
+    // medicamento | autocuidado | tarea | control | sesiones | examen | remision |
+    // vigilancia | reposo | otro; nulo es otro. Lo sugiere la propuesta del plan y lo
+    // confirma el profesional, como la frecuencia.
+    ['tipo', T.texto, true],
+    // Días desde `creado_en` en que la indicación sigue vigente («por tres días» → 3).
+    // Nulo: hasta que el profesional la desactive.
+    ['duracion_dias', T.entero, true],
+    // Control, examen o remisión: en cuántos días tiene que ocurrir, desde el plan.
+    ['plazo_dias', T.entero, true],
+    // Sesiones: cuántas tiene la serie. La periodicidad va en `frecuencia`.
+    ['sesiones', T.entero, true],
+    // CMU | CAE | externo. Dónde ocurre el control, la sesión o la remisión; nulo es
+    // el centro del caso.
+    ['centro_destino', T.texto, true],
   ],
 
   adherencia: [
@@ -200,6 +229,10 @@ const ESQUEMA = {
     ['creado_en', T.momento],
     ['enviado_en', T.momento, true],
     ['detalle', T.texto, true],
+    // Del 2026-10-29: la cita de la que avisa un recordatorio (24 y 2 horas antes).
+    // En esos `indicacion_id` va vacío y no nulo, porque esa columna no admite nulo y
+    // la consola no deja cambiarlo.
+    ['cita_id', T.texto, true],
   ],
 
   // Clave/valor y no una tabla con una columna por ajuste: añadir un ajuste no debe

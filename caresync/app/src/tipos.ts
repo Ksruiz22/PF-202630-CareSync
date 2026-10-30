@@ -63,6 +63,8 @@ export interface Caso extends Fila {
   resumen_triaje?: string | null;
   creado_en?: string;
   actualizado_en?: string;
+  /** El caso del que nace este: un problema distinto que se tría aparte, o una remisión. */
+  caso_origen_id?: string | null;
 }
 
 export interface Cita extends Fila {
@@ -75,8 +77,17 @@ export interface Cita extends Fila {
   centro?: Centro;
   inicio?: string;
   fin?: string;
-  estado?: string;
+  estado?: EstadoCita;
+  tipo?: TipoCita | null;
+  /** La indicación del plan que pidió esta cita: un control o una sesión de una serie. */
+  indicacion_id?: string | null;
 }
+
+/** `cancelada` y `no_asistio` desde el 29/10. Los mismos literales que `roble_acceso`. */
+export type EstadoCita = 'confirmada' | 'atendida' | 'no_asistio' | 'cancelada';
+
+/** Nulo es `primera`. */
+export type TipoCita = 'primera' | 'control' | 'sesion';
 
 export interface Cupo extends Fila {
   centro?: Centro;
@@ -124,7 +135,29 @@ export interface Indicacion extends Fila {
   frecuencia?: string;
   activa?: boolean | string;
   creado_en?: string;
+  tipo?: TipoIndicacion | null;
+  /** Días desde `creado_en` en que sigue vigente. Nulo: hasta que se desactive. */
+  duracion_dias?: number | null;
+  /** Control, examen o remisión: en cuántos días tiene que ocurrir, desde el plan. */
+  plazo_dias?: number | null;
+  /** Sesiones: cuántas tiene la serie. */
+  sesiones?: number | null;
+  /** Nulo es el centro del caso. */
+  centro_destino?: Centro | 'externo' | null;
 }
+
+/** Cómo se acompaña cada indicación. Nulo es `otro`. Ver `bootstrap_roble.mjs`. */
+export type TipoIndicacion =
+  | 'medicamento'
+  | 'autocuidado'
+  | 'tarea'
+  | 'control'
+  | 'sesiones'
+  | 'examen'
+  | 'remision'
+  | 'vigilancia'
+  | 'reposo'
+  | 'otro';
 
 export interface Plan extends Fila {
   caso_id?: string;
@@ -132,6 +165,8 @@ export interface Plan extends Fila {
   profesional_nombre?: string;
   resumen?: string;
   creado_en?: string;
+  /** La consulta en la que se escribió. */
+  cita_id?: string | null;
 }
 
 export interface Evolucion extends Fila {
