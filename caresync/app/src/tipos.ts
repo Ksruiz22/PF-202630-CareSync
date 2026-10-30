@@ -182,6 +182,10 @@ export interface Adherencia extends Fila {
   cumplida?: boolean | string;
   nota?: string;
   reportado_en?: string;
+  /** La toma a la que responde. Nulo en lo que registra el agente. */
+  programado_para?: string | null;
+  /** `app`, o nulo si lo registró el agente de seguimiento. */
+  origen?: string | null;
 }
 
 export interface EventoCaso extends Fila {

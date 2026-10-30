@@ -90,6 +90,37 @@ de SQL: `int4` y no `integer`, `bool` y no `boolean`. La lista está en
 [`/docs/database/types`](https://roble.test-openlab.uninorte.edu.co/docs/database/types)
 y centralizada en la constante `T` de `app/esquema/bootstrap_roble.mjs`.
 
+### Las columnas del tratamiento (2026-10-30)
+
+**Ya están aplicadas** en `caresync_cab021ce03`, con la Consola SQL y verificadas en
+`information_schema`. Todas admiten nulo, y nulo significa el comportamiento de antes, así
+que ninguna fila vieja hay que tocarla. Quedan aquí por si hay que reponerlas en otro
+contrato: `createTable` se salta las tablas que ya existen.
+
+```sql
+ALTER TABLE indicaciones ADD COLUMN tipo text;
+ALTER TABLE indicaciones ADD COLUMN duracion_dias int4;
+ALTER TABLE indicaciones ADD COLUMN plazo_dias int4;
+ALTER TABLE indicaciones ADD COLUMN sesiones int4;
+ALTER TABLE indicaciones ADD COLUMN centro_destino text;
+ALTER TABLE citas ADD COLUMN tipo text;
+ALTER TABLE citas ADD COLUMN indicacion_id text;
+ALTER TABLE planes ADD COLUMN cita_id text;
+ALTER TABLE recordatorios ADD COLUMN cita_id text;
+ALTER TABLE casos ADD COLUMN caso_origen_id text;
+ALTER TABLE adherencia ADD COLUMN programado_para timestamp;
+ALTER TABLE adherencia ADD COLUMN origen text;
+```
+
+Las dos últimas son de la app móvil (`movil/`): `programado_para` dice a qué toma responde
+un reporte, y sin ella dos tomas del mismo día no se distinguen; `origen` vale `app`, o
+nulo si lo registró el agente. Qué significa cada una está en `ESQUEMA`. **La consola sólo
+deja agregar columnas**, no renombrarlas ni borrarlas: copiar los nombres tal cual.
+
+Un valor nuevo en `recordatorios.estado`: `respondido`, que escribe la app cuando la persona
+ya contestó antes de que saliera el correo. `_materializar` sólo mira `pendiente`, así que
+no le estorba para programar el siguiente, y `recordatorios:update` ya está en el rol `user`.
+
 ### Crear la tabla `ajustes`
 
 Es la última que se añadió, con la vista de plataforma, y **ya está creada** (2026-08-31).
