@@ -126,6 +126,10 @@ def _materializar(acceso: AccesoRoble) -> dict[str, Any]:
             omitidos += 1
             continue
 
+        if not _se_recuerda(indicacion):
+            omitidos += 1
+            continue
+
         existentes = acceso.recordatorios_de_indicacion(indicacion_id)
         if any(r.get("estado") == "pendiente" for r in existentes):
             continue
@@ -149,6 +153,24 @@ def _materializar(acceso: AccesoRoble) -> dict[str, Any]:
         creados += 1
 
     return {"creados": creados, "omitidos": omitidos}
+
+
+def _se_recuerda(indicacion: dict[str, Any]) -> bool:
+    """¿Esta indicación todavía genera recordatorios?
+
+    Una vigilancia nunca: «si la fiebre pasa de 39 °C, ve a urgencias» no es algo que
+    se cumpla a una hora. Y lo que tiene `duracion_dias` deja de recordarse cuando pasa:
+    sin esto, «por tres días» seguía mandando correos hasta que alguien la desactivara.
+    Nulo es «hasta que se desactive», que es como se comportaban las filas de antes.
+    """
+    if indicacion.get("tipo") == "vigilancia":
+        return False
+    try:
+        dias = int(indicacion.get("duracion_dias"))
+    except (TypeError, ValueError):
+        return True
+    creada = reloj.desde_iso(indicacion.get("creado_en"))
+    return creada is None or reloj.ahora() < creada + timedelta(days=dias)
 
 
 # La frecuencia la interpreta `caresync_comun.frecuencia`, que comparte con el
