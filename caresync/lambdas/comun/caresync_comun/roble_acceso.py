@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from roble import (
@@ -119,6 +119,18 @@ CUPO_LIBRE = "libre"
 CUPO_RESERVADO = "reservado"
 CUPO_CONFIRMADO = "confirmado"
 
+# `atendida` la escribe el profesional al guardar el plan; `no_asistio` también, desde
+# su consulta; `cancelada`, la persona o el centro a través del agente. `estado` es
+# texto libre en `citas`, así que ninguno de los tres pide una columna nueva.
+CITA_CONFIRMADA = "confirmada"
+CITA_ATENDIDA = "atendida"
+CITA_NO_ASISTIO = "no_asistio"
+CITA_CANCELADA = "cancelada"
+
+# Cuánto dura una cita a la que le falta `fin`. Las filas de `citas` lo copian del
+# cupo, así que sólo lo usa una fila vieja o escrita a mano.
+_DURACION_SUPUESTA = timedelta(hours=1)
+
 
 @dataclass(frozen=True)
 class Actor:
@@ -171,6 +183,24 @@ def es_uuid(valor: Any) -> bool:
     except (ValueError, AttributeError, TypeError):
         return False
     return True
+
+
+def cita_por_delante(cita: dict[str, Any], *, ahora: datetime | None = None) -> bool:
+    """¿Es una cita confirmada que todavía no ha terminado?
+
+    Es la cita que impide pedir otra, la que se puede cancelar o cambiar. Una pasada
+    que nadie marcó no lo es: hasta el 29/10 `agendar_cita` contaba como vigente toda
+    cita no cancelada, y quien no llegaba a la suya se quedaba sin forma de pedir otra,
+    con el caso en `agendado` para siempre.
+    """
+    if str(cita.get("estado") or CITA_CONFIRMADA) != CITA_CONFIRMADA:
+        return False
+    # Las fechas de ROBLE vienen en UTC sin sufijo: `desde_iso`, no `desde_local`.
+    fin = reloj.desde_iso(cita.get("fin"))
+    if not fin:
+        inicio = reloj.desde_iso(cita.get("inicio"))
+        fin = inicio + _DURACION_SUPUESTA if inicio else None
+    return bool(fin) and fin > (ahora or reloj.ahora())
 
 
 class AccesoRoble:
@@ -456,11 +486,13 @@ class AccesoRoble:
         raise SinPermiso("Rol sin acceso a casos")
 
     def caso_abierto_de(self, user_id: str) -> dict[str, Any] | None:
-        """El caso vivo del paciente, si tiene uno.
+        """El caso vivo más reciente del paciente, si tiene alguno.
 
-        Un paciente tiene como máximo un caso sin cerrar: si vuelve a escribir,
-        continúa el mismo hilo en lugar de abrir uno nuevo. Es lo que hace que
-        el seguimiento tenga sentido.
+        Si vuelve a escribir sin decir sobre qué caso, continúa este hilo en lugar de
+        abrir uno nuevo: es lo que hace que el seguimiento tenga sentido. Desde el 29/10
+        puede tener más de uno —un problema distinto se tría en un caso aparte con
+        `nuevo_motivo`—, y entonces la vista manda el `caso_id` del que eligió la
+        persona; sin él, el más reciente es el del problema nuevo.
         """
         abiertos = [
             c
@@ -657,7 +689,7 @@ class AccesoRoble:
                 "centro": cupo.get("centro"),
                 "inicio": cupo.get("inicio"),
                 "fin": cupo.get("fin"),
-                "estado": "confirmada",
+                "estado": CITA_CONFIRMADA,
                 "creado_en": reloj.iso(),
             },
         )
@@ -698,6 +730,30 @@ class AccesoRoble:
 
     def citas_del_profesional(self, user_id: str) -> list[dict[str, Any]]:
         return self._leer(CITAS, {"profesional_user_id": user_id})
+
+    def cancelar_cita(self, cita: dict[str, Any]) -> bool:
+        """Cancela la cita y devuelve su cupo a la agenda. Dice si el cupo volvió.
+
+        Primero la cita y después el cupo, y no al revés. Sin transacciones, el orden es
+        lo único que decide qué queda si la segunda escritura falla: con este, un cupo
+        que no vuelve a la agenda, que se pierde pero no se reparte; con el inverso, un
+        cupo libre con una cita confirmada encima, que otra persona puede tomar.
+        """
+        cita_id = fila_id(cita)
+        if not cita_id:
+            raise NoEncontrado("La cita a cancelar no tiene identificador")
+        self._actualizar(CITAS, str(cita_id), {"estado": CITA_CANCELADA})
+
+        cupo_id = str(cita.get("cupo_id") or "")
+        if not es_uuid(cupo_id):
+            return False
+        try:
+            self.liberar_cupo(cupo_id)
+        except Exception as exc:  # noqa: BLE001 - la cita ya quedó cancelada
+            evento(log, "cupo_no_liberado", cupo_id=cupo_id, detalle=type(exc).__name__)
+            return False
+        evento(log, "cita_cancelada", cita_id=cita_id, cupo_id=cupo_id)
+        return True
 
     # ------------------------------------------------------- plan y seguimiento
 
