@@ -40,6 +40,7 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 | Probar que las salvaguardas aguantan | `evaluacion/casos_guardarrailes.json` + `evaluacion/evaluar_guardarrailes.py` |
 | Cualquier lectura o escritura de datos | `lambdas/comun/caresync_comun/roble_acceso.py` (única puerta) |
 | Columnas reales de las 14 tablas | `app/esquema/bootstrap_roble.mjs` (`ESQUEMA`) |
+| La app móvil del paciente (seguimiento y recordatorios) | `movil/README.md`, `movil/src/agenda.ts`, `movil/src/fuenteRoble.ts` |
 | Por qué el sistema es así | `docs/arquitectura.md` |
 | Operar ROBLE (roles, permisos, tablas) | `docs/runbook-roble.md` |
 
