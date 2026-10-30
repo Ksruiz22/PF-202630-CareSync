@@ -90,6 +90,53 @@ export function tokenActual(): string {
   return roble.accessToken ?? '';
 }
 
+/** Con menos de esto se renueva antes de llamar al API: cubre el turno más largo. */
+const MARGEN_DE_RENOVACION_S = 120;
+
+let renovacion: Promise<void> | null = null;
+
+/**
+ * Renueva el token de acceso si vence en menos de dos minutos.
+ *
+ * El SDK sólo lo renueva cuando ROBLE le responde 401, y las llamadas al API de
+ * CareSync no pasan por el SDK. Con la PWA abierta un rato, el backend recibía un
+ * token vencido —y la persona salía de la sesión— o uno que vencía a mitad del
+ * turno, cuando ya había escrito en ROBLE.
+ */
+export function renovarSiVence(): Promise<void> {
+  renovacion ??= renovar().finally(() => {
+    renovacion = null;
+  });
+  return renovacion;
+}
+
+async function renovar(): Promise<void> {
+  const token = roble.accessToken;
+  if (!token || !roble.refreshToken) return;
+  const quedan = segundosRestantes(token);
+  if (quedan === null || quedan > MARGEN_DE_RENOVACION_S) return;
+  try {
+    // No está en los tipos públicos del SDK, pero es el mismo que usa él tras un
+    // 401: así la ruta y la respuesta de ROBLE siguen siendo asunto suyo.
+    await (roble as unknown as { refreshAccessToken(): Promise<void> }).refreshAccessToken();
+    guardar(roble);
+  } catch {
+    // La llamada sigue con el token que hay: si ya venció, el 401 lleva a volver a
+    // entrar, como antes.
+  }
+}
+
+/** Segundos hasta el `exp` del JWT, o `null` si no se puede leer. */
+function segundosRestantes(token: string): number | null {
+  try {
+    const carga = (token.split('.')[1] ?? '').replace(/-/g, '+').replace(/_/g, '/');
+    const { exp } = JSON.parse(atob(carga)) as { exp?: unknown };
+    return typeof exp === 'number' ? exp - Date.now() / 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 // ------------------------------------------------------------------ identidad
 
 export interface Identidad {
