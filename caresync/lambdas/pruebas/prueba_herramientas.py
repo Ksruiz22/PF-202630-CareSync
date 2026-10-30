@@ -258,6 +258,49 @@ def probar_adherencia() -> None:
               salida.get("ok") is True and [que for que, _ in acceso.escrito] == ["adherencia", "evento"])
 
 
+def probar_plan_con_reportes_de_la_app() -> None:
+    print("\nLo que el agente ve de los reportes de la app móvil")
+
+    class _ConReportes(AccesoFalso):
+        def plan_del_caso(self, caso_id: str) -> dict[str, Any]:
+            return {"resumen": "Plan", "creado_en": "2026-10-28T15:00"}
+
+        def indicaciones_activas(self, caso_id: str) -> list[dict[str, Any]]:
+            return [
+                {"_id": "ind-1", "texto": "Hacer gárgaras", "tipo": "autocuidado", "duracion_dias": 7},
+                {"_id": "ind-2", "texto": "Si empeora, ve a urgencias"},
+            ]
+
+        def adherencia_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+            # Como las devuelve ROBLE: sin zona ni segundos.
+            return [
+                {"indicacion_id": "ind-1", "cumplida": True, "reportado_en": f"2026-10-2{dia}T13:00",
+                 "programado_para": f"2026-10-2{dia}T12:00", "origen": "app"}
+                for dia in range(5, 9)
+            ] + [
+                {"indicacion_id": "ind-1", "cumplida": False, "nota": "Se me olvidó",
+                 "reportado_en": "2026-10-30T13:28", "programado_para": "2026-10-30T12:00", "origen": "app"},
+            ]
+
+        def evolucion_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+            return []
+
+    salida = seguimiento.consultar_plan(_ConReportes(ActorFalso("paciente")), {"_id": "k"}, {})
+    con_reportes, sin_reportes = salida["indicaciones"]
+    recientes = con_reportes["ultimos_reportes"]
+
+    comprobar("el total sigue contando todos", con_reportes["reportes"] == 5)
+    comprobar("pero sólo viajan los últimos", len(recientes) == seguimiento.REPORTES_RECIENTES, str(recientes))
+    comprobar("el último trae la nota, para no volver a preguntarla", recientes[-1]["nota"] == "Se me olvidó")
+    comprobar("y su toma en hora de Bogotá: las 12:00 de ROBLE son las 7:00, no «anoche»",
+              "30/10 a las 07:00" in recientes[-1]["toma_de_las"], recientes[-1]["toma_de_las"])
+    comprobar("un reporte sin nota no inventa una cadena vacía", recientes[0]["nota"] is None)
+    comprobar("sin toma queda nula, como lo que registra el agente",
+              seguimiento._reporte({"reportado_en": "2026-10-30T13:28", "cumplida": True})["toma_de_las"] is None)
+    comprobar("una indicación sin reportes no trae ninguno", sin_reportes["ultimos_reportes"] == [])
+    comprobar("el tipo nulo se le presenta como otro", sin_reportes["tipo"] == "otro")
+
+
 class _AccesoConEvolucion(AccesoFalso):
     def __init__(self, previas: list[int]) -> None:
         super().__init__(ActorFalso("paciente"))
@@ -654,6 +697,7 @@ def main() -> int:
         probar_notificar_sin_correo,
         probar_retroceso,
         probar_adherencia,
+        probar_plan_con_reportes_de_la_app,
         probar_horarios_legibles,
         probar_plazo_del_nivel,
         probar_cancelar,
