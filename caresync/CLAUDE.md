@@ -159,7 +159,7 @@ Hecho: infraestructura aplicada, PWA publicada, 14 tablas, 3 Lambdas, catálogo 
 herramientas, protocolo con fundamento, criterios medibles e historial de revisiones,
 banco de 40 casos **con guion de respuestas** y banco adversarial de 24 intentos.
 
-**En la rama `kr-version-noviembre` (29/10, sin evaluar todavía contra el modelo)**:
+**En la rama `kr-version-noviembre` (29/10, probada en local contra el modelo, sin desplegar)**:
 14 herramientas —cancelar y cambiar una cita, subir la urgencia y abrir un caso para
 un problema nuevo—, el plazo del nivel aplicado en la agenda, la inasistencia que
 marca el profesional, la información de los centros en `protocolos/orientacion.md`,

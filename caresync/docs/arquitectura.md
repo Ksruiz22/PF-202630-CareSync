@@ -75,9 +75,11 @@ escribir tres días después cae en seguimiento en lugar de repetir el triaje.
 **Lo que el agente sabe de los centros** está en `protocolos/orientacion.md`, con una
 sola copia como el protocolo, y lo llevan los tres agentes. Sólo dice lo que es cierto
 por cómo funciona CareSync; el edificio, el horario general y los costos los tienen
-que poner los centros. Con ella, una duda de información se responde y su caso se
-cierra, en vez de quedar canalizada a un centro que no tiene cómo responderle a la
-persona: lo que escribe el personal no se le muestra, y el correo todavía no sale.
+que poner los centros. Con ella, una duda de información se responde en el chat, en
+vez de quedar canalizada a un centro que no tiene cómo responderle a la persona: lo
+que escribe el personal no se le muestra, y el correo todavía no sale. El caso debería
+cerrarse con `orientacion_resuelta`, pero en la prueba del 29/10 el modelo respondió
+bien sin marcarlo y el caso se quedó en triaje, sin bloquear nada.
 
 ### Una conversación puede no ser sobre ningún caso
 
