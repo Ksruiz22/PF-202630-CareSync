@@ -88,8 +88,28 @@ def probar_hora_decente() -> None:
               hora_local(recordatorios._hora_decente(bogota(19, 59))) == (1, 19, 59))
 
 
+def probar_se_recuerda() -> None:
+    print("\nQué se sigue recordando")
+
+    ahora = reloj.ahora()
+
+    def creada_hace(dias: int) -> str:
+        return reloj.iso(ahora - timedelta(days=dias))
+
+    comprobar("una fila de antes, sin columnas nuevas, se recuerda",
+              recordatorios._se_recuerda({"creado_en": creada_hace(90)}))
+    comprobar("una vigilancia nunca se recuerda",
+              not recordatorios._se_recuerda({"tipo": "vigilancia", "creado_en": creada_hace(0)}))
+    comprobar("dentro de su duración se recuerda",
+              recordatorios._se_recuerda({"duracion_dias": 3, "creado_en": creada_hace(2)}))
+    comprobar("pasada su duración ya no",
+              not recordatorios._se_recuerda({"duracion_dias": 3, "creado_en": creada_hace(4)}))
+    comprobar("ROBLE puede devolver el entero como texto",
+              not recordatorios._se_recuerda({"duracion_dias": "3", "creado_en": creada_hace(4)}))
+
+
 def main() -> int:
-    for prueba in (probar_intervalo, probar_hora_decente):
+    for prueba in (probar_intervalo, probar_hora_decente, probar_se_recuerda):
         prueba()
 
     print()

@@ -36,6 +36,11 @@ ESCALA_PREOCUPANTE = int(os.environ.get("ESCALA_PREOCUPANTE", "3"))
 VENTANA_REPETIDO = timedelta(hours=1)
 
 
+# Cuántos reportes de cada indicación se le pasan al agente. Con tomas cada ocho horas,
+# el historial entero crecería cada turno y costaría tokens sin decirle nada más.
+REPORTES_RECIENTES = 3
+
+
 # ------------------------------------------------------------------- consultar
 
 def consultar_plan(
@@ -72,8 +77,10 @@ def consultar_plan(
         ],
         "ultimo_reporte": reloj.humano(evolucion[-1].get("reportado_en")) if evolucion else None,
         "instruccion": (
-            "No preguntes nada que ya esté aquí. Si no hay plan todavía, dile que "
-            "el profesional aún no lo ha escrito y no lo suplas tú."
+            "No preguntes nada que ya esté aquí, y eso incluye la nota de un reporte: "
+            "si ya dijo qué se le dificultó, no se lo vuelvas a preguntar. Para hablar "
+            "de cuándo fue algo, usa `toma_de_las` tal cual y no lo deduzcas. Si no hay "
+            "plan todavía, dile que el profesional aún no lo ha escrito y no lo suplas tú."
         ),
     }
 
@@ -91,9 +98,32 @@ def _indicacion(
         "indicacion_id": indicacion_id,
         "texto": indicacion.get("texto"),
         "frecuencia": indicacion.get("frecuencia"),
+        # Las columnas del 29/10. Sin ellas el agente preguntaría «¿ya fuiste al
+        # control?» igual que «¿te tomaste la pastilla?», y una vigilancia («si la
+        # fiebre pasa de 39 °C, ve a urgencias») sonaría a una tarea por cumplir.
+        "tipo": indicacion.get("tipo") or "otro",
+        "duracion_dias": indicacion.get("duracion_dias"),
+        "plazo_dias": indicacion.get("plazo_dias"),
+        "sesiones": indicacion.get("sesiones"),
+        "centro_destino": indicacion.get("centro_destino"),
         "reportes": len(reportes),
         "ultimo_reporte": reloj.humano(ultimo.get("reportado_en")) if ultimo else None,
         "ultima_cumplida": ultimo.get("cumplida") if ultimo else None,
+        # Lo que hace falta para no preguntar lo ya contado. Sin la nota, el agente
+        # volvía a preguntar «¿qué se te dificultó?» a quien ya lo había escrito en la
+        # app móvil; sin la toma, llamó «anoche» a una toma de las 7:00 de esa mañana.
+        "ultimos_reportes": [_reporte(r) for r in reportes[-REPORTES_RECIENTES:]],
+    }
+
+
+def _reporte(fila: dict[str, Any]) -> dict[str, Any]:
+    programado = fila.get("programado_para")
+    return {
+        "cuando_lo_reporto": reloj.humano(fila.get("reportado_en")),
+        # Nula en lo que registró el agente: ese reporte habla de la indicación.
+        "toma_de_las": reloj.humano(programado) if programado else None,
+        "cumplida": fila.get("cumplida"),
+        "nota": fila.get("nota") or None,
     }
 
 

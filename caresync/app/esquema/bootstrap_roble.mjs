@@ -198,6 +198,12 @@ const ESQUEMA = {
     ['cumplida', T.logico],
     ['nota', T.texto, true],
     ['reportado_en', T.momento],
+    // Del 2026-10-30, para la app móvil. `programado_para`: la toma a la que responde
+    // este reporte; sin ella, dos tomas del mismo día no se distinguen y un doble toque
+    // cuenta doble. Nulo en lo que registra el agente, que habla de la indicación y no
+    // de una toma. `origen`: app, o nulo si lo registró el agente de seguimiento.
+    ['programado_para', T.momento, true],
+    ['origen', T.texto, true],
   ],
 
   evolucion: [
