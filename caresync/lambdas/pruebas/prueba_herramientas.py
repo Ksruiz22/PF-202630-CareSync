@@ -195,9 +195,99 @@ class _AccesoConAgenda(AccesoFalso):
     def reservar_cupo(self, *, cupo_id: str, caso_id: str) -> dict[str, Any]:
         return {**self.CUPO, "estado": "reservado", "caso_id": caso_id}
 
-    def confirmar_cita(self, *, cupo_id: str, caso_id: str) -> dict[str, Any]:
+    def confirmar_cita(self, *, cupo_id: str, caso_id: str, tipo: str | None = None,
+                       indicacion_id: str | None = None) -> dict[str, Any]:
         return self._escribir("cita", {"caso_id": caso_id, "centro": "CMU", "profesional_nombre": "Dra. Prueba",
-                                       "inicio": "2026-10-14T18:30:00.000Z"})
+                                       "inicio": "2026-10-14T18:30:00.000Z", "tipo": tipo,
+                                       "indicacion_id": indicacion_id})
+
+
+def probar_cita_del_plan() -> None:
+    """La conexión 2-3: con el caso en seguimiento, la cita es la que pide el plan."""
+    print("\nEl control del plan se agenda desde seguimiento")
+    agenda.correo.config = lambda: type("Sin", (), {"envia_correo": False, "correo_remitente": ""})()
+    tratamiento = agenda.tratamiento
+    hace_dos_dias = tratamiento.reloj.iso(tratamiento.reloj.mas(dias=-2))
+    control = {"_id": "ind-1", "tipo": "control", "plazo_dias": 14, "centro_destino": "CAE",
+               "texto": "Volver a control en dos semanas", "creado_en": hace_dos_dias}
+
+    class _ConPlan(_AccesoConAgenda):
+        def __init__(self, *args, citas=(), indicaciones=(control,), **kwargs):
+            super().__init__(*args, **kwargs)
+            self._citas, self._indicaciones, self.buscado = list(citas), list(indicaciones), {}
+
+        def indicaciones_activas(self, caso_id: str) -> list[dict[str, Any]]:
+            return self._indicaciones
+
+        def citas_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+            return self._citas
+
+        def cupos_libres(self, **filtros: Any) -> list[dict[str, Any]]:
+            self.buscado = filtros
+            return [{**self.CUPO, "centro": filtros.get("centro")}]
+
+        def profesional(self, profesional_id: str) -> dict[str, Any]:
+            return {"nombre": "Dra. Prueba", "email": "dra@prueba.co", "user_id": "u-p"}
+
+        def liberar_reservas_vencidas(self, **_: Any) -> int:
+            return 0
+
+    caso = {"_id": "k", "estado": "en_seguimiento", "centro": "CMU", "nivel_urgencia": 3}
+    acceso = _ConPlan(ActorFalso("paciente"))
+    oferta = agenda.consultar_disponibilidad(acceso, caso, {})
+    comprobar("busca en el centro que dijo el profesional, no en el del caso",
+              acceso.buscado.get("centro") == "CAE", str(acceso.buscado))
+    desde = acceso.buscado.get("desde")
+    comprobar("y alrededor de la fecha del control, no desde mañana",
+              desde is not None and desde > tratamiento.reloj.mas(dias=8), str(desde))
+    comprobar("dice para qué es la cita", oferta.get("para") == "Volver a control en dos semanas"
+              and oferta.get("tipo") == "control", str(oferta))
+
+    salida = agenda.agendar_cita(acceso, caso, {"inicio": "2026-10-14T08:30:00-05:00"})
+    cita = [d for que, d in acceso.escrito if que == "cita"]
+    comprobar("la cita queda como control de esa indicación",
+              cita and cita[0]["tipo"] == "control" and cita[0]["indicacion_id"] == "ind-1", str(cita))
+    comprobar("y el profesional recibe el resumen sin notificar_profesional",
+              any(d.get("tipo") == "profesional_notificado" for q, d in acceso.escrito if q == "evento")
+              and "notificar_profesional" not in str(salida.get("instruccion")), str(salida))
+
+    agendado = _ConPlan(ActorFalso("paciente"), citas=[
+        {"_id": "c-1", "indicacion_id": "ind-1", "estado": "confirmada",
+         "inicio": tratamiento.reloj.iso(tratamiento.reloj.mas(dias=10)),
+         "fin": tratamiento.reloj.iso(tratamiento.reloj.mas(dias=10, minutos=30))}])
+    comprobar("con el control ya agendado no hay nada por agendar",
+              agenda.consultar_disponibilidad(agendado, caso, {}).get("nada_por_agendar") is True)
+
+    afuera = _ConPlan(ActorFalso("paciente"), indicaciones=[{**control, "centro_destino": "externo"}])
+    comprobar("un control fuera de la universidad no se agenda en el CMU",
+              agenda.consultar_disponibilidad(afuera, caso, {}).get("fuera_de_la_universidad") is True)
+
+    ahora = tratamiento.reloj.ahora()
+    serie = {"_id": "ind-2", "tipo": "sesiones", "sesiones": 2, "creado_en": hace_dos_dias}
+    hecha = {"indicacion_id": "ind-2", "estado": "atendida", "fin": tratamiento.reloj.iso(ahora)}
+    comprobar("una serie con sesiones por hacer sigue pendiente",
+              tratamiento.pendiente([serie], [hecha]) == serie)
+    comprobar("y completa ya no", tratamiento.pendiente([serie], [hecha, dict(hecha)]) is None)
+    comprobar("una cita cancelada no cuenta como hecha",
+              tratamiento.pendiente([control], [{"indicacion_id": "ind-1", "estado": "cancelada",
+                                                 "fin": tratamiento.reloj.iso(ahora)}]) == control)
+
+    class _PlanConControl(_ConPlan):
+        def plan_del_caso(self, caso_id: str) -> dict[str, Any]:
+            return {"resumen": "Esguince", "creado_en": hace_dos_dias}
+
+        def adherencia_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+            return []
+
+        def evolucion_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+            return []
+
+    plan = seguimiento.consultar_plan(_PlanConControl(ActorFalso("paciente")), caso, {})
+    comprobar("consultar_plan le dice al agente que el control está por agendar",
+              plan["indicaciones"][0].get("cita", {}).get("por_agendar") is True, str(plan["indicaciones"][0]))
+    plan = seguimiento.consultar_plan(_PlanConControl(ActorFalso("paciente"), citas=agendado._citas), caso, {})
+    comprobar("y cuándo es, si ya lo agendó",
+              "agendada" in plan["indicaciones"][0].get("cita", {}), str(plan["indicaciones"][0].get("cita")))
 
 
 def probar_agendar() -> None:
@@ -455,10 +545,11 @@ class _AgendaViva(AccesoFalso):
             raise Conflicto("Otra persona tomó ese espacio mientras lo reservábamos")
         return self._escribir("reserva", {"cupo_id": cupo_id})
 
-    def confirmar_cita(self, *, cupo_id: str, caso_id: str) -> dict[str, Any]:
+    def confirmar_cita(self, *, cupo_id: str, caso_id: str, tipo: str | None = None,
+                       indicacion_id: str | None = None) -> dict[str, Any]:
         cupo = next(c for c in self.cupos if c["_id"] == cupo_id)
         cita = _cita(f"cita-{cupo_id}", cupo_id)
-        cita.update(inicio=cupo["inicio"], fin=cupo["fin"])
+        cita.update(inicio=cupo["inicio"], fin=cupo["fin"], tipo=tipo, indicacion_id=indicacion_id)
         self.citas.append(cita)
         return self._escribir("cita", cita)
 
@@ -694,6 +785,7 @@ def main() -> int:
         probar_escalar_urgencia,
         probar_canalizar,
         probar_agendar,
+        probar_cita_del_plan,
         probar_notificar_sin_correo,
         probar_retroceso,
         probar_adherencia,

@@ -186,6 +186,12 @@ def probar_herramientas_declaradas() -> None:
     comprobar("seguimiento para el profesional: no registra por la persona",
               _nombres(de(seguimiento, "profesional", con_caso=True))
               == ["consultar_estado_caso", "consultar_plan", "escalar_urgencia"])
+    para_la_persona = _nombres(de(seguimiento, "paciente", con_caso=True))
+    comprobar("seguimiento para el paciente: agenda el control del plan, sin traspasar a agenda",
+              {"consultar_disponibilidad", "agendar_cita", "reprogramar_cita", "cancelar_cita"} <= set(para_la_persona)
+              and "notificar_profesional" not in para_la_persona, str(para_la_persona))
+    comprobar("y, como agenda, no contesta de memoria",
+              "seguimiento" in orquestador._NO_CONTESTAN_DE_MEMORIA and "triaje" not in orquestador._NO_CONTESTAN_DE_MEMORIA)
 
 
 def probar_traspaso() -> None:

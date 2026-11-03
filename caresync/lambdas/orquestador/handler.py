@@ -305,8 +305,10 @@ def _conversar(
             # Agenda no contesta de memoria: antes de responder mira algo de verdad.
             # Con sólo el recordatorio, en la prueba del 2/11 siguió dando por
             # cancelada una cita sin llamar a `cancelar_cita` y ofreciendo cupos sin
-            # consultarlos. Cuesta una lectura por turno.
-            "exigir_herramienta": agente.clave == agentes.AGENDA,
+            # consultarlos. Cuesta una lectura por turno. Seguimiento igual: también
+            # agenda (el control del plan) y registra lo que la persona cuenta, y un
+            # «quedó registrado» sin `registrar_adherencia` es el mismo fallo.
+            "exigir_herramienta": agente.clave in _NO_CONTESTAN_DE_MEMORIA,
         }
         resultado = bedrock_conversa.conversar(mensajes=hilo, **llamada)
 
@@ -564,17 +566,25 @@ def _historial_de_filas(filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # un cupo a las 10:00 que no existe, y dio por cancelada una cita que seguía en pie.
 # En el primer turno de un caso casi nunca pasa. El recordatorio va junto al
 # mensaje, que es lo último que lee, y no se guarda en el hilo.
-_RECORDATORIO_DE_AGENDA = (
-    "[sistema] Para este turno: buscar espacios, agendar, cambiar o cancelar sólo "
-    "pasa si llamas ahora a la herramienta. Escribir que lo vas a hacer no lo hace, y "
-    "sin la respuesta de la herramienta no hay días ni horas que ofrecer."
-)
+_RECORDATORIO = {
+    agentes.AGENDA: (
+        "[sistema] Para este turno: buscar espacios, agendar, cambiar o cancelar sólo "
+        "pasa si llamas ahora a la herramienta. Escribir que lo vas a hacer no lo hace, y "
+        "sin la respuesta de la herramienta no hay días ni horas que ofrecer."
+    ),
+    agentes.SEGUIMIENTO: (
+        "[sistema] Para este turno: registrar cómo se siente o si cumplió una indicación, "
+        "y buscar, agendar, cambiar o cancelar una cita, sólo pasa si llamas ahora a la "
+        "herramienta. Escribir que lo hiciste no lo hace."
+    ),
+}
+_NO_CONTESTAN_DE_MEMORIA = frozenset(_RECORDATORIO)
 
 
 def _turno_de_la_persona(mensaje: str, agente: agentes.Agente) -> list[dict[str, Any]]:
     contenido = [{"text": mensaje}]
-    if agente.clave == agentes.AGENDA:
-        contenido.append({"text": _RECORDATORIO_DE_AGENDA})
+    if agente.clave in _RECORDATORIO:
+        contenido.append({"text": _RECORDATORIO[agente.clave]})
     return contenido
 
 

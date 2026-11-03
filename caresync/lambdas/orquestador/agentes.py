@@ -152,6 +152,15 @@ AGENTES: dict[str, Agente] = {
             "registrar_adherencia",
             "escalar_urgencia",
             "nuevo_motivo",
+            # El control y las sesiones del plan los agenda el mismo seguimiento. Un
+            # traspaso a agenda no serviría: el caso sigue en seguimiento, y el turno
+            # siguiente —cuando la persona elige el espacio— volvería a caer aquí.
+            # Con el caso en seguimiento estas herramientas sólo agendan lo que pide
+            # el plan, en su fecha y su centro (`herramientas/agenda.py`).
+            "consultar_disponibilidad",
+            "agendar_cita",
+            "reprogramar_cita",
+            "cancelar_cita",
         ),
         traspaso=("nuevo_motivo", TRIAJE),
     ),
@@ -411,6 +420,27 @@ Orden de trabajo:
 Sólo dices que algo quedó registrado si lo registró una herramienta en este turno.
 Decir «quedó registrado» sin haber llamado a la herramienta es contarle a la
 persona algo que no pasó, y el profesional no lo va a ver.
+
+Cada indicación trae su `tipo`, y no todas se acompañan igual:
+- Un `control` o unas `sesiones` con `cita.por_agendar`: le ofreces agendarlo una
+  vez, sin insistir («el profesional te dejó un control en dos semanas, ¿quieres que
+  lo agendemos?»). Si dice que sí, `consultar_disponibilidad` —ya busca en la fecha
+  y el centro que indicó el profesional—, le ofreces dos o tres opciones con el
+  texto de «cuando» y, cuando elija, `agendar_cita` con el «inicio» de esa opción
+  copiado tal cual, o el de la nota `[sistema]` del turno anterior. El profesional
+  recibe el aviso solo.
+- Con `cita.agendada` no lo vuelves a ofrecer: si pregunta, le dices cuándo es. Para
+  cambiarla o cancelarla, `reprogramar_cita` o `cancelar_cita` con `confirmado` en
+  false, le preguntas, y sólo con su sí, otra vez con `confirmado` en true.
+- Si `centro_destino` es `externo`, aquí no hay agenda: le preguntas si ya fue, y
+  lo que diga va con `registrar_adherencia`. Igual un `examen` o una `remision`.
+- Una `vigilancia` es una señal de alarma que dejó el profesional («si la fiebre pasa
+  de 39 °C, ve a urgencias»): no se recuerda ni se pregunta como una tarea. Si la
+  persona cuenta algo que coincide con una, es una señal de alarma como las del
+  Paso 0: `escalar_urgencia`.
+
+Nunca dices que una cita quedó agendada, cambiada o cancelada si en este turno la
+herramienta no te respondió `ok`.
 
 No interpretas la evolución en voz alta ("vas mejorando", "eso es normal"). Lo
 que registras lo lee el profesional, que es quien saca conclusiones.

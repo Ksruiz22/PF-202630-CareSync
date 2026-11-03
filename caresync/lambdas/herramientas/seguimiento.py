@@ -20,7 +20,7 @@ import os
 from datetime import timedelta
 from typing import Any
 
-from caresync_comun import reloj
+from caresync_comun import reloj, tratamiento
 from caresync_comun.registro import evento, registro
 from caresync_comun.roble_acceso import CASO_SEGUIMIENTO, AccesoRoble, fila_id
 
@@ -52,6 +52,12 @@ def consultar_plan(
     indicaciones = acceso.indicaciones_activas(caso_id)
     adherencia = acceso.adherencia_del_caso(caso_id)
     evolucion = acceso.evolucion_del_caso(caso_id)
+    # Sólo hacen falta si el plan tiene algo que se cumple en una cita.
+    citas = (
+        acceso.citas_del_caso(caso_id)
+        if any(i.get("tipo") in tratamiento.SE_AGENDAN for i in indicaciones)
+        else []
+    )
 
     por_indicacion: dict[str, list[dict[str, Any]]] = {}
     for fila in adherencia:
@@ -66,7 +72,7 @@ def consultar_plan(
         }
         if plan
         else None,
-        "indicaciones": [_indicacion(i, por_indicacion) for i in indicaciones],
+        "indicaciones": [_indicacion(i, por_indicacion, citas) for i in indicaciones],
         "evolucion": [
             {
                 "escala": e.get("escala"),
@@ -86,7 +92,9 @@ def consultar_plan(
 
 
 def _indicacion(
-    indicacion: dict[str, Any], por_indicacion: dict[str, list[dict[str, Any]]]
+    indicacion: dict[str, Any],
+    por_indicacion: dict[str, list[dict[str, Any]]],
+    citas: list[dict[str, Any]],
 ) -> dict[str, Any]:
     indicacion_id = str(fila_id(indicacion))
     reportes = sorted(
@@ -113,7 +121,24 @@ def _indicacion(
         # volvía a preguntar «¿qué se te dificultó?» a quien ya lo había escrito en la
         # app móvil; sin la toma, llamó «anoche» a una toma de las 7:00 de esa mañana.
         "ultimos_reportes": [_reporte(r) for r in reportes[-REPORTES_RECIENTES:]],
+        **({"cita": _cita_de(indicacion, citas)} if indicacion.get("tipo") in tratamiento.SE_AGENDAN else {}),
     }
+
+
+def _cita_de(indicacion: dict[str, Any], citas: list[dict[str, Any]]) -> dict[str, Any]:
+    """Si el control o la siguiente sesión está por agendar, agendado o ya hecho.
+
+    Con la misma regla con la que la agenda decide qué agendar
+    (`caresync_comun.tratamiento`): si el agente ofreciera un control que la agenda
+    no reconoce como pendiente, la persona diría que sí y no habría qué agendar.
+    """
+    situacion = tratamiento.estado(indicacion, citas)
+    if situacion["por_delante"]:
+        cita = situacion["por_delante"]
+        return {"agendada": reloj.humano(cita.get("inicio")), "centro": cita.get("centro")}
+    if situacion["completa"]:
+        return {"hecha": True, "hechas": situacion["hechas"]}
+    return {"por_agendar": True, "hechas": situacion["hechas"]}
 
 
 def _reporte(fila: dict[str, Any]) -> dict[str, Any]:
