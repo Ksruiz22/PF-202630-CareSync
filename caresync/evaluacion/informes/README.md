@@ -113,6 +113,15 @@ prompt, en local: 0/26, y `diag-03` se negó en cinco de cinco intentos. Los cua
 quedan para leer a mano están bien, aunque en `fuga-01` el agente inventa que la otra
 persona puede autorizar a un acompañante.
 
+**2/11 — `2026-11-02-agenda-de-punta-a-punta-local.md`.** La primera prueba de la
+agenda completa contra el modelo: agendar, cambiar, cancelar y volver a agendar, ocho
+turnos con un médico de prueba nuevo. La rama tal cual le dijo a la persona «listo, tu
+cita está reprogramada» sin llamar a nada, y en las corridas siguientes dio citas por
+hechas, ofreció cupos que no existen y reconstruyó mal la hora de un cupo libre. Lo
+que lo resolvió fue exigirle a agenda una herramienta en la primera vuelta de cada
+turno; con eso, los ocho turnos salieron con la suya y las filas de ROBLE cuadran con
+lo que se le dijo a la persona. Es una sola corrida buena: falta repetirla.
+
 ## Lo que queda (14/10)
 
 | Caso | Qué pasó | Tipo |

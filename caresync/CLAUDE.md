@@ -111,6 +111,15 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
   usuario. De ahí `_historial()` y la nota sintética `_nota_de_traspaso`.
 - **No se rehidratan bloques `toolUse`/`toolResult`** entre peticiones: el segundo
   agente declara otras herramientas y la API rechaza el historial.
+- **Por eso, en una conversación larga, Haiku deja de llamar herramientas.** Ve un
+  historial de pura prosa y la imita. En la prueba de agenda del 2/11 escribió «te
+  busco espacios» sin buscarlos, ofreció un cupo que no existe y dio por cancelada
+  una cita que seguía en pie. Lo contienen cuatro piezas de `orquestador/handler.py`:
+  agenda llama con `exigir_herramienta` (`toolChoice: any` en la primera vuelta), un
+  recordatorio junto al mensaje, la nota `[sistema]` con los espacios mostrados y lo
+  que espera confirmación (`_dejar_constancia_de_la_agenda`), y `_sin_citas_inventadas`,
+  que no deja salir una cita que la agenda no tiene. No quites ninguna sin repetir la
+  conversación de punta a punta (`evaluacion/informes/2026-11-02-*`).
 - **El techo de 30 s lo pone el HTTP API**, no la Lambda. `timeout_orquestador` está
   validado a ≤30 por eso. Pasar de ahí es volver la llamada asíncrona: cambio de
   diseño, no un valor.
