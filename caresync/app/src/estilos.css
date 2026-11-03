@@ -380,6 +380,24 @@ label small {
   margin-top: 0.2rem;
 }
 
+/* «¿Olvidaste tu contraseña?» bajo el campo, alineado a la derecha como en casi
+   cualquier inicio de sesión: es donde la gente lo busca. */
+.acceso .olvido {
+  margin: -0.4rem 0 0.8rem;
+  text-align: right;
+}
+
+.acceso .titulo-recuperar {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+}
+
+.acceso .ayuda-recuperar {
+  margin: 0 0 0.9rem;
+  color: var(--tinta-suave);
+  font-size: 0.85rem;
+}
+
 /* La «o» entre entrar con contraseña y entrar con Google, con la línea partida por
    el texto. Es un `<p>` y no un `<hr>` con `::after` porque la palabra se lee: un
    separador decorativo dejaría los dos botones pareciendo una sola pila de opciones
