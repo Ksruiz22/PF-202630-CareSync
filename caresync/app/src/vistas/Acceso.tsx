@@ -30,14 +30,39 @@
  * entrar— y la contraseña se valida contra la política de ROBLE **antes** de
  * pedirle la cuenta, porque un 400 por contraseña floja cuesta un quinto del cupo
  * de la hora.
+ *
+ * **Recuperar la contraseña son dos pantallas más.** `PedirEnlace` pide el correo y
+ * llama a `forgotPassword`; `ContrasenaNueva` recibe el token y llama a
+ * `resetPassword`. La contraseña nueva se pone aquí y no en la página de ROBLE a la
+ * que lleva el correo, porque esa página rechaza el token —el porqué está en
+ * `roble.ts`, junto a `tokenDeEnlace`—. El token llega por la URL si la página se
+ * abrió desde un enlace que apunte a la PWA, o pegado por la persona si no.
+ *
+ * El mensaje tras pedir el enlace es el mismo exista o no la cuenta, para no revelar
+ * quién está registrado; ROBLE ya responde así («…si el correo existe»).
+ *
+ * Quien abre el enlace con una sesión ya abierta en ese navegador no ve esta
+ * pantalla: `App` muestra su vista de rol. Es un caso raro —quien olvidó la
+ * contraseña casi nunca tiene sesión— y se resuelve saliendo y pegando el enlace.
  */
 
 import { useState, type FormEvent } from 'react';
-import { mensajeDeError, roble } from '../roble';
+import {
+  cambiarContrasena,
+  esEnlaceVencido,
+  esLimiteDeIntentos,
+  mensajeDeError,
+  roble,
+  tokenDeEnlace,
+  tokenDeRecuperacionEnLaUrl,
+} from '../roble';
 import { useSesion } from '../sesion';
 import { Aviso } from '../componentes/Piezas';
 
 type Modo = 'entrar' | 'registrar';
+
+/** Qué ocupa el recuadro: entrar o registrarse, pedir el enlace, o poner la nueva. */
+type Pantalla = 'acceso' | 'pedir' | 'nueva';
 
 export function Acceso() {
   const { entrar, entrarConGoogle, refrescar, cargando, error } = useSesion();
@@ -47,6 +72,10 @@ export function Acceso() {
   const [nombre, setNombre] = useState('');
   const [propio, setPropio] = useState('');
   const [ocupado, setOcupado] = useState(false);
+  const [pantalla, setPantalla] = useState<Pantalla>(() =>
+    tokenDeRecuperacionEnLaUrl() ? 'nueva' : 'acceso'
+  );
+  const [listo, setListo] = useState('');
 
   async function enviar(evento: FormEvent) {
     evento.preventDefault();
@@ -104,94 +133,384 @@ export function Acceso() {
         <p>Acompañamiento en salud del campus. Universidad del Norte.</p>
       </div>
 
-      <form onSubmit={enviar}>
-        <div className="pestanas" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={modo === 'entrar'}
-            onClick={() => setModo('entrar')}
-          >
-            Entrar
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={modo === 'registrar'}
-            onClick={() => setModo('registrar')}
-          >
-            Crear cuenta
-          </button>
-        </div>
+      {pantalla === 'pedir' ? (
+        <PedirEnlace
+          emailInicial={email}
+          onVolver={(correo) => {
+            setEmail(correo);
+            setPantalla('acceso');
+          }}
+          onTengoElEnlace={() => setPantalla('nueva')}
+        />
+      ) : pantalla === 'nueva' ? (
+        <ContrasenaNueva
+          tokenInicial={tokenDeRecuperacionEnLaUrl()}
+          onCambiada={() => {
+            setModo('entrar');
+            setPassword('');
+            setListo('Listo: tu contraseña cambió. Ya puedes entrar con la nueva.');
+            setPantalla('acceso');
+          }}
+          onPedirOtro={() => setPantalla('pedir')}
+          onVolver={() => setPantalla('acceso')}
+        />
+      ) : (
+        <form onSubmit={enviar}>
+          <div className="pestanas" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={modo === 'entrar'}
+              onClick={() => setModo('entrar')}
+            >
+              Entrar
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={modo === 'registrar'}
+              onClick={() => setModo('registrar')}
+            >
+              Crear cuenta
+            </button>
+          </div>
 
-        {modo === 'registrar' && (
+          {modo === 'registrar' && (
+            <label>
+              Nombre completo
+              <input
+                type="text"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                autoComplete="name"
+                required
+                minLength={3}
+              />
+            </label>
+          )}
+
           <label>
-            Nombre completo
+            Correo institucional
             <input
-              type="text"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              autoComplete="name"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
               required
-              minLength={3}
             />
           </label>
-        )}
 
-        <label>
-          Correo institucional
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-          />
-        </label>
+          <label>
+            Contraseña
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={modo === 'entrar' ? 'current-password' : 'new-password'}
+              required
+              minLength={8}
+              aria-describedby={modo === 'registrar' ? 'regla-contrasena' : undefined}
+            />
+            {modo === 'registrar' && (
+              <small id="regla-contrasena">
+                Mínimo 8 caracteres, con una mayúscula, una minúscula, un número y un símbolo.
+              </small>
+            )}
+          </label>
 
-        <label>
-          Contraseña
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete={modo === 'entrar' ? 'current-password' : 'new-password'}
-            required
-            minLength={8}
-            aria-describedby={modo === 'registrar' ? 'regla-contrasena' : undefined}
-          />
-          {modo === 'registrar' && (
-            <small id="regla-contrasena">
-              Mínimo 8 caracteres, con una mayúscula, una minúscula, un número y un símbolo.
-            </small>
+          {modo === 'entrar' && (
+            <p className="olvido">
+              <button
+                type="button"
+                className="enlace"
+                onClick={() => {
+                  setPropio('');
+                  setListo('');
+                  setPantalla('pedir');
+                }}
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </p>
           )}
-        </label>
 
-        <button type="submit" className="principal" disabled={trabajando}>
-          {trabajando ? 'Un momento…' : modo === 'entrar' ? 'Entrar' : 'Crear cuenta y entrar'}
-        </button>
+          <button type="submit" className="principal" disabled={trabajando}>
+            {trabajando ? 'Un momento…' : modo === 'entrar' ? 'Entrar' : 'Crear cuenta y entrar'}
+          </button>
 
-        {/* El mismo botón en las dos pestañas, con el mismo texto: con Google no hay
-            nada que «crear», entrar y registrarse son el mismo acto. */}
-        <p className="separador">
-          <span>o</span>
-        </p>
+          {/* El mismo botón en las dos pestañas, con el mismo texto: con Google no hay
+              nada que «crear», entrar y registrarse son el mismo acto. */}
+          <p className="separador">
+            <span>o</span>
+          </p>
 
-        <button type="button" className="google" onClick={conGoogle} disabled={trabajando}>
-          <span className="marca-google" aria-hidden="true">
-            G
-          </span>
-          Continuar con Google
-        </button>
+          <button type="button" className="google" onClick={conGoogle} disabled={trabajando}>
+            <span className="marca-google" aria-hidden="true">
+              G
+            </span>
+            Continuar con Google
+          </button>
 
-        {(propio || error) && <Aviso tipo="error">{propio || error}</Aviso>}
-      </form>
+          {listo && !(propio || error) && <Aviso tipo="exito">{listo}</Aviso>}
+          {(propio || error) && <Aviso tipo="error">{propio || error}</Aviso>}
+        </form>
+      )}
 
       <p className="descargo">
         Prototipo académico. Lo que escribas aquí lo puede leer el equipo de
         desarrollo del proyecto durante las pruebas.
       </p>
     </main>
+  );
+}
+
+/**
+ * Pide el correo y le encarga a ROBLE mandar el enlace para cambiar la contraseña.
+ *
+ * Después de un envío correcto el botón desaparece: cada pedido manda un correo,
+ * gasta cupo de la IP y **anula el enlace anterior**, y quien no lo ve llegar casi
+ * siempre lo tiene en el spam. Si de verdad hace falta otro, «Volver» y entrar de
+ * nuevo aquí lo permite.
+ *
+ * El error sí se muestra —red caída, límite de intentos—: no dice nada de si la
+ * cuenta existe y esconderlo dejaría a la persona esperando un correo que nunca
+ * salió.
+ *
+ * La indicación de copiar el enlace en vez de abrirlo existe porque la página de
+ * ROBLE a la que lleva el correo no funciona (ver `roble.ts`). Cuando el correo
+ * apunte a la PWA, el clic basta y ese párrafo sobra.
+ */
+function PedirEnlace({
+  emailInicial,
+  onVolver,
+  onTengoElEnlace,
+}: {
+  emailInicial: string;
+  onVolver: (email: string) => void;
+  onTengoElEnlace: () => void;
+}) {
+  const [email, setEmail] = useState(emailInicial);
+  const [ocupado, setOcupado] = useState(false);
+  const [enviado, setEnviado] = useState(false);
+  const [fallo, setFallo] = useState('');
+
+  async function pedir(evento: FormEvent) {
+    evento.preventDefault();
+    setFallo('');
+    setOcupado(true);
+    try {
+      await roble.forgotPassword({ email: email.trim().toLowerCase() });
+      setEnviado(true);
+    } catch (error) {
+      setFallo(
+        esLimiteDeIntentos(error)
+          ? 'ROBLE está limitando los pedidos desde esta red. Espera unos 15 minutos antes de pedir otro enlace.'
+          : mensajeDeError(error)
+      );
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <form onSubmit={pedir}>
+      <h2 className="titulo-recuperar">Recuperar la contraseña</h2>
+      <p className="ayuda-recuperar">
+        Escribe el correo de tu cuenta y te enviaremos un enlace para poner una contraseña
+        nueva.
+      </p>
+
+      <label>
+        Correo institucional
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          required
+          readOnly={enviado}
+          autoFocus
+        />
+      </label>
+
+      {enviado ? (
+        <>
+          <Aviso tipo="exito">
+            Si ese correo tiene cuenta, te llegó un enlace para cambiar la contraseña.
+            Revisa también el spam.
+          </Aviso>
+          <p className="ayuda-recuperar">
+            Cuando llegue, <strong>no lo abras</strong>: haz clic derecho sobre el enlace,
+            elige «Copiar dirección del enlace» y pégala en el paso siguiente.
+          </p>
+          <button type="button" className="principal" onClick={onTengoElEnlace}>
+            Ya tengo el enlace
+          </button>
+        </>
+      ) : (
+        <button type="submit" className="principal" disabled={ocupado}>
+          {ocupado ? 'Un momento…' : 'Enviar el enlace'}
+        </button>
+      )}
+
+      {fallo && <Aviso tipo="error">{fallo}</Aviso>}
+
+      <p className="ayuda-recuperar">Si entras con Google, no necesitas contraseña.</p>
+
+      <p className="olvido">
+        {!enviado && (
+          <button type="button" className="enlace" onClick={onTengoElEnlace}>
+            Ya tengo un enlace
+          </button>
+        )}{' '}
+        <button type="button" className="enlace" onClick={() => onVolver(email)}>
+          Volver a entrar
+        </button>
+      </p>
+    </form>
+  );
+}
+
+/**
+ * Pone la contraseña nueva con el token del correo.
+ *
+ * Si la página se abrió desde el enlace, el token ya está y sólo se piden las dos
+ * contraseñas. Si no, se pide además el enlace pegado. La contraseña se revisa con
+ * `problemaDeContrasena` antes de enviarla, para decir qué falta en vez de un
+ * rechazo genérico de ROBLE.
+ *
+ * Cambiarla no abre sesión: se vuelve a «Entrar» con un aviso, y la persona entra
+ * con la contraseña que acaba de escribir. Así el gestor de contraseñas del
+ * navegador la ve en un formulario de inicio de sesión y puede guardarla.
+ */
+function ContrasenaNueva({
+  tokenInicial,
+  onCambiada,
+  onPedirOtro,
+  onVolver,
+}: {
+  tokenInicial: string | null;
+  onCambiada: () => void;
+  onPedirOtro: () => void;
+  onVolver: () => void;
+}) {
+  const [enlace, setEnlace] = useState('');
+  const [nueva, setNueva] = useState('');
+  const [repetida, setRepetida] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const [fallo, setFallo] = useState('');
+  const [vencido, setVencido] = useState(false);
+
+  async function cambiar(evento: FormEvent) {
+    evento.preventDefault();
+    setFallo('');
+    setVencido(false);
+
+    const token = tokenInicial ?? tokenDeEnlace(enlace);
+    if (!token) {
+      setFallo('Eso no parece el enlace del correo. Copia la dirección del enlace y pégala completa.');
+      return;
+    }
+    const problema = problemaDeContrasena(nueva);
+    if (problema) {
+      setFallo(problema);
+      return;
+    }
+    if (nueva !== repetida) {
+      setFallo('Las dos contraseñas no coinciden.');
+      return;
+    }
+
+    setOcupado(true);
+    try {
+      await cambiarContrasena(token, nueva);
+      onCambiada();
+    } catch (error) {
+      if (esEnlaceVencido(error)) {
+        setVencido(true);
+      } else if (esLimiteDeIntentos(error)) {
+        setFallo('ROBLE está limitando los intentos desde esta red. Espera unos 15 minutos.');
+      } else {
+        setFallo(mensajeDeError(error));
+      }
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <form onSubmit={cambiar}>
+      <h2 className="titulo-recuperar">Contraseña nueva</h2>
+
+      {!tokenInicial && (
+        <label>
+          Enlace del correo
+          <input
+            type="text"
+            value={enlace}
+            onChange={(e) => setEnlace(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+            required
+            autoFocus
+            placeholder="https://…/reset-password?token=…"
+          />
+        </label>
+      )}
+
+      <label>
+        Contraseña nueva
+        <input
+          type="password"
+          value={nueva}
+          onChange={(e) => setNueva(e.target.value)}
+          autoComplete="new-password"
+          required
+          minLength={8}
+          autoFocus={Boolean(tokenInicial)}
+          aria-describedby="regla-contrasena-nueva"
+        />
+        <small id="regla-contrasena-nueva">
+          Mínimo 8 caracteres, con una mayúscula, una minúscula, un número y un símbolo.
+        </small>
+      </label>
+
+      <label>
+        Repite la contraseña
+        <input
+          type="password"
+          value={repetida}
+          onChange={(e) => setRepetida(e.target.value)}
+          autoComplete="new-password"
+          required
+          minLength={8}
+        />
+      </label>
+
+      {vencido ? (
+        <>
+          <Aviso tipo="error">
+            Este enlace ya no sirve: venció, ya se usó o pediste otro después. Pide uno
+            nuevo y usa el último que te llegue.
+          </Aviso>
+          <button type="button" className="principal" onClick={onPedirOtro}>
+            Pedir otro enlace
+          </button>
+        </>
+      ) : (
+        <button type="submit" className="principal" disabled={ocupado}>
+          {ocupado ? 'Un momento…' : 'Cambiar la contraseña'}
+        </button>
+      )}
+
+      {fallo && <Aviso tipo="error">{fallo}</Aviso>}
+
+      <p className="olvido">
+        <button type="button" className="enlace" onClick={onVolver}>
+          Volver a entrar
+        </button>
+      </p>
+    </form>
   );
 }
 
