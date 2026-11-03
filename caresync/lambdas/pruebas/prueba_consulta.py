@@ -29,7 +29,7 @@ from urllib.parse import parse_qsl, quote, urlsplit
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from entorno import AccesoFalso, ActorFalso, cargar, comprobar, fallos, lanza, preparar  # noqa: E402
+from entorno import LAMBDAS, AccesoFalso, ActorFalso, cargar, comprobar, fallos, lanza, preparar  # noqa: E402
 
 preparar()
 
@@ -114,6 +114,38 @@ def probar_depurar() -> None:
             {"resumen": "", "indicaciones": [{"texto": "x", "frecuencia": texto}], "dudas": []}
         )["indicaciones"][0]["programa_recordatorios"]
         comprobar(f"«{texto}»: el aviso coincide con lo que hará recordatorios", real == esperado)
+
+
+def probar_tipos_de_indicacion() -> None:
+    print("\nEl tipo de cada indicación y sus datos (conexión con seguimiento)")
+    depurada = plan_propuesta.depurar({"resumen": "x", "dudas": [], "indicaciones": [
+        {"texto": "Tomar acetaminofén cada 8 horas por tres días", "frecuencia": "cada 8 horas",
+         "tipo": "medicamento", "duracion_dias": 3, "plazo_dias": 14, "centro_destino": "CMU"},
+        {"texto": "Volver a control en dos semanas", "frecuencia": "", "tipo": "control",
+         "plazo_dias": 14, "centro_destino": "CMU", "duracion_dias": 0},
+        {"texto": "Si la fiebre pasa de 39 °C, ir a urgencias", "frecuencia": "cada 8 horas", "tipo": "vigilancia"},
+        {"texto": "Seis sesiones de fisioterapia", "frecuencia": "semanal", "tipo": "sesiones",
+         "sesiones": 6, "centro_destino": "Hospital X"},
+        {"texto": "Algo", "frecuencia": "", "tipo": "inventado", "plazo_dias": -3},
+    ]})["indicaciones"]
+    medicamento, control, vigilancia, sesiones, rara = depurada
+    comprobar("el medicamento guarda su duración", medicamento["tipo"] == "medicamento" and medicamento["duracion_dias"] == 3)
+    comprobar("y no lo que no le corresponde, aunque el modelo lo mande",
+              medicamento["plazo_dias"] is None and medicamento["centro_destino"] is None, str(medicamento))
+    comprobar("el control guarda plazo y centro", control["plazo_dias"] == 14 and control["centro_destino"] == "CMU")
+    comprobar("un 0 es «no se dijo», no cero días", control["duracion_dias"] is None)
+    comprobar("una vigilancia no tiene frecuencia ni recordatorios",
+              vigilancia["frecuencia"] == "" and vigilancia["programa_recordatorios"] is False, str(vigilancia))
+    comprobar("las sesiones guardan cuántas son", sesiones["sesiones"] == 6)
+    comprobar("un centro que no es CMU, CAE ni externo no pasa", sesiones["centro_destino"] is None)
+    comprobar("un tipo que no existe es «otro», y un plazo negativo no se guarda",
+              rara["tipo"] == "otro" and rara["plazo_dias"] is None, str(rara))
+    comprobar("el esquema del modelo ofrece exactamente los tipos de la base",
+              plan_propuesta._ESQUEMA["properties"]["indicaciones"]["items"]["properties"]["tipo"]["enum"]
+              == list(plan_propuesta.TIPOS))
+    espejo = (LAMBDAS.parent / "app" / "src" / "tratamiento.ts").read_text(encoding="utf-8")
+    comprobar("la vista conoce los mismos tipos (tratamiento.ts)",
+              all(f"'{tipo}'" in espejo for tipo in plan_propuesta.TIPOS))
 
 
 def probar_proponer() -> None:
@@ -257,7 +289,8 @@ def probar_frecuencia_compartida() -> None:
 
 
 def main() -> int:
-    for prueba in (probar_depurar, probar_proponer, probar_rutas, probar_dictado, probar_frecuencia_compartida):
+    for prueba in (probar_depurar, probar_tipos_de_indicacion, probar_proponer, probar_rutas, probar_dictado,
+                   probar_frecuencia_compartida):
         prueba()
     print()
     if fallos():

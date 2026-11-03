@@ -13,10 +13,19 @@
  */
 
 import { pedirAlApi } from './agente';
+import type { CentroDestino } from './tratamiento';
+import type { TipoIndicacion } from './tipos';
 
 export interface IndicacionPropuesta {
   texto: string;
   frecuencia: string;
+  /** Lo sugiere el modelo y lo confirma el profesional, como la frecuencia. */
+  tipo: TipoIndicacion;
+  /** Sólo vienen los campos del tipo (`CAMPOS_POR_TIPO`); el resto, nulo. */
+  duracion_dias: number | null;
+  plazo_dias: number | null;
+  sesiones: number | null;
+  centro_destino: CentroDestino | null;
   /** Lo que dirá la función de recordatorios de esta frecuencia, según el backend. */
   programa_recordatorios: boolean;
 }
