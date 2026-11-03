@@ -295,7 +295,7 @@ def _conversar(
             contexto_extra = _contexto_del_traspaso(caso or {})
 
         # Se guarda para poder volver a llamar al mismo agente si su respuesta da por
-        # hecha una cita que ninguna herramienta hizo (`_sin_citas_inventadas`).
+        # hecha una cita o un registro que ninguna herramienta hizo (`_sin_hechos_inventados`).
         llamada = {
             "sistema": agentes.instrucciones_partidas(
                 agente, actor=actor, caso=caso, contexto=contexto_extra
@@ -366,8 +366,11 @@ def _conversar(
             hilo.append({"role": "assistant", "content": [{"text": resultado.texto}]})
         hilo.append({"role": "user", "content": [{"text": _nota_de_traspaso(caso)}]})
 
-    if caso_id and not resultado.intervino_guardrail and _DA_POR_HECHA.search(resultado.texto or ""):
-        corregido, extra = _sin_citas_inventadas(
+    afirmado = resultado.texto or ""
+    if caso_id and not resultado.intervino_guardrail and (
+        _DA_POR_HECHA.search(afirmado) or _DA_POR_REGISTRADO.search(afirmado)
+    ):
+        corregido, extra = _sin_hechos_inventados(
             acceso, caso_id=caso_id, resultado=resultado, usos=usos_del_hilo, llamada=llamada
         )
         if corregido != resultado.texto:
@@ -880,7 +883,83 @@ def _citas_reales(acceso: AccesoRoble, caso_id: str) -> list[dict[str, Any]]:
     return [c for c in acceso.citas_del_caso(caso_id) if cita_por_delante(c)]
 
 
-def _sin_citas_inventadas(
+# Lo que delata que una respuesta da algo por registrado.
+_DA_POR_REGISTRADO = re.compile(
+    r"\b(?:qued[oóa]n?|est[aá]n?|fue|fueron)\s+(registrad[oa]s?|anotad[oa]s?)\b"
+    r"|\b(registr[eé]|anot[eé])\b",
+    re.IGNORECASE,
+)
+_REGISTRAN = ("registrar_adherencia", "registrar_evolucion")
+
+
+def _registro_inventado(texto: str, usos: list[bedrock_conversa.Uso]) -> bool:
+    """¿Dice que algo quedó registrado sin que ninguna herramienta lo registrara en el turno?"""
+    if any(u.nombre in _REGISTRAN and u.ok for u in usos):
+        return False
+    for frase in _FRASES.split(texto or ""):
+        for m in _DA_POR_REGISTRADO.finditer(frase):
+            if not re.search(r"\bno\s*$|\bno\s+\w+\s*$", frase[: m.start()].lower()):
+                return True
+    return False
+
+
+def _que_inventa(
+    acceso: AccesoRoble,
+    caso_id: str,
+    texto: str,
+    usos: list[bedrock_conversa.Uso],
+    reales: list[dict[str, Any]] | None,
+) -> tuple[str, list[dict[str, Any]] | None]:
+    """«cita», «registro» o vacío; y las citas del caso, si hizo falta leerlas."""
+    if _DA_POR_HECHA.search(texto or ""):
+        if reales is None:
+            try:
+                reales = _citas_reales(acceso, caso_id)
+            except ErrorDeCareSync as exc:
+                # Sin poder leer la agenda no se puede contrastar la cita.
+                evento(log, "agenda_no_contrastada", caso_id=caso_id, detalle=type(exc).__name__)
+        if reales is not None and _cita_inventada(texto, usos, reales):
+            return "cita", reales
+    if _registro_inventado(texto, usos):
+        return "registro", reales
+    return "", reales
+
+
+# «Para ella es tu primera respuesta» no sobra: sin eso, en la prueba del 2/11 el
+# modelo arrancó con «Tienes razón, disculpa», como si la persona le hubiera reclamado
+# algo que nunca leyó.
+_PRIMERA_RESPUESTA = (
+    "La persona no leyó tu respuesta anterior ni lee este aviso: para ella lo que digas "
+    "ahora es tu primera respuesta, así que no te disculpes, no le des la razón ni digas "
+    "que corriges algo."
+)
+
+
+def _nota_de_correccion(falta: str, reales: list[dict[str, Any]] | None) -> str:
+    if falta == "cita":
+        if reales:
+            agenda = "Lo que el caso de verdad tiene por delante: " + "; ".join(
+                reloj.humano(c.get("inicio")) for c in reales
+            ) + "."
+        else:
+            agenda = "El caso no tiene ninguna cita por delante."
+        return (
+            "[sistema] Esa respuesta no le llegó a la persona: da por hecha una cita que "
+            f"ninguna herramienta hizo en este turno. {agenda} Si la persona eligió o "
+            "confirmó algo, haz ahora la llamada que corresponde; si no, respóndele sin "
+            f"darlo por hecho. {_PRIMERA_RESPUESTA}"
+        )
+    return (
+        "[sistema] Esa respuesta no le llegó a la persona: dice que algo quedó registrado, "
+        "y ninguna herramienta lo registró en este turno. Si la persona contó si hizo o no "
+        "una indicación, llama ahora a registrar_adherencia, una vez por indicación, con "
+        "el indicacion_id de consultar_plan; si contó cómo se siente, a "
+        "registrar_evolucion. Si no contó nada de eso, respóndele sin darlo por hecho. "
+        f"{_PRIMERA_RESPUESTA}"
+    )
+
+
+def _sin_hechos_inventados(
     acceso: AccesoRoble,
     *,
     caso_id: str,
@@ -888,67 +967,51 @@ def _sin_citas_inventadas(
     usos: list[bedrock_conversa.Uso],
     llamada: dict[str, Any],
 ) -> tuple[str, bedrock_conversa.Resultado | None]:
-    """La respuesta del turno, sin una cita que ninguna herramienta hizo.
+    """La respuesta del turno, sin una cita ni un registro que ninguna herramienta hizo.
 
     En la prueba del 2/11 el agente de agenda, sin llamar a nada, le dijo a la persona
     «listo, tu cita quedó agendada para el miércoles» y el caso no tenía ninguna cita.
-    El prompt ya lo prohibía, y después de reforzarlo volvió a pasar: no basta con
-    pedírselo al modelo. Si la respuesta afirma una cita que la agenda no tiene, no
-    sale. El mismo agente responde otra vez con la agenda real delante, y si vuelve a
-    inventarla la persona recibe un texto fijo con lo que de verdad hay.
+    Y el de seguimiento, a «me tomé el ibuprofeno y me puse hielo», contestó «quedó
+    registrado» sin llamar a `registrar_adherencia`: el profesional nunca lo habría
+    visto. El prompt ya prohibía las dos cosas: no basta con pedírselo al modelo. Si la
+    respuesta afirma algo así sin la herramienta, no sale. El mismo agente responde
+    otra vez con lo que de verdad hay delante, y si vuelve a inventarlo la persona
+    recibe un texto fijo con lo que de verdad hay.
     """
-    try:
-        reales = _citas_reales(acceso, caso_id)
-    except ErrorDeCareSync as exc:
-        # Sin poder leer la agenda no se puede contrastar. Se entrega lo que hay.
-        evento(log, "agenda_no_contrastada", caso_id=caso_id, detalle=type(exc).__name__)
-        return resultado.texto, None
-    if not _cita_inventada(resultado.texto, usos, reales):
+    falta, reales = _que_inventa(acceso, caso_id, resultado.texto, usos, None)
+    if not falta:
         return resultado.texto, None
 
-    evento(log, "cita_sin_respaldo", caso_id=caso_id)
-    if reales:
-        agenda = "Lo que el caso de verdad tiene por delante: " + "; ".join(
-            reloj.humano(c.get("inicio")) for c in reales
-        ) + "."
-    else:
-        agenda = "El caso no tiene ninguna cita por delante."
-    # «Para ella es tu primera respuesta» no sobra: sin eso, en la prueba del 2/11 el
-    # modelo arrancó con «Tienes razón, disculpa», como si la persona le hubiera
-    # reclamado algo que nunca leyó.
-    nota = (
-        "[sistema] Esa respuesta no le llegó a la persona: da por hecha una cita que "
-        f"ninguna herramienta hizo en este turno. {agenda} Si la persona eligió o "
-        "confirmó algo, haz ahora la llamada que corresponde; si no, respóndele sin "
-        "darlo por hecho. La persona no leyó tu respuesta anterior ni lee este aviso: "
-        "para ella lo que digas ahora es tu primera respuesta, así que no te disculpes, "
-        "no le des la razón ni digas que corriges algo."
-    )
+    evento(log, f"{falta}_sin_respaldo", caso_id=caso_id)
     try:
         extra = bedrock_conversa.conversar(
-            mensajes=[*resultado.mensajes, {"role": "user", "content": [{"text": nota}]}],
+            mensajes=[
+                *resultado.mensajes,
+                {"role": "user", "content": [{"text": _nota_de_correccion(falta, reales)}]},
+            ],
             **llamada,
         )
     except Exception as exc:  # noqa: BLE001 - lo que se le dice no depende del modelo
         evento(log, "correccion_fallida", caso_id=caso_id, detalle=type(exc).__name__)
-        return _lo_que_de_verdad_hay(reales), None
+        return _lo_que_de_verdad_hay(falta, reales), None
 
     if any(u.nombre in _HACEN_LA_CITA for u in extra.usos):
-        try:
-            reales = _citas_reales(acceso, caso_id)
-        except ErrorDeCareSync:
-            pass
-    if (
-        extra.intervino_guardrail
-        or not extra.texto
-        or _cita_inventada(extra.texto, [*usos, *extra.usos], reales)
-    ):
-        evento(log, "cita_sin_respaldo_otra_vez", caso_id=caso_id)
-        return _lo_que_de_verdad_hay(reales), extra
+        reales = None  # cambió la agenda: hay que volver a leerla
+    otra = ""
+    if not extra.intervino_guardrail and extra.texto:
+        otra, reales = _que_inventa(acceso, caso_id, extra.texto, [*usos, *extra.usos], reales)
+    if extra.intervino_guardrail or not extra.texto or otra:
+        evento(log, f"{otra or falta}_sin_respaldo_otra_vez", caso_id=caso_id)
+        return _lo_que_de_verdad_hay(otra or falta, reales), extra
     return extra.texto, extra
 
 
-def _lo_que_de_verdad_hay(reales: list[dict[str, Any]]) -> str:
+def _lo_que_de_verdad_hay(falta: str, reales: list[dict[str, Any]] | None) -> str:
+    if falta == "registro":
+        return (
+            "Perdona, no alcancé a dejarlo registrado. ¿Me cuentas otra vez qué hiciste hoy "
+            "de tu plan, para anotarlo?"
+        )
     if reales:
         return (
             "Perdona, me adelanté: ese cambio no quedó hecho. Tu cita sigue siendo el "

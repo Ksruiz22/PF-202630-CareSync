@@ -117,7 +117,7 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
   una cita que seguía en pie. Lo contienen cuatro piezas de `orquestador/handler.py`:
   agenda llama con `exigir_herramienta` (`toolChoice: any` en la primera vuelta), un
   recordatorio junto al mensaje, la nota `[sistema]` con los espacios mostrados y lo
-  que espera confirmación (`_dejar_constancia_de_la_agenda`), y `_sin_citas_inventadas`,
+  que espera confirmación (`_dejar_constancia_de_la_agenda`), y `_sin_hechos_inventados`,
   que no deja salir una cita que la agenda no tiene. No quites ninguna sin repetir la
   conversación de punta a punta (`evaluacion/informes/2026-11-02-*`).
 - **El techo de 30 s lo pone el HTTP API**, no la Lambda. `timeout_orquestador` está

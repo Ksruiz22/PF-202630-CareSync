@@ -516,6 +516,20 @@ def probar_correccion_de_la_cita_inventada() -> None:
     comprobar("si vuelve a inventarla, la persona recibe lo que de verdad hay",
               "todavía no tienes ninguna cita agendada" in cuerpo["respuesta"], cuerpo["respuesta"])
 
+    cuerpo, llamadas, _ = turno("Listo, quedó registrado que hoy te tomaste la pastilla.",
+                                "¿Me confirmas cuál de las indicaciones cumpliste?")
+    aviso = llamadas[1]["mensajes"][-1]["content"][0]["text"] if len(llamadas) == 2 else ""
+    comprobar("un «quedó registrado» sin registrar_adherencia tampoco sale",
+              len(llamadas) == 2 and "registrar_adherencia" in aviso, aviso)
+    cuerpo, llamadas, _ = turno("Ya quedó registrado.", "Ya quedó anotado, tranquila.")
+    comprobar("y si insiste, la persona sabe que no se registró",
+              "no alcancé a dejarlo registrado" in cuerpo["respuesta"], cuerpo["respuesta"])
+    inventado = orquestador._registro_inventado
+    Uso = bedrock_conversa.Uso
+    comprobar("con registrar_adherencia en el turno, el «quedó registrado» es cierto",
+              not inventado("Quedó registrado.", [Uso("registrar_adherencia", {}, {"ok": True}, True)]))
+    comprobar("y «no quedó registrado» no afirma nada", not inventado("Eso no quedó registrado.", []))
+
     cuerpo, llamadas, _ = turno("¿Cuál de las tres opciones te sirve?")
     comprobar("una respuesta que no afirma ninguna cita sale tal cual, sin otra llamada",
               len(llamadas) == 1 and cuerpo["respuesta"] == "¿Cuál de las tres opciones te sirve?")
