@@ -321,6 +321,13 @@ export function EditorDelPlan({
           </details>
         )}
 
+        {hayPlan && (
+          <p className="fino">
+            Este plan reemplaza al anterior: sus indicaciones dejan de recordarse y de
+            acompañarse.
+          </p>
+        )}
+
         <div className="botonera">
           <button type="submit" className="principal" disabled={guardando}>
             {guardando ? 'Guardando…' : 'Guardar plan y cerrar la consulta'}

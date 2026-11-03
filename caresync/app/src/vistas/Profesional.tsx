@@ -633,6 +633,10 @@ async function registrarPlan(datos: {
   indicaciones: IndicacionAGuardar[];
 }): Promise<void> {
   const ahora = new Date().toISOString();
+  // Se leen antes de crear las nuevas, para no confundirlas con ellas.
+  const anteriores = (await leer<Indicacion>('indicaciones', { caso_id: datos.casoId })).filter(
+    (i) => i.activa === true || i.activa === 'true'
+  );
 
   const plan = await roble.create('planes', {
     caso_id: datos.casoId,
@@ -661,6 +665,19 @@ async function registrarPlan(datos: {
       creado_en: ahora,
     }))
   );
+
+  // Un plan nuevo reemplaza al anterior: sus indicaciones dejan de recordarse y de
+  // acompañarse. Antes se sumaban, y en la prueba del 2/11 quedaron activos a la vez
+  // el acetaminofén de un plan y el ibuprofeno del siguiente: la persona habría
+  // recibido recordatorios de los dos. Va después de crear las nuevas: si algo falla
+  // antes, el plan anterior sigue en pie en vez de quedar el caso sin ninguno.
+  for (const anterior of anteriores) {
+    try {
+      await roble.update('indicaciones', idDe(anterior), { activa: false });
+    } catch (error) {
+      console.warn('No se pudo desactivar una indicación del plan anterior', error);
+    }
+  }
 
   if (datos.citaId) {
     try {
