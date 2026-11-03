@@ -327,6 +327,189 @@ def probar_constancia_de_fallos() -> None:
     comprobar("sin fallos no se escribe nada: cada escritura gasta cuota de ROBLE", not sin_fallos.escrito)
 
 
+def probar_constancia_de_lo_pendiente() -> None:
+    """La prueba del 2/11: al «sí, confirmo» el modelo contestó «listo» sin llamar a nada."""
+    print("\nConstancia de un cambio de cita que espera el «sí»")
+
+    Uso = bedrock_conversa.Uso
+    acceso = AccesoFalso(ActorFalso("paciente"))
+    orquestador._dejar_constancia_de_la_agenda(
+        acceso, hilo_id="k", agente="agenda",
+        usos=[Uso("consultar_disponibilidad", {}, {}, True),
+              Uso("reprogramar_cita", {"inicio": "2026-11-04T08:00", "confirmado": False},
+                  {"confirmar_primero": True, "de": "martes 03/11 a las 08:00",
+                   "a": "miércoles 04/11 a las 08:00"}, True)],
+    )
+    escritas = [datos for que, datos in acceso.escrito if que == "mensaje"]
+    nota = str(escritas[0].get("contenido")) if escritas else ""
+    comprobar("un cambio por confirmar deja una nota del sistema",
+              len(escritas) == 1 and escritas[0].get("autor") == "sistema", str(escritas))
+    comprobar("la nota trae el «inicio» literal, que el modelo no conserva entre turnos",
+              "«2026-11-04T08:00»" in nota and "confirmado en true" in nota, nota)
+    comprobar("y dice que todavía no se cambió nada", "todavía no se cambió" in nota, nota)
+
+    cancelar = AccesoFalso(ActorFalso("paciente"))
+    orquestador._dejar_constancia_de_la_agenda(
+        cancelar, hilo_id="k", agente="agenda",
+        usos=[Uso("cancelar_cita", {"confirmado": False},
+                  {"confirmar_primero": True, "cita": {"cuando": "martes 03/11 a las 08:00"}}, True)],
+    )
+    nota = str([d for q, d in cancelar.escrito if q == "mensaje"])
+    comprobar("una cancelación por confirmar también", "cancelar_cita" in nota and "03/11" in nota, nota)
+
+    hecho = AccesoFalso(ActorFalso("paciente"))
+    orquestador._dejar_constancia_de_la_agenda(
+        hecho, hilo_id="k", agente="agenda",
+        usos=[Uso("reprogramar_cita", {"inicio": "x", "confirmado": False}, {"confirmar_primero": True}, True),
+              Uso("reprogramar_cita", {"inicio": "x", "confirmado": True}, {"ok": True}, True)],
+    )
+    comprobar("si se confirmó en el mismo turno, no queda nada pendiente", not hecho.escrito, str(hecho.escrito))
+
+    nada = AccesoFalso(ActorFalso("paciente"))
+    orquestador._dejar_constancia_de_la_agenda(
+        nada, hilo_id="k", agente="agenda", usos=[Uso("agendar_cita", {}, {"ok": True}, True)]
+    )
+    comprobar("sin nada pendiente no se escribe nada", not nada.escrito)
+
+    opciones = [{"inicio": "2026-11-03T08:30:00-05:00", "cuando": "martes 03/11 a las 08:30"},
+                {"inicio": "2026-11-04T08:00:00-05:00", "cuando": "miércoles 04/11 a las 08:00"}]
+    ofrecidas = AccesoFalso(ActorFalso("paciente"))
+    orquestador._dejar_constancia_de_la_agenda(
+        ofrecidas, hilo_id="k", agente="agenda",
+        usos=[Uso("consultar_disponibilidad", {}, {"opciones": opciones}, True)],
+    )
+    nota = str([d.get("contenido") for q, d in ofrecidas.escrito if q == "mensaje"])
+    comprobar("los espacios mostrados quedan con su «inicio» literal: el modelo lo reconstruía mal",
+              "martes 03/11 a las 08:30 = «2026-11-03T08:30:00-05:00»" in nota, nota)
+    agendada = AccesoFalso(ActorFalso("paciente"))
+    orquestador._dejar_constancia_de_la_agenda(
+        agendada, hilo_id="k", agente="agenda",
+        usos=[Uso("consultar_disponibilidad", {}, {"opciones": opciones}, True),
+              Uso("agendar_cita", {}, {"ok": True}, True)],
+    )
+    comprobar("con la cita ya hecha no se anotan los espacios", not agendada.escrito, str(agendada.escrito))
+
+
+def probar_citas_inventadas() -> None:
+    """La prueba del 2/11: «listo, tu cita quedó agendada» sin que nada la agendara."""
+    print("\nUna cita que ninguna herramienta hizo no se le dice a la persona")
+
+    Uso = bedrock_conversa.Uso
+    inventada = orquestador._cita_inventada
+    martes = [{"inicio": "2026-11-03T13:00:00", "estado": "confirmada"}]  # 08:00 en Bogotá
+    agendo = [Uso("agendar_cita", {}, {"ok": True}, True)]
+    frase = "Listo, tu cita quedó agendada para el miércoles 04/11 a las 08:00."
+
+    comprobar("agendada sin herramienta y sin cita real: inventada", inventada(frase, [], []))
+    comprobar("con la herramienta que agendó en el turno: cierta", not inventada(frase, agendo, []))
+    comprobar("repetir una cita que existe no es inventarla",
+              not inventada("Tu cita está confirmada para el martes 03/11 a las 08:00.", [], martes))
+    comprobar("reprogramada a una fecha que la agenda no tiene: inventada",
+              inventada("Listo, tu cita está reprogramada para el miércoles 04/11.", [], martes))
+    comprobar("la fecha que cuenta es la de la frase que afirma, no la de una opción",
+              not inventada("Tu cita está confirmada para el 03/11. También hay espacio el 04/11.", [], martes))
+    comprobar("negarlo no es afirmarlo", not inventada("Tu cita no quedó agendada.", [], []))
+    comprobar("cancelada con la cita todavía por delante: inventada",
+              inventada("Listo, quedó cancelada la cita del 03/11.", [], martes))
+    comprobar("cancelada cuando ya no hay cita: cierta", not inventada("Tu cita ya fue cancelada.", [], []))
+    comprobar("una pregunta no afirma nada",
+              not inventada("¿Confirmas que cambio tu cita al 04/11 a las 08:00?", [], martes))
+
+
+def probar_herramienta_exigida() -> None:
+    print("\nAgenda no contesta de memoria: la primera vuelta llama a una herramienta")
+
+    class _Bedrock:
+        def __init__(self):
+            self.pedidos: list[dict] = []
+
+        def converse(self, **pedido):
+            self.pedidos.append(pedido)
+            if len(self.pedidos) == 1:
+                contenido = [{"toolUse": {"toolUseId": "t1", "name": "consultar_estado_caso", "input": {}}}]
+                return {"output": {"message": {"role": "assistant", "content": contenido}}, "stopReason": "tool_use"}
+            return {"output": {"message": {"role": "assistant", "content": [{"text": "Tu cita es el martes."}]}},
+                    "stopReason": "end_turn"}
+
+    cliente = _Bedrock()
+    original = bedrock_conversa._bedrock
+    bedrock_conversa._bedrock = lambda: cliente
+    try:
+        resultado = bedrock_conversa.conversar(
+            sistema=("fijo", "variable"), mensajes=[{"role": "user", "content": [{"text": "¿Cuándo es?"}]}],
+            herramientas=[{"toolSpec": {"name": "consultar_estado_caso"}}],
+            ejecutar=lambda nombre, argumentos: {"cita": "martes"}, exigir_herramienta=True,
+        )
+    finally:
+        bedrock_conversa._bedrock = original
+    comprobar("la primera vuelta exige una herramienta",
+              cliente.pedidos[0]["toolConfig"].get("toolChoice") == {"any": {}}, str(cliente.pedidos[0]["toolConfig"]))
+    comprobar("la segunda ya no, o el bucle no terminaría",
+              "toolChoice" not in cliente.pedidos[1]["toolConfig"], str(cliente.pedidos[1]["toolConfig"]))
+    comprobar("y la respuesta sale de lo que leyó", resultado.texto == "Tu cita es el martes.")
+    comprobar("queda cancelada también es darla por hecha",
+              orquestador._cita_inventada("Tu cita del 04/11 queda cancelada.", [],
+                                          [{"inicio": "2026-11-04T13:30:00", "estado": "confirmada"}]))
+
+
+def probar_correccion_de_la_cita_inventada() -> None:
+    print("\nSi el agente inventa la cita, responde otra vez con la agenda real")
+
+    Resultado = bedrock_conversa.Resultado
+    caso = {"_id": "k", "estado": "canalizado", "centro": "CMU", "nivel_urgencia": 3}
+
+    class _Acceso(AccesoFalso):
+        def caso(self, caso_id: str) -> dict:
+            return caso
+
+        def citas_del_caso(self, caso_id: str) -> list:
+            return []
+
+    def turno(*respuestas: str) -> tuple[dict, list[dict], _Acceso]:
+        acceso = _Acceso(ActorFalso("paciente"), casos={"k": caso}, abierto=caso)
+        vueltas = iter([Resultado(texto=t) for t in respuestas])
+        llamadas: list[dict] = []
+
+        def conversar(**argumentos):
+            llamadas.append(argumentos)
+            return next(vueltas)
+
+        original = orquestador.bedrock_conversa.conversar
+        orquestador.bedrock_conversa.conversar = conversar
+        try:
+            respuesta = orquestador._conversar(acceso, token="t", mensaje="Sí, confirmo",
+                                               cuerpo={"caso_id": "k"})
+        finally:
+            orquestador.bedrock_conversa.conversar = original
+        return json.loads(respuesta["body"]), llamadas, acceso
+
+    falsa = "Listo, tu cita quedó agendada para el miércoles 04/11 a las 08:00."
+    cuerpo, llamadas, acceso = turno(falsa, "Todavía no tienes cita. ¿Busco los espacios libres?")
+    ultimo = [b["text"] for b in llamadas[0]["mensajes"][-1]["content"]]
+    comprobar("agenda recibe, junto al mensaje, el recordatorio de llamar a la herramienta",
+              ultimo[0] == "Sí, confirmo" and len(ultimo) == 2 and "llamas ahora a la herramienta" in ultimo[1],
+              str(ultimo))
+    comprobar("y la llamada de agenda exige una herramienta", llamadas[0].get("exigir_herramienta") is True)
+    comprobar("el recordatorio no se guarda en el hilo",
+              "llamas ahora" not in str([d for q, d in acceso.escrito if q == "mensaje"]))
+    comprobar("se le pide al mismo agente que responda otra vez", len(llamadas) == 2, str(len(llamadas)))
+    aviso = llamadas[1]["mensajes"][-1]["content"][0]["text"] if len(llamadas) == 2 else ""
+    comprobar("con la agenda real delante", "ninguna cita por delante" in aviso, aviso)
+    comprobar("la persona recibe la segunda respuesta",
+              cuerpo["respuesta"] == "Todavía no tienes cita. ¿Busco los espacios libres?", cuerpo["respuesta"])
+    guardado = [d["contenido"] for q, d in acceso.escrito if q == "mensaje" and d["autor"] == "agente"]
+    comprobar("y la falsa no queda en el hilo, donde el modelo la defendería después",
+              falsa not in str(guardado), str(guardado))
+
+    cuerpo, llamadas, _ = turno(falsa, "Ya quedó agendada para el 04/11, tranquila.")
+    comprobar("si vuelve a inventarla, la persona recibe lo que de verdad hay",
+              "todavía no tienes ninguna cita agendada" in cuerpo["respuesta"], cuerpo["respuesta"])
+
+    cuerpo, llamadas, _ = turno("¿Cuál de las tres opciones te sirve?")
+    comprobar("una respuesta que no afirma ninguna cita sale tal cual, sin otra llamada",
+              len(llamadas) == 1 and cuerpo["respuesta"] == "¿Cuál de las tres opciones te sirve?")
+
+
 def probar_ruta_de_emergencia_garantizada() -> None:
     """El PR #18: la ruta llega aunque la salvaguarda corte lo que el modelo iba a decir."""
     print("\nLa ruta de emergencia no depende del modelo")
@@ -498,6 +681,10 @@ def main() -> int:
         probar_pausa,
         probar_cambio_de_caso,
         probar_constancia_de_fallos,
+        probar_constancia_de_lo_pendiente,
+        probar_citas_inventadas,
+        probar_correccion_de_la_cita_inventada,
+        probar_herramienta_exigida,
         probar_ruta_de_emergencia_garantizada,
         probar_detalle_de_la_salvaguarda,
         probar_orden_del_triaje,

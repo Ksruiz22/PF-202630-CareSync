@@ -136,8 +136,12 @@ def conversar(
     max_vueltas: int = MAX_VUELTAS,
     temperatura: float = 0.2,
     max_tokens: int = 800,
+    exigir_herramienta: bool = False,
 ) -> Resultado:
     """Conversa hasta que el modelo deje de pedir herramientas.
+
+    Con `exigir_herramienta`, la primera vuelta tiene que llamar a alguna
+    (`toolChoice: any`); las siguientes deciden solas, o el bucle no acabaría nunca.
 
     `ejecutar` recibe (nombre, argumentos) y devuelve el resultado ya en forma
     de diccionario. Si lanza una excepción, el bucle no se rompe: el error se le
@@ -157,6 +161,7 @@ def conversar(
             temperatura=temperatura,
             max_tokens=max_tokens,
             usar_cache=usar_cache,
+            exigir_herramienta=exigir_herramienta and vuelta == 1,
         )
 
         uso_tokens = respuesta.get("usage") or {}
@@ -292,6 +297,7 @@ def _llamar(
     temperatura: float,
     max_tokens: int,
     usar_cache: bool,
+    exigir_herramienta: bool = False,
 ) -> dict[str, Any]:
     peticion: dict[str, Any] = {
         "modelId": MODELO,
@@ -301,6 +307,8 @@ def _llamar(
     }
     if herramientas:
         peticion["toolConfig"] = {"tools": herramientas}
+        if exigir_herramienta:
+            peticion["toolConfig"]["toolChoice"] = {"any": {}}
     salvaguardas = _guardrail()
     if salvaguardas:
         peticion["guardrailConfig"] = salvaguardas
@@ -323,6 +331,7 @@ def _llamar(
                 temperatura=temperatura,
                 max_tokens=max_tokens,
                 usar_cache=False,
+                exigir_herramienta=exigir_herramienta,
             )
 
         if codigo == "AccessDeniedException":
