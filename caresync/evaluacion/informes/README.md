@@ -122,6 +122,14 @@ que lo resolvió fue exigirle a agenda una herramienta en la primera vuelta de c
 turno; con eso, los ocho turnos salieron con la suya y las filas de ROBLE cuadran con
 lo que se le dijo a la persona. Es una sola corrida buena: falta repetirla.
 
+**2/11 — `2026-11-02-seguimiento-de-punta-a-punta-local.md`.** La conexión entre Agenda y
+Seguimiento contra el modelo, con un plan dictado por Kevin desde la PWA. Seguimiento
+ofreció el control del plan, lo agendó en la semana que pidió el profesional, registró
+las tomas y la evolución, y escaló la señal de alarma del plan. En el camino aparecieron
+tres fallos que quedaron corregidos: la salvaguarda evaluaba todo el historial como
+entrada, cortaba el plan leído con su dosis y el agente decía «quedó registrado» sin
+registrar. En la tercera corrida, los cinco turnos salieron con su herramienta.
+
 ## Lo que queda (14/10)
 
 | Caso | Qué pasó | Tipo |
