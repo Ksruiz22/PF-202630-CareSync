@@ -350,7 +350,7 @@ def _conversar(
             acceso.anotar_mensaje(
                 caso_id=hilo_id, agente=agente.clave, autor=actor.rol, contenido=mensaje
             )
-            hilo = [{"role": "user", "content": [{"text": mensaje}]}]
+            hilo = [{"role": "user", "content": [_lo_que_escribio(mensaje)]}]
             continue
 
         # El caso cambió de estado dentro de la herramienta: hay que releerlo
@@ -581,8 +581,22 @@ _RECORDATORIO = {
 _NO_CONTESTAN_DE_MEMORIA = frozenset(_RECORDATORIO)
 
 
+def _lo_que_escribio(mensaje: str) -> dict[str, Any]:
+    """El mensaje de la persona, marcado para que la salvaguarda de entrada mire sólo eso.
+
+    Sin la marca, Bedrock evalúa como entrada todo el historial en cada turno. En la
+    prueba de seguimiento del 2/11, «hoy me tomé el ibuprofeno de la mañana y me puse
+    hielo» se bloqueó como `MISCONDUCT`, y el mismo mensaje, evaluado solo, pasa: lo
+    que disparó el filtro fue el resto de la conversación —medicamentos, el plan, las
+    notas del sistema—. Los mensajes anteriores ya se evaluaron en su turno, y lo que
+    responde el agente lo sigue evaluando la salvaguarda de salida, así que no se pierde
+    nada. Sin salvaguarda configurada, `bedrock_conversa` lo vuelve texto normal.
+    """
+    return {"guardContent": {"text": {"text": mensaje}}}
+
+
 def _turno_de_la_persona(mensaje: str, agente: agentes.Agente) -> list[dict[str, Any]]:
-    contenido = [{"text": mensaje}]
+    contenido = [_lo_que_escribio(mensaje)]
     if agente.clave in _RECORDATORIO:
         contenido.append({"text": _RECORDATORIO[agente.clave]})
     return contenido
@@ -1173,7 +1187,7 @@ def _simular(
     # otro, que es justo lo que hace falta para evaluar una conversación de cinco
     # preguntas y no cinco primeros turnos.
     hilo = _historial(acceso, hilo_id)
-    hilo.append({"role": "user", "content": [{"text": mensaje}]})
+    hilo.append({"role": "user", "content": [_lo_que_escribio(mensaje)]})
 
     decisiones: list[dict[str, Any]] = []
     resultado = bedrock_conversa.conversar(

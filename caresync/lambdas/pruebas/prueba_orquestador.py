@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from entorno import LAMBDAS, AccesoFalso, ActorFalso, cargar, comprobar, fallos, preparar  # noqa: E402
+from entorno import LAMBDAS, AccesoFalso, ActorFalso, cargar, comprobar, fallos, preparar, texto  # noqa: E402
 
 preparar()
 
@@ -296,7 +296,7 @@ def probar_cambio_de_caso() -> None:
     comprobar("la respuesta ya es del caso nuevo, y la vista sigue en él",
               cuerpo["caso"]["id"] == "nuevo", str(cuerpo["caso"]))
     comprobar("el triaje empieza sólo con el mensaje de la persona, no con el hilo del otro caso",
-              [b["text"] for m in llamadas[1]["mensajes"] for b in m["content"]] == ["Además me duele la rodilla"])
+              [texto(b) for m in llamadas[1]["mensajes"] for b in m["content"]] == ["Además me duele la rodilla"])
     comprobar("y con las instrucciones del triaje", "Agente de Triaje" in "".join(llamadas[1]["sistema"]))
     escritos = [(d["caso_id"], d["autor"], d["contenido"]) for que, d in acceso.escrito if que == "mensaje"]
     comprobar("cada caso guarda lo suyo: el viejo, lo que dijo seguimiento; el nuevo, el mensaje y el triaje",
@@ -491,11 +491,16 @@ def probar_correccion_de_la_cita_inventada() -> None:
 
     falsa = "Listo, tu cita quedó agendada para el miércoles 04/11 a las 08:00."
     cuerpo, llamadas, acceso = turno(falsa, "Todavía no tienes cita. ¿Busco los espacios libres?")
-    ultimo = [b["text"] for b in llamadas[0]["mensajes"][-1]["content"]]
+    ultimo = [texto(b) for b in llamadas[0]["mensajes"][-1]["content"]]
     comprobar("agenda recibe, junto al mensaje, el recordatorio de llamar a la herramienta",
               ultimo[0] == "Sí, confirmo" and len(ultimo) == 2 and "llamas ahora a la herramienta" in ultimo[1],
               str(ultimo))
     comprobar("y la llamada de agenda exige una herramienta", llamadas[0].get("exigir_herramienta") is True)
+    comprobar("el mensaje de la persona va marcado: la salvaguarda de entrada mira sólo eso",
+              "guardContent" in llamadas[0]["mensajes"][-1]["content"][0])
+    sin = bedrock_conversa._sin_marcas([{"role": "user", "content": [{"guardContent": {"text": {"text": "Hola"}}}]}])
+    comprobar("sin salvaguarda configurada, la marca vuelve a ser texto",
+              sin == [{"role": "user", "content": [{"text": "Hola"}]}], str(sin))
     comprobar("el recordatorio no se guarda en el hilo",
               "llamas ahora" not in str([d for q, d in acceso.escrito if q == "mensaje"]))
     comprobar("se le pide al mismo agente que responda otra vez", len(llamadas) == 2, str(len(llamadas)))
