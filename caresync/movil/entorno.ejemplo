@@ -1,0 +1,7 @@
+# Copiar como `.env` en la copia de trabajo. Son direcciones, no secretos: los mismos
+# valores públicos que la PWA lleva en su paquete.
+EXPO_PUBLIC_ROBLE_BASE_URL=https://roble-api.test-openlab.uninorte.edu.co
+EXPO_PUBLIC_ROBLE_CONTRACT_ID=caresync_cab021ce03
+EXPO_PUBLIC_API_URL=https://ow2vz6k279.execute-api.us-east-1.amazonaws.com
+# 1 muestra el botón «Ver demostración», con datos de ejemplo que no tocan ROBLE.
+EXPO_PUBLIC_DEMO=1

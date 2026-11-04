@@ -375,6 +375,10 @@ function Consulta({
             </Tarjeta>
           )}
 
+          {!cerrado && cita.estado === 'confirmada' && yaEmpezo(cita) && !contexto.plan && (
+            <Inasistencia cita={cita} caso={caso} autor={autor} alMarcar={alGuardar} />
+          )}
+
           {cerrado ? (
             <Tarjeta titulo="Caso cerrado">
               <p>
@@ -393,6 +397,75 @@ function Consulta({
         </>
       )}
     </>
+  );
+}
+
+/**
+ * La persona no llegó a la cita.
+ *
+ * Antes no había cómo decirlo: la cita se quedaba `confirmada` para siempre y el caso
+ * en `agendado`, y si la persona volvía a escribir el agente de agenda no le podía dar
+ * otra. Marcarla deja el dato —cuántas citas se pierden es una de las cosas que el
+ * centro querrá saber— y devuelve el caso a agenda, que le ofrece otra cita la próxima
+ * vez que escriba.
+ *
+ * Sólo aparece cuando la hora de la cita ya llegó y no hay plan: después de escribir
+ * el plan, la persona evidentemente sí vino.
+ */
+function Inasistencia({
+  cita,
+  caso,
+  autor,
+  alMarcar,
+}: {
+  cita: Cita;
+  caso: Caso;
+  autor: { userId: string; nombre: string };
+  alMarcar: () => void;
+}) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [marcando, setMarcando] = useState(false);
+  const [error, setError] = useState('');
+
+  async function marcar() {
+    setMarcando(true);
+    setError('');
+    try {
+      await marcarInasistencia(cita, caso, autor);
+      alMarcar();
+    } catch (fallo) {
+      setError(mensajeDeError(fallo));
+      setMarcando(false);
+    }
+  }
+
+  return (
+    <Tarjeta titulo="¿No llegó a la cita?">
+      <p className="fino">
+        Márcalo si la persona no vino. El caso vuelve a agenda y el asistente le ofrece
+        otra cita cuando vuelva a escribir.
+      </p>
+      {confirmando ? (
+        <div className="botonera">
+          <button type="button" className="principal" disabled={marcando} onClick={() => void marcar()}>
+            {marcando ? 'Marcando…' : 'Sí, no asistió'}
+          </button>
+          <button
+            type="button"
+            className="enlace"
+            disabled={marcando}
+            onClick={() => setConfirmando(false)}
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="secundario" onClick={() => setConfirmando(true)}>
+          Marcar que no asistió
+        </button>
+      )}
+      {error && <Aviso tipo="error">{error}</Aviso>}
+    </Tarjeta>
   );
 }
 
@@ -632,6 +705,44 @@ async function cerrarCaso(
   }
 }
 
+/**
+ * La cita pasa a `no_asistio` y el caso, si esperaba esa cita, vuelve a `canalizado`.
+ *
+ * Primero la cita: si el caso no llegara a cambiar, el agente igual puede dar otra cita,
+ * porque una cita pasada ya no bloquea. Al revés, un caso en `canalizado` con una cita
+ * todavía `confirmada` se vería en el tablero del centro como si nada hubiera pasado.
+ */
+async function marcarInasistencia(
+  cita: Cita,
+  caso: Caso,
+  autor: { userId: string; nombre: string }
+): Promise<void> {
+  const ahora = new Date().toISOString();
+  const casoId = idDe(caso);
+  await roble.update('citas', idDe(cita), { estado: 'no_asistio' });
+  if (caso.estado === 'agendado') {
+    await roble.update('casos', casoId, { estado: 'canalizado', actualizado_en: ahora });
+  }
+  try {
+    await roble.create('eventos', {
+      caso_id: casoId,
+      tipo: 'cita_no_asistio',
+      severidad: 'info',
+      actor_user_id: autor.userId,
+      actor_rol: 'profesional',
+      detalle: { cita_id: idDe(cita), inicio: cita.inicio ?? null, marcado_por: autor.nombre },
+      creado_en: ahora,
+    });
+  } catch (error) {
+    console.warn('La inasistencia quedó marcada pero no se pudo anotar en la bitácora', error);
+  }
+}
+
+function yaEmpezo(cita: Cita): boolean {
+  const inicio = new Date(String(cita.inicio ?? '')).getTime();
+  return Number.isFinite(inicio) && inicio <= Date.now();
+}
+
 async function desactivar(indicacionId: string): Promise<void> {
   await roble.update('indicaciones', indicacionId, { activa: false });
 }
@@ -645,8 +756,8 @@ function repartir(citas: Cita[]): { proximas: Cita[]; pasadas: Cita[] } {
     const inicio = new Date(String(cita.inicio ?? '')).getTime();
     const yaFue = Number.isFinite(inicio) && inicio < ahora;
     // Una cita pasada pero sin atender sigue en «por atender»: es justo la que no
-    // hay que perder de vista.
-    if (yaFue && cita.estado === 'atendida') pasadas.push(cita);
+    // hay que perder de vista. Una marcada como inasistencia ya se resolvió.
+    if (yaFue && (cita.estado === 'atendida' || cita.estado === 'no_asistio')) pasadas.push(cita);
     else proximas.push(cita);
   }
 

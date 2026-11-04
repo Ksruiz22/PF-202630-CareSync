@@ -90,6 +90,53 @@ export function tokenActual(): string {
   return roble.accessToken ?? '';
 }
 
+/** Con menos de esto se renueva antes de llamar al API: cubre el turno más largo. */
+const MARGEN_DE_RENOVACION_S = 120;
+
+let renovacion: Promise<void> | null = null;
+
+/**
+ * Renueva el token de acceso si vence en menos de dos minutos.
+ *
+ * El SDK sólo lo renueva cuando ROBLE le responde 401, y las llamadas al API de
+ * CareSync no pasan por el SDK. Con la PWA abierta un rato, el backend recibía un
+ * token vencido —y la persona salía de la sesión— o uno que vencía a mitad del
+ * turno, cuando ya había escrito en ROBLE.
+ */
+export function renovarSiVence(): Promise<void> {
+  renovacion ??= renovar().finally(() => {
+    renovacion = null;
+  });
+  return renovacion;
+}
+
+async function renovar(): Promise<void> {
+  const token = roble.accessToken;
+  if (!token || !roble.refreshToken) return;
+  const quedan = segundosRestantes(token);
+  if (quedan === null || quedan > MARGEN_DE_RENOVACION_S) return;
+  try {
+    // No está en los tipos públicos del SDK, pero es el mismo que usa él tras un
+    // 401: así la ruta y la respuesta de ROBLE siguen siendo asunto suyo.
+    await (roble as unknown as { refreshAccessToken(): Promise<void> }).refreshAccessToken();
+    guardar(roble);
+  } catch {
+    // La llamada sigue con el token que hay: si ya venció, el 401 lleva a volver a
+    // entrar, como antes.
+  }
+}
+
+/** Segundos hasta el `exp` del JWT, o `null` si no se puede leer. */
+function segundosRestantes(token: string): number | null {
+  try {
+    const carga = (token.split('.')[1] ?? '').replace(/-/g, '+').replace(/_/g, '/');
+    const { exp } = JSON.parse(atob(carga)) as { exp?: unknown };
+    return typeof exp === 'number' ? exp - Date.now() / 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 // ------------------------------------------------------------------ identidad
 
 export interface Identidad {
@@ -393,7 +440,97 @@ function mensajeDeCuerpo(datos: unknown): string {
   return mensaje ? String(mensaje) : '';
 }
 
+// ------------------------------------------------------- recuperar la contraseña
+
+/*
+ * **El correo apunta al ROBLE equivocado.** `forgotPassword` manda un enlace a
+ * `roble.openlab.uninorte.edu.co/reset-password?token=…` —producción— aunque este
+ * contrato vive en `test-openlab`. Esa página responde «token inválido o expirado»
+ * siempre, porque el token no existe en su base. Comprobado el 2026-11-03 con tres
+ * tokens: el mismo enlace cambiando el dominio a `roble.test-openlab…` funciona, y el
+ * token enviado a `/auth/<contrato>/reset-password` en `test-openlab` —lo que hace el
+ * SDK— también. Es configuración de ROBLE, no algo que se arregle desde aquí.
+ *
+ * De ahí las dos entradas:
+ * - **El token en la URL** (`?token=`, en cualquier ruta). Sirve el día en que el
+ *   correo apunte a la PWA; Amplify ya devuelve `index.html` para `/reset-password`.
+ * - **El enlace pegado**, para hoy: la persona copia la dirección del enlace sin
+ *   abrirlo y la pega en la pantalla. `tokenDeEnlace` acepta el enlace, el enlace
+ *   envuelto por Safe Links de Outlook o el token solo.
+ *
+ * El token nunca va a la consola ni a un log, y se borra de la barra de direcciones
+ * en cuanto se lee, por la misma razón que el `code` de Google.
+ */
+
+const tokenDeRecuperacion: string | null = leerTokenDeRecuperacion();
+
+function leerTokenDeRecuperacion(): string | null {
+  const parametros = new URLSearchParams(location.search);
+  const token = parametros.get('token');
+  if (!token) return null;
+
+  parametros.delete('token');
+  const consulta = parametros.toString();
+  const ruta = location.pathname.replace(/\/reset-password\/?$/, '/');
+  history.replaceState(null, '', ruta + (consulta ? `?${consulta}` : '') + location.hash);
+  return token;
+}
+
+/** El token con el que se abrió la página, si se abrió desde el enlace del correo. */
+export function tokenDeRecuperacionEnLaUrl(): string | null {
+  return tokenDeRecuperacion;
+}
+
+/**
+ * Saca el token de lo que la persona pegó: el enlace del correo, ese enlace envuelto
+ * por Safe Links (`…safelinks.protection.outlook.com/?url=<enlace codificado>`), o el
+ * token solo. `null` si no hay nada que se parezca a uno.
+ */
+export function tokenDeEnlace(texto: string): string | null {
+  const limpio = texto.trim();
+  if (!limpio) return null;
+
+  let url: URL;
+  try {
+    url = new URL(limpio);
+  } catch {
+    // No es un enlace: se acepta como token si no tiene espacios.
+    return /\s/.test(limpio) ? null : limpio;
+  }
+
+  const directo = url.searchParams.get('token');
+  if (directo) return directo;
+  const envuelto = url.searchParams.get('url');
+  return envuelto ? tokenDeEnlace(envuelto) : null;
+}
+
+/** Pone la contraseña nueva con el token del correo. No abre sesión. */
+export async function cambiarContrasena(token: string, nueva: string): Promise<void> {
+  await roble.resetPassword({ token, newPassword: nueva });
+}
+
+/**
+ * ¿El fallo de `cambiarContrasena` es porque el enlace ya no sirve —venció, ya se
+ * usó o se pidió otro después—?
+ *
+ * ROBLE no tiene un código propio para esto. Se toma como vencido un 401/404, o
+ * cualquier 4xx cuyo mensaje hable del token («token inválido o expirado»). Un 400
+ * que no lo mencione se deja pasar con su mensaje: puede ser la política de
+ * contraseñas de ROBLE, si un día deja de coincidir con `problemaDeContrasena`.
+ */
+export function esEnlaceVencido(error: unknown): boolean {
+  if (!(error instanceof RobleApiHttpException)) return false;
+  const codigo = error.statusCode;
+  if (codigo === 401 || codigo === 404) return true;
+  return codigo >= 400 && codigo < 500 && codigo !== 429 && /token/i.test(error.message);
+}
+
 // ---------------------------------------------------------------------- errores
+
+/** Un 429: ROBLE limitó los intentos de esta IP (ver `LIMITE_DE_INTENTOS`). */
+export function esLimiteDeIntentos(error: unknown): boolean {
+  return error instanceof RobleApiHttpException && error.statusCode === 429;
+}
 
 export function esSesionInvalida(error: unknown): boolean {
   return error instanceof RobleApiHttpException && (error.statusCode === 401 || error.statusCode === 403);

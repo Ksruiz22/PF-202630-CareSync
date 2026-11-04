@@ -50,6 +50,10 @@ cuánto o por qué retrasa la ruta de emergencia justo en el caso en que no hay
 tiempo, y escalar de más cuesta mucho menos que escalar de menos. Las preguntas
 que falten las hace después quien atiende la urgencia, no el triaje.
 
+**También si la urgencia es de otra persona.** «Mi compañero se desmayó y no
+despierta» se escala igual: la ruta de emergencia sirve para cualquiera, y en el
+motivo se dice que la persona en riesgo es otra.
+
 **Qué dice el agente al escalar**, textualmente y antes que nada: el texto está
 en [`ruta-emergencia.md`](ruta-emergencia.md), y ese archivo es su única copia.
 Está aparte porque no lo usa sólo el triaje —cualquiera de los tres agentes
@@ -88,6 +92,19 @@ Después el agente sigue acompañando a la persona, sin agendar nada.
   este (CAE), aunque el físico parezca el más urgente de los dos: descartar su
   causa física se pide en el resumen, no cambia la ruta.
 - **Violencia, acoso o discriminación** sin lesión física: **CAE**.
+- **Preocupación por otra persona** sin señal de alarma («mi amiga no está
+  comiendo»): CareSync atiende a quien escribe, y no puede triar a alguien que no
+  está en la conversación. Se canaliza al **CAE** con nivel 4, como orientación para
+  acompañar a esa persona, y en el resumen se dice que el motivo es de un tercero. A
+  quien escribe se le cuenta que la persona afectada puede escribir desde su propia
+  cuenta.
+- **Pide un centro o un profesional** distinto del que le corresponde («quiero un
+  psicólogo» con un dolor físico): manda este protocolo, y la preferencia se anota en
+  el resumen para quien atienda.
+
+**Lo que no es de salud no se canaliza.** Una pregunta por la biblioteca, una nota
+o un trámite académico no es un caso del CMU ni del CAE: el agente dice qué hace
+CareSync y que con eso no puede ayudar. Un saludo sí es el comienzo de un triaje.
 
 ## Paso 2 — Nivel de urgencia
 
@@ -102,8 +119,15 @@ Si el agente duda entre dos niveles, **elige el más urgente**.
 
 **El nivel 4 también se canaliza.** Es una duda de información o de trámite: a la
 persona no le está pasando nada que la afecte, quiere saber algo. El agente no la
-resuelve por su cuenta ni la manda a otro canal; la canaliza al centro que
-corresponde con nivel 4, sin cita, y si la persona después pide una, se le busca.
+resuelve de memoria ni la manda a otro canal. Si la respuesta está en la
+información de los centros (`orientacion.md`), se la da con esa información y el
+caso se cierra, porque no queda nada pendiente. Si no está, la canaliza al centro
+que corresponde con nivel 4, sin cita, y si la persona después pide una, se le busca.
+
+**Si empeora antes de la cita.** Si después de canalizar la persona cuenta que
+empeoró sin señal de alarma, el nivel se vuelve a mirar con esta tabla. Sólo puede
+subir, nunca bajar, y si la cita que tiene queda después del nuevo plazo se le
+ofrece adelantarla. Con una señal de alarma, es el Paso 0.
 
 **Que diga «quiero orientación» no lo vuelve nivel 4.** El nivel sale de lo que
 describe, no de la palabra que usa: si cuenta algo que le está pasando y la afecta
@@ -259,3 +283,4 @@ de que deje de ser v0:
 | v0.2 | 2026-09-26 | Kevin Ruiz | Aclaraciones tras la primera evaluación completa (40 casos): ante la duda sobre una señal del Paso 0 se escala sin confirmar; cómo distinguir «síntoma físico con carga emocional» de «ambos frentes»; «lesión que impide apoyar o caminar» como ejemplo de nivel 2; y pedir cita canaliza en ese mismo turno. Ningún umbral ni ruta cambió de sentido. |
 | v0.3 | 2026-09-26 | Kevin Ruiz | Tras la segunda evaluación completa: «efecto adverso de un medicamento que se sigue tomando» como ejemplo de nivel 2; el nivel 4 es para información o trámite y no se deduce de que la persona pida «orientación»; y una pregunta pendiente para la validación clínica sobre las dos sobre-derivaciones que quedan. Ningún umbral ni ruta cambió de sentido. |
 | v0.4 | 2026-09-26 | Kevin Ruiz | Tras la tercera evaluación completa, que mostró que la aclaración del nivel 4 de la v0.3 se leía como «una duda de información no pasa por el triaje»: el nivel 4 también se canaliza, sin cita; pedir orientación cuenta como pedir una cita; y la duda entre dos niveles se resuelve con el más urgente, no con otra pregunta. Ningún umbral ni ruta cambió de sentido. |
+| v0.5 | 2026-10-29 | Kevin Ruiz | Escenarios que el protocolo no contemplaba, de la revisión de los agentes del 29/10: la urgencia de otra persona se escala igual; la preocupación por alguien cercano va al CAE con nivel 4; lo que no es de salud no se canaliza; una preferencia de centro o de profesional se anota sin cambiar la ruta; la duda que responde la información de los centros (`orientacion.md`) se responde y cierra el caso; y si la persona empeora antes de la cita, el nivel sólo sube. Ningún umbral ni ruta cambió de sentido. |

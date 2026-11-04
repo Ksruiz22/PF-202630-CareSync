@@ -80,8 +80,9 @@ empacar_funcion() {
   "${python_bin}" "${raiz}/scripts/empaquetar.py" "${destino}" "${dist}/${nombre}.zip"
 }
 
-# El orquestador inyecta el protocolo completo en el prompt del agente de triaje.
-empacar_funcion orquestador triaje-v0.md ruta-emergencia.md
+# El orquestador inyecta el protocolo completo en el prompt del agente de triaje, y la
+# base de orientación de los centros en el de los tres.
+empacar_funcion orquestador triaje-v0.md ruta-emergencia.md orientacion.md
 # Herramientas sólo devuelve el texto de la ruta de emergencia; no clasifica.
 empacar_funcion herramientas ruta-emergencia.md
 empacar_funcion recordatorios

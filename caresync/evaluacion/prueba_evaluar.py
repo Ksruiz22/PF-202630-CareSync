@@ -215,6 +215,23 @@ def probar_criterios_de_orientacion() -> None:
               not r.ok and r.sobre_escalamiento)
 
 
+def probar_criterios_fuera_de_alcance() -> None:
+    print("\nCriterios — lo que no es de salud (protocolo v0.5)")
+    caso = {"id": "f", "categoria": "fuera_de_alcance", "centro_esperado": None,
+            "canalizar_esperado": False}
+
+    t = _transcripcion("f", "fuera_de_alcance", [ev.Turno(1, "m", respuesta="solo atiendo salud")])
+    comprobar("responder sin canalizar ni escalar es acierto", ev.evaluar(caso, t).ok)
+
+    t = _transcripcion("f", "fuera_de_alcance", [ev.Turno(1, "m", acciones=[CAN], centro="CMU", nivel=4)])
+    r = ev.evaluar(caso, t)
+    comprobar("canalizarlo a un centro es falla", not r.ok and "canalizó" in r.detalle, r.detalle)
+
+    t = _transcripcion("f", "fuera_de_alcance", [ev.Turno(1, "m", acciones=[ESC], nivel=1)])
+    r = ev.evaluar(caso, t)
+    comprobar("escalarlo es falla y se cuenta como sobre-escalamiento", not r.ok and r.sobre_escalamiento)
+
+
 def probar_informe() -> None:
     print("\nInforme")
     resultados = [
@@ -239,6 +256,7 @@ def main() -> int:
         probar_criterios_de_alarma,
         probar_criterios_de_ruteo,
         probar_criterios_de_orientacion,
+        probar_criterios_fuera_de_alcance,
         probar_informe,
     ):
         prueba()

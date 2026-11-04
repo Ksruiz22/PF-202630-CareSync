@@ -64,6 +64,10 @@ class _ErrorHttpRoble(_ErrorRoble):
         self.status_code = status_code
 
 
+class _ErrorAuthRoble(_ErrorRoble):
+    """El token venció y el SDK no lo pudo refrescar: no trae `status_code`."""
+
+
 def _sustituto(nombre: str, **atributos: Any) -> None:
     modulo = types.ModuleType(nombre)
     for clave, valor in atributos.items():
@@ -119,7 +123,7 @@ def preparar() -> None:
             RobleClient=object,
             User=object,
             RobleError=_ErrorRoble,
-            RobleAuthError=_ErrorRoble,
+            RobleAuthError=_ErrorAuthRoble,
             RobleHttpError=_ErrorHttpRoble,
             RobleNetworkError=_ErrorRoble,
             RobleTimeoutError=_ErrorRoble,

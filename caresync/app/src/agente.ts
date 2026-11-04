@@ -31,7 +31,7 @@
  * del hilo guardado en ROBLE.
  */
 
-import { tokenActual } from './roble';
+import { renovarSiVence, tokenActual } from './roble';
 import type { RespuestaAgente } from './tipos';
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '');
@@ -108,6 +108,7 @@ export async function pedirAlApi<T>(
   cuerpo: unknown,
   { esperaMs }: { esperaMs: number }
 ): Promise<T> {
+  await renovarSiVence();
   const token = tokenActual();
   if (!token) throw new ErrorDelAgente(401, 'No hay sesión activa.');
 

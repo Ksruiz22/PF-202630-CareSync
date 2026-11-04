@@ -29,13 +29,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from functools import lru_cache
 from typing import Any
 
 import boto3
 import requests
 
-from caresync_comun import reloj, respuesta
+from caresync_comun import plazos, reloj, respuesta
 from caresync_comun.catalogo_herramientas import (
     CATALOGO,
     especificaciones,
@@ -60,6 +61,7 @@ from caresync_comun.roble_acceso import (
     PROFESIONAL,
     AccesoRoble,
     Actor,
+    cita_por_delante,
     fila_id,
 )
 
@@ -262,12 +264,21 @@ def _conversar(
     # dentro del bucle y no se arrastran al traspaso, porque el segundo agente
     # declara otras herramientas y la API rechaza un historial que referencia
     # herramientas que ya no existen.
-    hilo = _historial(acceso, hilo_id)
-    hilo.append({"role": "user", "content": [{"text": mensaje}]})
+    filas = acceso.mensajes(hilo_id, maximo=20)
+    hilo = _historial_de_filas(filas)
+    hilo.append({"role": "user", "content": _turno_de_la_persona(mensaje, agente)})
+    pausa = _pausa(filas)
 
     participantes: list[str] = []
     usos_totales: list[bedrock_conversa.Uso] = []
     texto_final = ""
+    # Lo que se guarda en el hilo de este caso. Es lo mismo que `texto_final` salvo
+    # cuando la conversación cambia de caso a mitad del turno (`nuevo_motivo`): lo
+    # que dijo el primer agente se queda en el hilo del caso viejo, y la persona
+    # recibe las dos cosas en una sola respuesta.
+    texto_del_hilo = ""
+    usos_del_hilo: list[bedrock_conversa.Uso] = []
+    caso_anterior = ""
     tokens = {"entrada": 0, "salida": 0, "cacheados": 0}
     intervino = False
     salvaguardas: set[str] = set()
@@ -276,28 +287,69 @@ def _conversar(
     # traspaso. Un tercero sería una cadena que la persona no puede seguir.
     for salto in range(2):
         participantes.append(agente.clave)
-        contexto_extra = _contexto_del_traspaso(caso or {}) if salto else ""
+        if not salto:
+            contexto_extra = pausa
+        elif caso_anterior:
+            contexto_extra = _contexto_del_caso_nuevo()
+        else:
+            contexto_extra = _contexto_del_traspaso(caso or {})
 
-        resultado = bedrock_conversa.conversar(
-            sistema=agentes.instrucciones(
+        # Se guarda para poder volver a llamar al mismo agente si su respuesta da por
+        # hecha una cita que ninguna herramienta hizo (`_sin_citas_inventadas`).
+        llamada = {
+            "sistema": agentes.instrucciones_partidas(
                 agente, actor=actor, caso=caso, contexto=contexto_extra
             ),
-            mensajes=hilo,
-            herramientas=_herramientas_de(agente, actor.rol, con_caso=bool(caso_id)),
-            ejecutar=_ejecutor(token=token, caso_id=caso_id, agente=agente.clave),
-        )
+            "herramientas": _herramientas_de(agente, actor.rol, con_caso=bool(caso_id)),
+            "ejecutar": _ejecutor(token=token, caso_id=caso_id, agente=agente.clave),
+            # Agenda no contesta de memoria: antes de responder mira algo de verdad.
+            # Con sólo el recordatorio, en la prueba del 2/11 siguió dando por
+            # cancelada una cita sin llamar a `cancelar_cita` y ofreciendo cupos sin
+            # consultarlos. Cuesta una lectura por turno.
+            "exigir_herramienta": agente.clave == agentes.AGENDA,
+        }
+        resultado = bedrock_conversa.conversar(mensajes=hilo, **llamada)
 
         usos_totales.extend(resultado.usos)
+        usos_del_hilo.extend(resultado.usos)
         tokens["entrada"] += resultado.tokens_entrada
         tokens["salida"] += resultado.tokens_salida
         tokens["cacheados"] += resultado.tokens_cacheados
         intervino = intervino or resultado.intervino_guardrail
         salvaguardas.update(resultado.salvaguardas)
         texto_final = "\n\n".join(t for t in (texto_final, resultado.texto) if t)
+        texto_del_hilo = "\n\n".join(t for t in (texto_del_hilo, resultado.texto) if t)
 
         siguiente = _traspaso(agente, resultado)
         if not siguiente:
             break
+
+        nuevo = _caso_nuevo(resultado)
+        if nuevo:
+            # El problema nuevo sigue en su propio caso. Lo dicho hasta aquí se queda
+            # en el hilo del caso viejo, y el nuevo empieza con el mensaje de la
+            # persona, que es lo que su triaje tiene que leer.
+            if texto_del_hilo:
+                acceso.anotar_mensaje(
+                    caso_id=hilo_id, agente=agente.clave, autor="agente", contenido=texto_del_hilo
+                )
+            _dejar_constancia_de_los_fallos(
+                acceso, hilo_id=hilo_id, agente=agente.clave, usos=usos_del_hilo
+            )
+            _dejar_constancia_de_la_agenda(
+                acceso, hilo_id=hilo_id, agente=agente.clave, usos=usos_del_hilo
+            )
+            texto_del_hilo, usos_del_hilo = "", []
+            caso_anterior, caso_id, hilo_id = caso_id, nuevo, nuevo
+            caso = acceso.caso(caso_id)
+            agente = agentes.AGENTES[siguiente]
+            if actor.rol not in agente.roles:
+                break
+            acceso.anotar_mensaje(
+                caso_id=hilo_id, agente=agente.clave, autor=actor.rol, contenido=mensaje
+            )
+            hilo = [{"role": "user", "content": [{"text": mensaje}]}]
+            continue
 
         # El caso cambió de estado dentro de la herramienta: hay que releerlo
         # para que el siguiente agente vea el centro y el nivel de urgencia. Aquí
@@ -312,11 +364,26 @@ def _conversar(
             hilo.append({"role": "assistant", "content": [{"text": resultado.texto}]})
         hilo.append({"role": "user", "content": [{"text": _nota_de_traspaso(caso)}]})
 
-    texto_final = _con_la_ruta_de_emergencia(texto_final, usos_totales, intervino=intervino)
+    if caso_id and not resultado.intervino_guardrail and _DA_POR_HECHA.search(resultado.texto or ""):
+        corregido, extra = _sin_citas_inventadas(
+            acceso, caso_id=caso_id, resultado=resultado, usos=usos_del_hilo, llamada=llamada
+        )
+        if corregido != resultado.texto:
+            texto_final = _cambiar_el_final(texto_final, resultado.texto, corregido)
+            texto_del_hilo = _cambiar_el_final(texto_del_hilo, resultado.texto, corregido)
+        if extra:
+            usos_totales.extend(extra.usos)
+            usos_del_hilo.extend(extra.usos)
+            tokens["entrada"] += extra.tokens_entrada
+            tokens["salida"] += extra.tokens_salida
+            tokens["cacheados"] += extra.tokens_cacheados
 
-    if texto_final:
+    texto_final = _con_la_ruta_de_emergencia(texto_final, usos_totales, intervino=intervino)
+    texto_del_hilo = _con_la_ruta_de_emergencia(texto_del_hilo, usos_del_hilo, intervino=intervino)
+
+    if texto_del_hilo:
         acceso.anotar_mensaje(
-            caso_id=hilo_id, agente=participantes[-1], autor="agente", contenido=texto_final
+            caso_id=hilo_id, agente=participantes[-1], autor="agente", contenido=texto_del_hilo
         )
 
     # La constancia de los fallos va fuera de ese `if`: un turno puede salir sin
@@ -324,7 +391,10 @@ def _conversar(
     # que la bitácora diga qué no se hizo. Colgada del texto, el turno siguiente
     # arrancaba sin saber que la herramienta había fallado.
     _dejar_constancia_de_los_fallos(
-        acceso, hilo_id=hilo_id, agente=participantes[-1], usos=usos_totales
+        acceso, hilo_id=hilo_id, agente=participantes[-1], usos=usos_del_hilo
+    )
+    _dejar_constancia_de_la_agenda(
+        acceso, hilo_id=hilo_id, agente=participantes[-1], usos=usos_del_hilo
     )
 
     if caso_id:
@@ -333,6 +403,7 @@ def _conversar(
         log,
         "conversacion_atendida",
         caso_id=hilo_id,
+        caso_anterior=caso_anterior or None,
         agentes=participantes,
         herramientas=[u.nombre for u in usos_totales],
         tokens_entrada=tokens["entrada"],
@@ -425,8 +496,36 @@ def _historial(acceso: AccesoRoble, hilo_id: str) -> list[dict[str, Any]]:
     Reconstruir bloques `toolUse`/`toolResult` de turnos viejos obligaría a
     guardar identificadores de la API en la base y no aporta nada al hilo.
     """
+    return _historial_de_filas(acceso.mensajes(hilo_id, maximo=20))
+
+
+def _pausa(filas: list[dict[str, Any]]) -> str:
+    """Una línea para la situación actual si la conversación estuvo detenida un día o más.
+
+    El historial le llega al modelo sin fechas, así que un «desde hace dos días»
+    escrito hace una semana se leía como de hoy y el triaje decidía el nivel con un
+    dato viejo. La última fila es el mensaje que se acaba de anotar: la pausa es la
+    que hay entre él y la anterior. Sale de la misma lectura del historial, sin otra
+    operación contra la cuota de ROBLE.
+    """
+    if len(filas) < 2:
+        return ""
+    actual = reloj.desde_iso(filas[-1].get("creado_en"))
+    anterior = reloj.desde_iso(filas[-2].get("creado_en"))
+    if not actual or not anterior:
+        return ""
+    dias = int((actual - anterior).total_seconds() // 86400)
+    if dias < 1:
+        return ""
+    return (
+        f"La conversación estuvo detenida {dias} {'día' if dias == 1 else 'días'}: el "
+        f"mensaje anterior a este es del {reloj.humano(anterior)}."
+    )
+
+
+def _historial_de_filas(filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
     mensajes: list[dict[str, Any]] = []
-    for fila in acceso.mensajes(hilo_id, maximo=20):
+    for fila in filas:
         contenido = str(fila.get("contenido") or "").strip()
         if not contenido:
             continue
@@ -456,6 +555,27 @@ def _historial(acceso: AccesoRoble, hilo_id: str) -> list[dict[str, Any]]:
     if mensajes and mensajes[-1]["role"] == "user":
         mensajes.pop()
     return mensajes
+
+
+# El historial que ve el modelo es sólo texto: los bloques de herramientas no se
+# rehidratan. En una conversación larga, todas «sus» respuestas anteriores son prosa,
+# y el modelo la imita. En la prueba del 2/11 el agente de agenda pasó cuatro turnos
+# seguidos sin llamar a nada: escribió «te busco espacios para el jueves» y ofreció
+# un cupo a las 10:00 que no existe, y dio por cancelada una cita que seguía en pie.
+# En el primer turno de un caso casi nunca pasa. El recordatorio va junto al
+# mensaje, que es lo último que lee, y no se guarda en el hilo.
+_RECORDATORIO_DE_AGENDA = (
+    "[sistema] Para este turno: buscar espacios, agendar, cambiar o cancelar sólo "
+    "pasa si llamas ahora a la herramienta. Escribir que lo vas a hacer no lo hace, y "
+    "sin la respuesta de la herramienta no hay días ni horas que ofrecer."
+)
+
+
+def _turno_de_la_persona(mensaje: str, agente: agentes.Agente) -> list[dict[str, Any]]:
+    contenido = [{"text": mensaje}]
+    if agente.clave == agentes.AGENDA:
+        contenido.append({"text": _RECORDATORIO_DE_AGENDA})
+    return contenido
 
 
 def _herramientas_de(
@@ -532,11 +652,29 @@ def _traspaso(agente: agentes.Agente, resultado: bedrock_conversa.Resultado) -> 
 
 
 def _contexto_del_traspaso(caso: dict[str, Any]) -> str:
+    nivel = plazos.nivel_de(caso)
+    plazo = f" (cita dentro de {plazos.texto_de(nivel)})" if plazos.plazo_de(nivel) else ""
     return (
         f"El agente anterior acaba de canalizar este caso al {caso.get('centro')} "
-        f"con nivel de urgencia {caso.get('nivel_urgencia')}. Continúas tú, en la misma "
-        "conversación: no te presentes de nuevo ni repitas lo que ya se dijo."
+        f"con nivel de urgencia {caso.get('nivel_urgencia')}{plazo}. Continúas tú, en la "
+        "misma conversación: no te presentes de nuevo ni repitas lo que ya se dijo."
     )
+
+
+def _contexto_del_caso_nuevo() -> str:
+    return (
+        "La persona trajo un problema distinto del de su otro caso, y este caso se abrió "
+        "para él. Empiezas su triaje en la misma conversación: no te presentes de nuevo "
+        "ni le preguntes por el otro caso, que sigue su curso."
+    )
+
+
+def _caso_nuevo(resultado: bedrock_conversa.Resultado) -> str:
+    """El caso que abrió `nuevo_motivo` en esta vuelta, si abrió uno."""
+    for uso in resultado.usos:
+        if uso.nombre == "nuevo_motivo" and uso.ok and isinstance(uso.resultado, dict):
+            return str(uso.resultado.get("caso_nuevo") or "")
+    return ""
 
 
 def _dejar_constancia_de_los_fallos(
@@ -572,6 +710,236 @@ def _dejar_constancia_de_los_fallos(
             "que alguien lo confirme por fuera."
         ),
     )
+
+
+_HACEN_LA_CITA = ("agendar_cita", "reprogramar_cita", "cancelar_cita")
+_MUESTRAN_ESPACIOS = ("consultar_disponibilidad", "agendar_cita", "reprogramar_cita")
+
+
+def _hizo_la_cita(usos: list[bedrock_conversa.Uso]) -> bool:
+    """¿Agendó, cambió o canceló de verdad alguna herramienta en este turno?"""
+    return any(
+        u.nombre in _HACEN_LA_CITA and u.ok and isinstance(u.resultado, dict) and u.resultado.get("ok")
+        for u in usos
+    )
+
+
+def _opciones_mostradas(usos: list[bedrock_conversa.Uso]) -> list[dict[str, Any]]:
+    """Los últimos espacios que vio el modelo en el turno, con su «inicio» literal."""
+    for uso in reversed(usos):
+        if uso.nombre not in _MUESTRAN_ESPACIOS or not isinstance(uso.resultado, dict):
+            continue
+        for clave in ("opciones", "alternativas"):
+            lista = uso.resultado.get(clave)
+            if isinstance(lista, list) and lista and all(isinstance(o, dict) and o.get("inicio") for o in lista):
+                return lista[:4]
+    return []
+
+
+def _dejar_constancia_de_la_agenda(
+    acceso: AccesoRoble, *, hilo_id: str, agente: str, usos: list[bedrock_conversa.Uso]
+) -> None:
+    """Escribe en el caso los espacios que se ofrecieron y lo que quedó por confirmar.
+
+    Lo que devuelven las herramientas no vuelve como historial —no se rehidratan los
+    bloques de herramientas—, así que en el turno siguiente el modelo sólo tiene lo
+    que le dijo a la persona: «martes 03/11 a las 08:30», no el «inicio» exacto. En la
+    prueba del 2/11 lo reconstruyó mal y `agendar_cita` no encontró un espacio que
+    estaba libre; y al «sí, confirmo» de un cambio contestó «listo, tu cita está
+    reprogramada» sin llamar a nada, con la cita en el mismo sitio. La nota deja
+    escrito con qué se cumple lo que la persona elija o confirme.
+
+    Cancelar y cambiar van en dos turnos: la herramienta devuelve lo que haría, la
+    persona confirma y en el siguiente se la llama con `confirmado`.
+    """
+    pendientes: dict[str, bedrock_conversa.Uso] = {}
+    for uso in usos:
+        resultado = uso.resultado if isinstance(uso.resultado, dict) else {}
+        if uso.nombre not in ("reprogramar_cita", "cancelar_cita"):
+            continue
+        if uso.ok and resultado.get("confirmar_primero"):
+            pendientes[uso.nombre] = uso
+        elif uso.ok and resultado.get("ok"):
+            # Preguntó y la persona ya había dicho que sí en el mismo turno.
+            pendientes.pop(uso.nombre, None)
+    # Con la cita ya hecha, los espacios que se vieron antes no sirven para nada.
+    opciones = [] if _hizo_la_cita(usos) else _opciones_mostradas(usos)
+    if not pendientes and not opciones:
+        return
+
+    partes = []
+    if opciones:
+        partes.append(
+            "Espacios que se le mostraron, con el «inicio» que hay que copiar tal cual "
+            "si elige uno: "
+            + "; ".join(f"{o.get('cuando')} = «{o.get('inicio')}»" for o in opciones)
+            + "."
+        )
+    if pendientes:
+        partes.append(_lo_pendiente(pendientes))
+    acceso.anotar_mensaje(
+        caso_id=hilo_id, agente=agente, autor="sistema", contenido="[sistema] " + " ".join(partes)
+    )
+
+
+def _lo_pendiente(pendientes: dict[str, bedrock_conversa.Uso]) -> str:
+    llamadas = []
+    for nombre, uso in pendientes.items():
+        cita_actual = str(uso.argumentos.get("cita_actual") or "")
+        con_cita = f", cita_actual «{cita_actual}»" if cita_actual else ""
+        if nombre == "reprogramar_cita":
+            llamadas.append(
+                f"cambiar la cita del {uso.resultado.get('de')} a la del "
+                f"{uso.resultado.get('a')}, que se cumple llamando a reprogramar_cita con "
+                f"inicio «{uso.argumentos.get('inicio')}»{con_cita} y confirmado en true"
+            )
+        else:
+            cita = uso.resultado.get("cita") or {}
+            llamadas.append(
+                f"cancelar la cita del {cita.get('cuando')}, que se cumple llamando a "
+                f"cancelar_cita{con_cita} con confirmado en true"
+            )
+    return (
+        "Quedó esperando la respuesta de la persona y todavía no se cambió nada: "
+        + "; ".join(llamadas)
+        + ". Si dice que sí, haz esa llamada en este turno, y sólo cuando la "
+        "herramienta responda ok le dices que quedó hecho. Si dice que no o pide otra "
+        "cosa, no la hagas."
+    )
+
+
+# Lo que delata que una respuesta da una cita por hecha. «Agendada» o «confirmada»
+# también se dice al repetir una cita que existe, así que se contrasta con la agenda.
+_DA_POR_HECHA = re.compile(
+    r"\b(?:qued[oóa]|est[aá]|fue)\s+(agendada|confirmada|reprogramada|cambiada|cancelada|anulada)\b"
+    r"|\b(reprogram[eé]|cancel[eé]|cambi[eé]|agend[eé])\b",
+    re.IGNORECASE,
+)
+_DIA_Y_MES = re.compile(r"\b(\d{1,2})/(\d{1,2})\b")
+_FRASES = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def _cita_inventada(
+    texto: str, usos: list[bedrock_conversa.Uso], reales: list[dict[str, Any]]
+) -> bool:
+    """¿Da la respuesta por hecha una cita que ninguna herramienta hizo en el turno?
+
+    Se mira frase por frase: la fecha que cuenta es la de la frase que afirma, no la
+    de una opción que se ofrece dos líneas más abajo. Con una herramienta que agendó,
+    cambió o canceló en el turno, lo que diga se da por bueno.
+    """
+    if _hizo_la_cita(usos):
+        return False
+    reales_dia = {
+        f"{local.day:02d}/{local.month:02d}"
+        for local in (reloj.en_bogota(c.get("inicio")) for c in reales)
+        if local
+    }
+    for frase in _FRASES.split(texto or ""):
+        afirmaciones = [
+            m.group(1) or m.group(2)
+            for m in _DA_POR_HECHA.finditer(frase)
+            if not re.search(r"\bno\s*$|\bno\s+\w+\s*$", frase[: m.start()].lower())
+        ]
+        dichas = {f"{int(d):02d}/{int(m):02d}" for d, m in _DIA_Y_MES.findall(frase)}
+        for afirmacion in afirmaciones:
+            if afirmacion.lower().startswith(("cancel", "anul")):
+                # Cancelada es cierto si esa cita ya no está por delante.
+                if reales_dia and (not dichas or dichas & reales_dia):
+                    return True
+            elif not reales_dia or dichas - reales_dia:
+                return True
+    return False
+
+
+def _citas_reales(acceso: AccesoRoble, caso_id: str) -> list[dict[str, Any]]:
+    return [c for c in acceso.citas_del_caso(caso_id) if cita_por_delante(c)]
+
+
+def _sin_citas_inventadas(
+    acceso: AccesoRoble,
+    *,
+    caso_id: str,
+    resultado: bedrock_conversa.Resultado,
+    usos: list[bedrock_conversa.Uso],
+    llamada: dict[str, Any],
+) -> tuple[str, bedrock_conversa.Resultado | None]:
+    """La respuesta del turno, sin una cita que ninguna herramienta hizo.
+
+    En la prueba del 2/11 el agente de agenda, sin llamar a nada, le dijo a la persona
+    «listo, tu cita quedó agendada para el miércoles» y el caso no tenía ninguna cita.
+    El prompt ya lo prohibía, y después de reforzarlo volvió a pasar: no basta con
+    pedírselo al modelo. Si la respuesta afirma una cita que la agenda no tiene, no
+    sale. El mismo agente responde otra vez con la agenda real delante, y si vuelve a
+    inventarla la persona recibe un texto fijo con lo que de verdad hay.
+    """
+    try:
+        reales = _citas_reales(acceso, caso_id)
+    except ErrorDeCareSync as exc:
+        # Sin poder leer la agenda no se puede contrastar. Se entrega lo que hay.
+        evento(log, "agenda_no_contrastada", caso_id=caso_id, detalle=type(exc).__name__)
+        return resultado.texto, None
+    if not _cita_inventada(resultado.texto, usos, reales):
+        return resultado.texto, None
+
+    evento(log, "cita_sin_respaldo", caso_id=caso_id)
+    if reales:
+        agenda = "Lo que el caso de verdad tiene por delante: " + "; ".join(
+            reloj.humano(c.get("inicio")) for c in reales
+        ) + "."
+    else:
+        agenda = "El caso no tiene ninguna cita por delante."
+    # «Para ella es tu primera respuesta» no sobra: sin eso, en la prueba del 2/11 el
+    # modelo arrancó con «Tienes razón, disculpa», como si la persona le hubiera
+    # reclamado algo que nunca leyó.
+    nota = (
+        "[sistema] Esa respuesta no le llegó a la persona: da por hecha una cita que "
+        f"ninguna herramienta hizo en este turno. {agenda} Si la persona eligió o "
+        "confirmó algo, haz ahora la llamada que corresponde; si no, respóndele sin "
+        "darlo por hecho. La persona no leyó tu respuesta anterior ni lee este aviso: "
+        "para ella lo que digas ahora es tu primera respuesta, así que no te disculpes, "
+        "no le des la razón ni digas que corriges algo."
+    )
+    try:
+        extra = bedrock_conversa.conversar(
+            mensajes=[*resultado.mensajes, {"role": "user", "content": [{"text": nota}]}],
+            **llamada,
+        )
+    except Exception as exc:  # noqa: BLE001 - lo que se le dice no depende del modelo
+        evento(log, "correccion_fallida", caso_id=caso_id, detalle=type(exc).__name__)
+        return _lo_que_de_verdad_hay(reales), None
+
+    if any(u.nombre in _HACEN_LA_CITA for u in extra.usos):
+        try:
+            reales = _citas_reales(acceso, caso_id)
+        except ErrorDeCareSync:
+            pass
+    if (
+        extra.intervino_guardrail
+        or not extra.texto
+        or _cita_inventada(extra.texto, [*usos, *extra.usos], reales)
+    ):
+        evento(log, "cita_sin_respaldo_otra_vez", caso_id=caso_id)
+        return _lo_que_de_verdad_hay(reales), extra
+    return extra.texto, extra
+
+
+def _lo_que_de_verdad_hay(reales: list[dict[str, Any]]) -> str:
+    if reales:
+        return (
+            "Perdona, me adelanté: ese cambio no quedó hecho. Tu cita sigue siendo el "
+            f"{reloj.humano(reales[0].get('inicio'))}. ¿Quieres que lo intentemos de nuevo?"
+        )
+    return (
+        "Perdona, me adelanté: todavía no tienes ninguna cita agendada. ¿Quieres que "
+        "busque los espacios disponibles para agendarla?"
+    )
+
+
+def _cambiar_el_final(texto: str, viejo: str, nuevo: str) -> str:
+    """Cambia la última respuesta dentro del texto del turno, que puede traer otra antes."""
+    antes, encontrado, despues = texto.rpartition(viejo)
+    return f"{antes}{nuevo}{despues}" if encontrado else nuevo
 
 
 def _nota_de_traspaso(caso: dict[str, Any]) -> str:
@@ -695,7 +1063,9 @@ _PACIENTE_SIMULADO = Actor(
 # significaría que el orquestador puede ejecutar las herramientas de verdad, que es
 # exactamente lo que esta separación impide. Si cambian los plazos del protocolo, este
 # diccionario hay que tocarlo a mano.
-_PLAZO_SIMULADO = {1: "ahora", 2: "72 horas", 3: "7 días", 4: "sin cita"}
+# Los mismos plazos que usa la herramienta real, del mismo sitio: con una copia aparte
+# aquí, un cambio del protocolo dejaría al simulador evaluando otro plazo.
+_PLAZO_SIMULADO = plazos.TEXTO
 
 
 def _pide_simulacion(cuerpo: dict[str, Any]) -> bool:
@@ -797,7 +1167,7 @@ def _simular(
 
     decisiones: list[dict[str, Any]] = []
     resultado = bedrock_conversa.conversar(
-        sistema=agentes.instrucciones(
+        sistema=agentes.instrucciones_partidas(
             agente,
             actor=_PACIENTE_SIMULADO,
             # Un caso sintético que no se escribe en ninguna parte. Con `caso=None`,
@@ -991,6 +1361,16 @@ def _argumentos_simulados(
                 numero = min(int(maximo), numero)
             limpios[clave] = numero
             continue
+        if esquema.get("type") == "boolean":
+            # Como en la función de herramientas. Sin esto, un `false` llegaba como el
+            # texto «False», que es verdadero, y `orientacion_resuelta` en false cerraba
+            # el caso simulado.
+            limpios[clave] = (
+                valor
+                if isinstance(valor, bool)
+                else str(valor).strip().lower() in ("true", "1", "si", "sí", "yes")
+            )
+            continue
         texto = str(valor).strip()
         opciones = esquema.get("enum")
         if opciones and texto not in opciones:
@@ -1094,7 +1474,10 @@ def _simular_canalizar_caso(argumentos: dict[str, Any]) -> dict[str, Any]:
     # El nivel 4 es «sin cita» también en el real, y su `siguiente` no habla de
     # traspaso, así que aquí va el mismo texto: lo que se evalúa es cómo cierra el
     # triaje una duda de información, y con otra instrucción cerraría de otra forma.
+    # Los textos son copia de los de `herramientas/triaje.py`, que es otro paquete de
+    # despliegue y no se puede importar desde aquí.
     if nivel == 4:
+        resuelta = bool(argumentos.get("orientacion_resuelta"))
         return {
             "ok": True,
             "simulado": True,
@@ -1102,11 +1485,20 @@ def _simular_canalizar_caso(argumentos: dict[str, Any]) -> dict[str, Any]:
             "nivel_urgencia": nivel,
             "agendar": False,
             "plazo": _PLAZO_SIMULADO[4],
+            "cerrado": resuelta,
             "siguiente": (
-                f"Es una orientación sin cita. Dile a la persona que su consulta quedó "
-                f"registrada en el {centro} con lo que te contó, y que si quiere una "
-                "cita para hablarlo con alguien del centro, te lo diga aquí. No le "
-                "prometas cuándo ni cómo le van a responder."
+                "La duda quedó resuelta con la información de los centros y el caso se "
+                "cerró: no queda nada pendiente. Si la persona necesita algo más, lo "
+                "cuenta aquí y se le atiende desde el principio. No le prometas ningún "
+                "seguimiento."
+            )
+            if resuelta
+            else (
+                f"Es una orientación sin cita que no se resolvió con la información de los "
+                f"centros. Dile a la persona que su consulta quedó registrada en el {centro} "
+                "con lo que te contó, y que si quiere hablarlo con alguien del centro le "
+                "buscas una cita aquí mismo. No le digas que le van a responder por otra "
+                "vía: el centro ve el caso, pero no tiene cómo escribirle."
             ),
         }
 

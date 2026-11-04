@@ -380,6 +380,24 @@ label small {
   margin-top: 0.2rem;
 }
 
+/* «¿Olvidaste tu contraseña?» bajo el campo, alineado a la derecha como en casi
+   cualquier inicio de sesión: es donde la gente lo busca. */
+.acceso .olvido {
+  margin: -0.4rem 0 0.8rem;
+  text-align: right;
+}
+
+.acceso .titulo-recuperar {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+}
+
+.acceso .ayuda-recuperar {
+  margin: 0 0 0.9rem;
+  color: var(--tinta-suave);
+  font-size: 0.85rem;
+}
+
 /* La «o» entre entrar con contraseña y entrar con Google, con la línea partida por
    el texto. Es un `<p>` y no un `<hr>` con `::after` porque la palabra se lee: un
    separador decorativo dejaría los dos botones pareciendo una sola pila de opciones
@@ -1117,6 +1135,54 @@ label small {
   background: var(--rojo);
   color: #fff;
   border-color: transparent;
+}
+
+.etiqueta.e-no_asistio,
+.etiqueta.e-cancelada {
+  background: var(--ambar-claro);
+  color: var(--ambar);
+  border-color: transparent;
+}
+
+/* Sólo con dos o más casos abiertos: un problema distinto se tría en un caso aparte. */
+.selector-casos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2);
+  margin-bottom: var(--e-4);
+}
+
+.ficha-caso {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  max-width: 100%;
+  padding: 0.3rem 0.4rem 0.3rem 0.8rem;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  background: var(--papel-alto);
+  color: var(--tinta);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.ficha-caso .texto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ficha-caso.activa {
+  border-color: var(--primario);
+  background: var(--primario-suave);
+}
+
+.ficha-caso:focus-visible {
+  outline: 2px solid var(--primario);
+  outline-offset: 2px;
 }
 
 .nivel.n-1 {

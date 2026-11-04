@@ -55,3 +55,7 @@ _scratch/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- Expo (app movil) ---------------------------------------------------------
+.expo/
+expo-env.d.ts
