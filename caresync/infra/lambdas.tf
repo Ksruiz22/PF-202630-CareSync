@@ -50,8 +50,13 @@ resource "aws_lambda_function" "orquestador" {
 
   environment {
     variables = {
-      ENTORNO              = var.entorno
-      SSM_PREFIJO          = local.ssm_prefijo
+      ENTORNO     = var.entorno
+      SSM_PREFIJO = local.ssm_prefijo
+      # Nadie la lee: está para que cambiar de contrato reinicie las funciones. El
+      # contrato sale de Parameter Store y `config()` lo guarda por contenedor, así que
+      # sin esto los contenedores calientes seguían escribiendo en el contrato viejo
+      # después del apply, mientras la PWA ya leía del nuevo. Va en las tres funciones.
+      ROBLE_CONTRATO       = var.roble_contract_id
       MODELO_ID            = var.modelo_id
       GUARDRAIL_ID         = var.usar_guardrail ? aws_bedrock_guardrail.principal.guardrail_id : ""
       GUARDRAIL_VERSION    = var.usar_guardrail ? aws_bedrock_guardrail_version.publicada.version : ""
@@ -97,6 +102,7 @@ resource "aws_lambda_function" "herramientas" {
     variables = {
       ENTORNO         = var.entorno
       SSM_PREFIJO     = local.ssm_prefijo
+      ROBLE_CONTRATO  = var.roble_contract_id
       SES_CONJUNTO    = local.con_correo ? aws_sesv2_configuration_set.principal[0].configuration_set_name : ""
       MINUTOS_RESERVA = "2"
       NIVEL_LOG       = "INFO"
@@ -137,6 +143,7 @@ resource "aws_lambda_function" "recordatorios" {
     variables = {
       ENTORNO              = var.entorno
       SSM_PREFIJO          = local.ssm_prefijo
+      ROBLE_CONTRATO       = var.roble_contract_id
       SES_CONJUNTO         = local.con_correo ? aws_sesv2_configuration_set.principal[0].configuration_set_name : ""
       VENTANA_MINUTOS      = "20"
       HORAS_SIN_ADHERENCIA = "36"
