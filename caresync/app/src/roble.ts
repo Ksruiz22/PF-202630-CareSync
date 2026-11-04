@@ -267,9 +267,10 @@ export function olvidarSesion(): void {
  *   o expirado». De ahí que se lea al importar el módulo y se memorice la promesa:
  *   `StrictMode` monta los efectos dos veces en desarrollo.
  * - **Google devuelve a ROBLE**, no a la PWA: la URI registrada en la consola de
- *   Google es `https://roble-api.test-openlab.uninorte.edu.co/google/callback` —sin
- *   `/auth`, al contrario que la de GitHub en la misma pantalla—, y el intercambio
- *   con el secreto ocurre del lado de ROBLE. La PWA nunca ve el `client_secret`.
+ *   Google es `https://roble-api.openlab.uninorte.edu.co/auth/google/callback`, y el
+ *   intercambio con el secreto ocurre del lado de ROBLE. La PWA nunca ve el
+ *   `client_secret`. En test-openlab la misma URI iba **sin** `/auth`: cada instancia
+ *   la muestra en su consola, y se copia de ahí en vez de deducirla.
  * - **Google afirma si el correo está verificado**, así que ROBLE vincula la entrada
  *   a la cuenta que ya tenga ese correo en vez de crear una segunda. Entrar y
  *   registrarse son el mismo acto: no hay «cuenta de Google» aparte.
@@ -402,7 +403,7 @@ async function nombreEnRoble(): Promise<string> {
  * Cuál de los destinos registrados en la consola pedir.
  *
  * Son dos, y los nombres son los que están dados de alta en el proyecto
- * `caresync_cab021ce03`: `default` apunta a la PWA publicada en Amplify y `local` a
+ * `caresync_099060687b`: `default` apunta a la PWA publicada en Amplify y `local` a
  * `http://localhost:5173/`, para poder probar con `npm run dev`. Se elige por el
  * host y no por una variable de compilación porque el servidor de desarrollo no pasa
  * por `publicar_app.sh`, que es quien inyecta las variables.
@@ -443,20 +444,19 @@ function mensajeDeCuerpo(datos: unknown): string {
 // ------------------------------------------------------- recuperar la contraseña
 
 /*
- * **El correo apunta al ROBLE equivocado.** `forgotPassword` manda un enlace a
- * `roble.openlab.uninorte.edu.co/reset-password?token=…` —producción— aunque este
- * contrato vive en `test-openlab`. Esa página responde «token inválido o expirado»
- * siempre, porque el token no existe en su base. Comprobado el 2026-11-03 con tres
- * tokens: el mismo enlace cambiando el dominio a `roble.test-openlab…` funciona, y el
- * token enviado a `/auth/<contrato>/reset-password` en `test-openlab` —lo que hace el
- * SDK— también. Es configuración de ROBLE, no algo que se arregle desde aquí.
+ * **El correo de ROBLE enlaza siempre a su página de producción**,
+ * `roble.openlab.uninorte.edu.co/reset-password?token=…`. Mientras el contrato vivió en
+ * `test-openlab` esa página respondía «token inválido» siempre, porque el token no
+ * existía en su base. Por eso el contrato se migró a producción el 2026-11-04, donde el
+ * enlace del correo funciona con un clic (comprobado el 2026-11-03 con un proyecto
+ * vacío). Ver docs/runbook-roble.md.
  *
- * De ahí las dos entradas:
- * - **El token en la URL** (`?token=`, en cualquier ruta). Sirve el día en que el
- *   correo apunte a la PWA; Amplify ya devuelve `index.html` para `/reset-password`.
- * - **El enlace pegado**, para hoy: la persona copia la dirección del enlace sin
- *   abrirlo y la pega en la pantalla. `tokenDeEnlace` acepta el enlace, el enlace
- *   envuelto por Safe Links de Outlook o el token solo.
+ * Las dos entradas de aquí abajo se quedan aunque el clic ya funcione:
+ * - **El token en la URL** (`?token=`, en cualquier ruta). Sirve si algún día el correo
+ *   apunta a la PWA; Amplify ya devuelve `index.html` para `/reset-password`.
+ * - **El enlace pegado**: la persona copia la dirección del enlace y la pega en la
+ *   pantalla. `tokenDeEnlace` acepta el enlace, el enlace envuelto por Safe Links de
+ *   Outlook o el token solo. Es la salida si el correo vuelve a fallar.
  *
  * El token nunca va a la consola ni a un log, y se borra de la barra de direcciones
  * en cuanto se lee, por la misma razón que el `code` de Google.

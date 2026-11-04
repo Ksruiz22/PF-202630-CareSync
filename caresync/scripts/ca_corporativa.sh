@@ -35,7 +35,7 @@ hosts=(
   bedrock-runtime.us-east-1.amazonaws.com
   lambda.us-east-1.amazonaws.com
   amplify.us-east-1.amazonaws.com
-  roble-api.test-openlab.uninorte.edu.co
+  roble-api.openlab.uninorte.edu.co
   registry.npmjs.org
 )
 
