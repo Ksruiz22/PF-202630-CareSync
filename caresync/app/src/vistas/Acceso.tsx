@@ -72,9 +72,11 @@ export function Acceso() {
   const [nombre, setNombre] = useState('');
   const [propio, setPropio] = useState('');
   const [ocupado, setOcupado] = useState(false);
-  const [pantalla, setPantalla] = useState<Pantalla>(() =>
-    tokenDeRecuperacionEnLaUrl() ? 'nueva' : 'acceso'
-  );
+  // El token de la URL sirve para la primera visita a «Contraseña nueva» y nada más.
+  // Si se quedaba, quien abría un enlace vencido y pedía otro ya no veía el campo para
+  // pegar el nuevo: la pantalla seguía mandando el token viejo y fallaba siempre.
+  const [tokenDeUrl, setTokenDeUrl] = useState(tokenDeRecuperacionEnLaUrl);
+  const [pantalla, setPantalla] = useState<Pantalla>(() => (tokenDeUrl ? 'nueva' : 'acceso'));
   const [listo, setListo] = useState('');
 
   async function enviar(evento: FormEvent) {
@@ -144,15 +146,22 @@ export function Acceso() {
         />
       ) : pantalla === 'nueva' ? (
         <ContrasenaNueva
-          tokenInicial={tokenDeRecuperacionEnLaUrl()}
+          tokenInicial={tokenDeUrl}
           onCambiada={() => {
+            setTokenDeUrl(null);
             setModo('entrar');
             setPassword('');
             setListo('Listo: tu contraseña cambió. Ya puedes entrar con la nueva.');
             setPantalla('acceso');
           }}
-          onPedirOtro={() => setPantalla('pedir')}
-          onVolver={() => setPantalla('acceso')}
+          onPedirOtro={() => {
+            setTokenDeUrl(null);
+            setPantalla('pedir');
+          }}
+          onVolver={() => {
+            setTokenDeUrl(null);
+            setPantalla('acceso');
+          }}
         />
       ) : (
         <form onSubmit={enviar}>
