@@ -4,8 +4,11 @@
 entorno = "dev"
 region  = "us-east-1"
 
-roble_base_url    = "https://roble-api.test-openlab.uninorte.edu.co"
-roble_contract_id = "caresync_cab021ce03"
+# ROBLE producción desde el 2026-11-04. Antes era test-openlab (`caresync_cab021ce03`),
+# donde el correo de recuperación de contraseña no funciona: ver
+# docs/runbook-roble.md. Volver atrás es devolver estas dos líneas.
+roble_base_url    = "https://roble-api.openlab.uninorte.edu.co"
+roble_contract_id = "caresync_099060687b"
 
 # Rellenar con una dirección real y verificarla cuando llegue el correo de AWS.
 # Mientras esté vacío, el sistema registra los envíos en el log en lugar de

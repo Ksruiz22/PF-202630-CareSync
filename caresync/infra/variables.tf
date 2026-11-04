@@ -63,13 +63,13 @@ variable "usar_guardrail" {
 variable "roble_base_url" {
   description = "Host de la API de ROBLE."
   type        = string
-  default     = "https://roble-api.test-openlab.uninorte.edu.co"
+  default     = "https://roble-api.openlab.uninorte.edu.co"
 }
 
 variable "roble_contract_id" {
   description = "Identificador del proyecto (contrato) en la consola de ROBLE."
   type        = string
-  default     = "caresync_cab021ce03"
+  default     = "caresync_099060687b"
 }
 
 # ------------------------------------------------------------------ Correo

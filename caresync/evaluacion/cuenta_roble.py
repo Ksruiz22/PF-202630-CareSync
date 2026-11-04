@@ -50,8 +50,8 @@ ARCHIVO_ENTORNO = RAIZ / ".env"
 
 # Los mismos valores de `infra/dev.tfvars`. No son secretos: el contrato viaja en
 # cada URL que pide la PWA. Se pueden cambiar por entorno para otro despliegue.
-ROBLE_URL = "https://roble-api.test-openlab.uninorte.edu.co"
-ROBLE_CONTRATO = "caresync_cab021ce03"
+ROBLE_URL = "https://roble-api.openlab.uninorte.edu.co"
+ROBLE_CONTRATO = "caresync_099060687b"
 
 TIEMPO_ESPERA = 20
 CASO_CERRADO = "cerrado"
