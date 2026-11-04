@@ -3,12 +3,32 @@
 Todo lo operativo del lado de los datos. ROBLE (OPENLAB, Uninorte) guarda **todo** lo
 clínico: AWS no tiene ni una fila. Si algo va mal con los datos, se arregla aquí.
 
-- API: `https://roble-api.test-openlab.uninorte.edu.co`
-- Contrato: `caresync_cab021ce03`
+- API: `https://roble-api.openlab.uninorte.edu.co` (ROBLE producción)
+- Contrato: `caresync_099060687b`
+- Consola: `https://roble.openlab.uninorte.edu.co`
 
 Los dos valores viven en `infra/dev.tfvars` y de ahí los toman Terraform (para
 Parameter Store) y `scripts/esquema_roble.sh`. Un segundo sitio donde escribirlos
 sería un segundo sitio donde equivocarse.
+
+> **Migrado de test-openlab a producción el 2026-11-04.** El contrato anterior,
+> `caresync_cab021ce03` en `roble-api.test-openlab.uninorte.edu.co`, sigue existiendo
+> y tiene puesto el `aviso_global` de mantenimiento. No se borra en unas semanas: es la
+> vuelta atrás. El motivo es que el correo de recuperación de contraseña enlaza siempre
+> a la página de producción, y desde test-openlab respondía «token inválido».
+>
+> Se migró con un backup completo (`.roblebak`) importado como proyecto nuevo, que
+> conserva los `id` de los usuarios y sus contraseñas. **Dos trampas de la importación**,
+> por si hay que repetirla:
+>
+> - **Descarta las filas que tienen un `false` o un `0` en alguna columna**: horarios de
+>   los lunes, indicaciones desactivadas y reportes de «no la cumplí». Hay que contar las
+>   filas tabla por tabla en los dos lados y reinsertar las que falten conservando su
+>   `_id`. El 2026-11-04 fueron 9.
+> - **No trae la configuración de Google**: hay que poner de nuevo el ID de cliente, el
+>   secreto y los destinos de retorno.
+>
+> Los límites por IP medidos más abajo son de test-openlab; en producción están sin medir.
 
 ## Crear el esquema
 
@@ -385,17 +405,17 @@ aplicación le dice a la persona que está entrando a otra cosa. Dentro, *Client
 *Aplicación web*, y como URI de redirección autorizada **la de ROBLE, no la de la PWA**:
 
 ```
-https://roble-api.test-openlab.uninorte.edu.co/google/callback
+https://roble-api.openlab.uninorte.edu.co/auth/google/callback
 ```
 
-Sin `/auth`. Esto es una trampa verificada: en la misma pantalla de la consola de
-ROBLE, el `callback` de GitHub sí lleva `/auth/github/callback` y el de Google no. La
-consola lo muestra en un campo de sólo lectura; se copia de ahí y no se deduce. Están
-registradas las dos formas por seguro, pero la que usa el backend de la instancia de
-pruebas es la de arriba.
+**Con `/auth`** en producción. Es una trampa verificada: en test-openlab la misma URI va
+**sin** `/auth` (`…test-openlab…/google/callback`). La consola de cada instancia la
+muestra en un campo de sólo lectura; se copia de ahí y no se deduce. En el cliente de
+Google siguen registradas también las dos de test-openlab, para poder volver atrás sin
+tocar Google.
 
 **En la consola de ROBLE** (*Autenticación → Proveedores*, proyecto
-`caresync_cab021ce03`): el ID de cliente, el secreto y los destinos de retorno. El
+`caresync_099060687b`): el ID de cliente, el secreto y los destinos de retorno. El
 secreto **lo pega una persona**; Google lo muestra una sola vez y no se guarda en el
 repositorio ni en ningún archivo del proyecto. Los destinos son dos, y sus nombres son
 los que pide la PWA por su host:
