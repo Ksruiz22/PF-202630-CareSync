@@ -30,6 +30,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
+import { randomUUID } from 'node:crypto';
 import { createRobleClient } from 'roble-client';
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
@@ -551,6 +552,9 @@ async function principal() {
   const { email, password } = await credenciales();
 
   const cliente = createRobleClient({ baseUrl, contractId, timeoutMs: 30000 });
+  // El `_id` lo pone el script, como la PWA: ver `conId` en app/src/roble.ts.
+  const crearUna = cliente.create.bind(cliente);
+  cliente.create = (tabla, datos) => crearUna(tabla, { _id: randomUUID(), ...datos });
   await cliente.login({ email, password });
   console.log(`Sesión abierta como ${email}\n`);
 
