@@ -71,6 +71,26 @@ export const roble: RobleApiClient = createRobleClient({
   timeoutMs: 20000,
 });
 
+/*
+ * Toda fila nueva sale de aquí con su `_id` ya puesto.
+ *
+ * Al migrar a ROBLE producción el 2026-11-04, la importación del backup dejó las
+ * tablas sin el `DEFAULT gen_random_uuid()` del `_id`, y ROBLE rechazaba toda
+ * inserción con «Tipos inválidos: _id (esperado: uuid)». La consola no deja reponer un
+ * DEFAULT —sólo `ADD COLUMN`—, así que lo genera la aplicación. Se envuelve el cliente
+ * en un solo sitio en lugar de tocar cada `create`: así una pantalla nueva no puede
+ * olvidarlo. Si la fila ya trae `_id`, se respeta.
+ */
+function conId<T extends Record<string, unknown>>(fila: T): T & { _id: unknown } {
+  return { _id: crypto.randomUUID(), ...fila };
+}
+const crearUna = roble.create.bind(roble);
+const crearVarias = roble.createMany.bind(roble);
+roble.create = ((tabla: string, datos: Record<string, unknown>) =>
+  crearUna(tabla, conId(datos))) as typeof roble.create;
+roble.createMany = ((tabla: string, filas: Record<string, unknown>[]) =>
+  crearVarias(tabla, filas.map(conId))) as typeof roble.createMany;
+
 // El SDK refresca el access token por su cuenta cuando una petición de datos
 // responde 401. Sin este callback, el token renovado se quedaría sólo en memoria
 // y la siguiente recarga usaría el viejo, ya vencido.

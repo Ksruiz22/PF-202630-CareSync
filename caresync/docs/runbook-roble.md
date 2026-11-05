@@ -27,6 +27,16 @@ sería un segundo sitio donde equivocarse.
 >   `_id`. El 2026-11-04 fueron 9.
 > - **No trae la configuración de Google**: hay que poner de nuevo el ID de cliente, el
 >   secreto y los destinos de retorno.
+> - **Deja las tablas sin el `DEFAULT gen_random_uuid()` del `_id`**, y `ajustes` sin sus
+>   `UNIQUE` en `_id` y en `clave`. Sin el DEFAULT, ROBLE rechaza toda inserción que no
+>   traiga `_id` con «Tipos inválidos: _id (esperado: uuid)». La consola de producción no
+>   deja reponerlo («solo se permite ALTER TABLE para agregar columnas»), ni por SQL ni
+>   desde el editor de tablas, donde `_id` no tiene acciones. Por eso, **desde el
+>   2026-11-05 el `_id` lo genera el código**: `_crear` en `roble_acceso.py`, el cliente
+>   envuelto en `app/src/roble.ts` y en `movil/src/fuenteRoble.ts`, y
+>   `bootstrap_roble.mjs`. Funciona igual con o sin DEFAULT. Lo que sigue faltando es el
+>   `UNIQUE (clave)` de `ajustes`: dos administradores guardando a la vez la misma clave
+>   dejarían dos filas. Reponerlo es cosa de quien mantiene ROBLE.
 >
 > Los límites por IP medidos más abajo son de test-openlab; en producción están sin medir.
 

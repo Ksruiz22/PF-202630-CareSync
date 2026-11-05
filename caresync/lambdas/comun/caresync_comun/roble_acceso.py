@@ -405,6 +405,12 @@ class AccesoRoble:
             raise ErrorDeDatos(f"ROBLE no respondió leyendo {tabla}") from exc
 
     def _crear(self, tabla: str, datos: dict[str, Any]) -> dict[str, Any]:
+        # El `_id` lo pone el código y no la base. Al migrar a ROBLE producción el
+        # 2026-11-04, la importación del backup dejó todas las tablas sin el `DEFAULT
+        # gen_random_uuid()`, y ROBLE rechazaba cada inserción con «Tipos inválidos:
+        # _id (esperado: uuid)». La consola no deja reponer un DEFAULT —sólo `ADD
+        # COLUMN`—, así que se genera aquí. Con o sin DEFAULT en la tabla funciona igual.
+        datos = {"_id": str(uuid.uuid4()), **datos}
         try:
             return self._db.create(tabla, datos)
         except RobleAuthError as exc:
