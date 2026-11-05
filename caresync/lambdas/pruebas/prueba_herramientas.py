@@ -689,6 +689,36 @@ def probar_sesion_vencida() -> None:
     comprobar("y actualizar", lanza(NoAutorizado, acceso._actualizar, "casos", "c-1", {}) is not None)
 
 
+def probar_id_al_crear() -> None:
+    print("\nToda fila nueva sale con su _id")
+
+    class _Guarda:
+        """El SDK sin red: guarda lo que se le pide crear."""
+
+        def __init__(self) -> None:
+            self.creadas: list[dict[str, Any]] = []
+
+        def create(self, tabla: str, datos: dict[str, Any]) -> dict[str, Any]:
+            self.creadas.append(datos)
+            return datos
+
+    cliente = _Guarda()
+    acceso = roble_acceso.AccesoRoble(cliente, ActorFalso("paciente"))
+    acceso._crear("eventos", {"tipo": "prueba"})
+    acceso._crear("eventos", {"tipo": "prueba"})
+    primera, segunda = (fila.get("_id") for fila in cliente.creadas)
+
+    # En ROBLE producción las tablas no tienen el DEFAULT del _id: sin esto, cada
+    # inserción vuelve con «Tipos inválidos: _id (esperado: uuid)».
+    comprobar("lleva un _id que es un UUID", roble_acceso.es_uuid(primera), str(primera))
+    comprobar("distinto en cada fila", primera != segunda)
+    comprobar("y no se come los demás campos", cliente.creadas[0].get("tipo") == "prueba")
+
+    acceso._crear("eventos", {"_id": "5eed0000-0000-4000-8000-000000000099", "tipo": "prueba"})
+    comprobar("un _id que ya viene se respeta",
+              cliente.creadas[-1]["_id"] == "5eed0000-0000-4000-8000-000000000099")
+
+
 def main() -> int:
     for prueba in (
         probar_escalar_urgencia,
@@ -706,6 +736,7 @@ def main() -> int:
         probar_subir_urgencia,
         probar_nuevo_motivo,
         probar_sesion_vencida,
+        probar_id_al_crear,
     ):
         prueba()
 
