@@ -31,9 +31,9 @@ import os
 from datetime import datetime, timedelta
 from typing import Any
 
-from caresync_comun import correo, reloj
+from caresync_comun import correo, frecuencia, reloj
 from caresync_comun.errores import ErrorDeCareSync
-from caresync_comun.frecuencia import intervalo
+from caresync_comun.frecuencia import intervalo, siguiente_momento
 from caresync_comun.registro import evento, excepcion, registro
 from caresync_comun.roble_acceso import (
     CASO_CERRADO,
@@ -48,11 +48,6 @@ VENTANA_MINUTOS = int(os.environ.get("VENTANA_MINUTOS", "20"))
 HORAS_SIN_ADHERENCIA = int(os.environ.get("HORAS_SIN_ADHERENCIA", "36"))
 DIAS_SIN_EVOLUCION = int(os.environ.get("DIAS_SIN_EVOLUCION", "3"))
 MINUTOS_RESERVA = int(os.environ.get("MINUTOS_RESERVA", "2"))
-
-# Ningún recordatorio sale de madrugada. Un correo a las 3 a.m. no ayuda a nadie
-# a tomarse algo y sí enseña a la persona a ignorar los avisos.
-HORA_MINIMA = 7
-HORA_MAXIMA = 20
 
 # Tope por invocación. Con los volúmenes de un prototipo no se alcanza; está para
 # que un error de datos no convierta una corrida en cientos de correos.
@@ -137,15 +132,23 @@ def _materializar(acceso: AccesoRoble) -> dict[str, Any]:
         if any(r.get("estado") == "pendiente" for r in existentes):
             continue
 
-        intervalo = _intervalo(indicacion.get("frecuencia"))
-        if not intervalo:
+        # A qué hora, lo decide la regla compartida con la app (`frecuencia`):
+        # las horas que fijó el profesional o, sin ellas, la ventana de 8:00 a 19:00.
+        # Antes se sumaba el intervalo a la última y se corría a las 7:00 si caía de
+        # noche: «cada 8 horas» se iba desplazando día a día, y la app, que calcula
+        # sus tomas por su lado, preguntaba a otras horas que el correo.
+        ultimo = _ultimo_programado(existentes)
+        pronto = reloj.ahora() + timedelta(minutes=5)
+        cuando = siguiente_momento(
+            indicacion.get("frecuencia"),
+            indicacion.get("horas"),
+            reloj.desde_iso(indicacion.get("creado_en")),
+            max(ultimo, pronto) if ultimo else pronto,
+        )
+        if not cuando:
             # Una indicación de una sola vez ("acude al control") no genera serie.
             omitidos += 1
             continue
-
-        ultimo = _ultimo_programado(existentes)
-        base = (ultimo + intervalo) if ultimo else reloj.ahora() + intervalo
-        cuando = _hora_decente(max(base, reloj.ahora() + timedelta(minutes=5)))
 
         acceso.programar_recordatorio(
             caso_id=caso_id,
@@ -189,20 +192,6 @@ def _ultimo_programado(recordatorios: list[dict[str, Any]]) -> datetime | None:
         if m is not None
     ]
     return max(momentos) if momentos else None
-
-
-def _hora_decente(momento: datetime) -> datetime:
-    """Empuja un instante a la siguiente hora razonable en Bogotá."""
-    local = reloj.en_bogota(momento)
-    if local is None:
-        return momento
-    if local.hour < HORA_MINIMA:
-        local = local.replace(hour=HORA_MINIMA, minute=0, second=0, microsecond=0)
-    elif local.hour >= HORA_MAXIMA:
-        local = (local + timedelta(days=1)).replace(
-            hour=HORA_MINIMA, minute=0, second=0, microsecond=0
-        )
-    return local
 
 
 # ------------------------------------------------------------------ 3. enviar
