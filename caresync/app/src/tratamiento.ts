@@ -13,7 +13,7 @@
 
 import type { TipoIndicacion } from './tipos';
 
-export type CampoDeTipo = 'duracion_dias' | 'plazo_dias' | 'sesiones' | 'centro_destino';
+export type CampoDeTipo = 'duracion_dias' | 'plazo_dias' | 'sesiones' | 'centro_destino' | 'horas';
 export type CentroDestino = 'CMU' | 'CAE' | 'externo';
 
 export const TIPOS: Array<{ valor: TipoIndicacion; etiqueta: string }> = [
@@ -30,16 +30,16 @@ export const TIPOS: Array<{ valor: TipoIndicacion; etiqueta: string }> = [
 ];
 
 export const CAMPOS_POR_TIPO: Record<TipoIndicacion, CampoDeTipo[]> = {
-  medicamento: ['duracion_dias'],
-  autocuidado: ['duracion_dias'],
-  tarea: ['duracion_dias'],
+  medicamento: ['duracion_dias', 'horas'],
+  autocuidado: ['duracion_dias', 'horas'],
+  tarea: ['duracion_dias', 'horas'],
   control: ['plazo_dias', 'centro_destino'],
   sesiones: ['sesiones', 'centro_destino'],
   examen: ['plazo_dias'],
   remision: ['plazo_dias', 'centro_destino'],
   vigilancia: [],
   reposo: ['duracion_dias'],
-  otro: ['duracion_dias'],
+  otro: ['duracion_dias', 'horas'],
 };
 
 export const CENTROS_DESTINO: Array<{ valor: CentroDestino; etiqueta: string }> = [
@@ -54,6 +54,7 @@ export const ETIQUETA_DEL_CAMPO: Record<CampoDeTipo, string> = {
   plazo_dias: 'En (días)',
   sesiones: 'Sesiones',
   centro_destino: 'Dónde',
+  horas: 'A las',
 };
 
 export function esTipo(valor: unknown): valor is TipoIndicacion {
