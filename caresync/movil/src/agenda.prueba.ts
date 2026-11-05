@@ -73,18 +73,32 @@ prueba('un momento sin zona se lee como UTC, no como hora del teléfono', () => 
   assert.equal(fecha(null), null);
 });
 
-prueba('cada 8 horas son tres tomas, y la de la noche se pregunta a las 22:00', () => {
+prueba('cada 8 horas: desde las 8:00, y lo que cae después de las 19:00 no se pregunta', () => {
   const momentos = momentosDelDia(indicacion({ frecuencia: 'cada 8 horas' }), AHORA);
-  assert.equal(momentos.length, 3);
+  // 8:00 y 16:00 de Bogotá, las mismas horas de los correos (`frecuencia.py`).
   assert.deepEqual(
     momentos.map((m) => m.toISOString()),
-    ['2026-10-30T12:00:00.000Z', '2026-10-30T20:00:00.000Z', '2026-10-31T03:00:00.000Z']
+    ['2026-10-30T13:00:00.000Z', '2026-10-30T21:00:00.000Z']
   );
+});
+
+prueba('3 veces al día se reparten entre las 8:00 y las 19:00', () => {
+  const momentos = momentosDelDia(indicacion({ frecuencia: '3 veces al día' }), AHORA);
+  assert.deepEqual(momentos.map(horaDe), [horaDe(new Date('2026-10-30T13:00:00Z')),
+    horaDe(new Date('2026-10-30T18:30:00Z')), horaDe(new Date('2026-10-31T00:00:00Z'))]);
+});
+
+prueba('las horas del profesional mandan, también sin frecuencia', () => {
+  const momentos = momentosDelDia(indicacion({ frecuencia: 'cada 8 horas', horas: '06:00,22:00' }), AHORA);
+  assert.deepEqual(momentos.map((m) => m.toISOString()), ['2026-10-30T11:00:00.000Z', '2026-10-31T03:00:00.000Z']);
+  const solas = indicacion({ frecuencia: '', horas: '7 y 19' });
+  assert.equal(momentosDelDia(solas, AHORA).length, 2);
+  assert.equal(acompanamientoDe(solas), 'toma');
 });
 
 prueba('no se pregunta por lo anterior a que existiera la indicación', () => {
   const creada = indicacion({ frecuencia: 'cada 8 horas', creado_en: '2026-10-30T14:00:00Z' });
-  assert.equal(momentosDelDia(creada, AHORA).length, 2);
+  assert.equal(momentosDelDia(creada, AHORA).length, 1);
 });
 
 prueba('cada dos días sólo pregunta los días que le tocan', () => {
@@ -115,14 +129,15 @@ prueba('un reporte se empareja con su toma y no con la de al lado', () => {
   const reporte: Adherencia = {
     indicacion_id: 'i1',
     cumplida: true,
-    programado_para: '2026-10-30T12:00:00.000Z',
-    reportado_en: '2026-10-30T12:30:00Z',
+    // La de las 8:00 de Bogotá; la otra del día es la de las 16:00.
+    programado_para: '2026-10-30T13:00:00.000Z',
+    reportado_en: '2026-10-30T13:30:00Z',
     origen: 'app',
   };
   const tomas = tomasDelDia([base], [reporte], AHORA, AHORA);
   assert.deepEqual(
     tomas.map((t) => t.estado),
-    ['cumplida', 'pendiente', 'pendiente']
+    ['cumplida', 'pendiente']
   );
 });
 
@@ -131,14 +146,14 @@ prueba('un reporte releído de ROBLE, sin zona ni segundos, sigue emparejando', 
   const releido: Adherencia = {
     indicacion_id: 'i1',
     cumplida: true,
-    programado_para: '2026-10-30T20:00',
-    reportado_en: '2026-10-30T20:03',
+    programado_para: '2026-10-30T21:00',
+    reportado_en: '2026-10-30T21:03',
     origen: 'app',
   };
   const tomas = tomasDelDia([base], [releido], AHORA, AHORA);
   assert.deepEqual(
     tomas.map((t) => t.estado),
-    ['pendiente', 'cumplida', 'pendiente']
+    ['pendiente', 'cumplida']
   );
 });
 

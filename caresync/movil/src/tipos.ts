@@ -52,6 +52,8 @@ export interface Indicacion extends Fila {
   plazo_dias?: number | string | null;
   sesiones?: number | string | null;
   centro_destino?: string | null;
+  /** «06:00,18:00», las horas que fijó el profesional. Nulo: de 8:00 a 19:00. */
+  horas?: string | null;
 }
 
 export interface Adherencia extends Fila {
