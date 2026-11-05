@@ -15,6 +15,7 @@
  * Nada de esto crea ni cambia una indicación: el plan sigue siendo del profesional.
  */
 
+import * as Crypto from 'expo-crypto';
 import { createRobleClient, RobleApiHttpException } from 'roble-client';
 import { almacen } from './almacen';
 import { fecha } from './agenda';
@@ -48,6 +49,13 @@ const roble = createRobleClient({
   contractId: CONTRACT_ID ?? '',
   timeoutMs: 20000,
 });
+
+// El `_id` lo pone la app: en ROBLE producción las tablas no tienen el DEFAULT que lo
+// generaba. Ver el comentario de `conId` en `app/src/roble.ts`. `expo-crypto` y no
+// `crypto.randomUUID`, que Hermes no trae en el teléfono.
+const crearUna = roble.create.bind(roble);
+roble.create = ((tabla: string, datos: Record<string, unknown>) =>
+  crearUna(tabla, { _id: Crypto.randomUUID(), ...datos })) as typeof roble.create;
 
 async function guardarSesion(): Promise<void> {
   const { accessToken, refreshToken } = roble;
