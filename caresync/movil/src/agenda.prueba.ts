@@ -16,7 +16,8 @@ import {
   sigueVigente,
   tomasDelDia,
 } from './agenda';
-import type { Adherencia, Indicacion } from './tipos';
+import { avisosDe } from './avisos';
+import type { Adherencia, Indicacion, Tratamiento } from './tipos';
 
 const H = 60 * 60 * 1000;
 const D = 24 * H;
@@ -201,6 +202,28 @@ prueba('sin plan decide el orquestador: un triaje a medias no se salta', () => {
   assert.equal(agenteParaMensaje({ plan: null, caso: { estado: 'canalizado' } }), undefined);
   assert.equal(agenteParaMensaje({ plan: {}, caso: { estado: 'agendado' } }), 'seguimiento');
   assert.equal(agenteParaMensaje({ plan: {}, caso: { estado: 'urgencia_escalada' } }), undefined);
+});
+
+prueba('la cita se avisa 24 y 2 horas antes, una sola vez aunque la Lambda la anote', () => {
+  const cita = { _id: 'k1', caso_id: 'c1', estado: 'confirmada', inicio: '2026-10-31T21:00:00Z' };
+  const tratamiento = {
+    caso: { _id: 'c1', estado: 'agendado' },
+    plan: null,
+    indicaciones: [],
+    adherencias: [],
+    evoluciones: [],
+    citas: [cita],
+    // Las dos filas que escribe la Lambda de recordatorios para el correo, desde el 6/11.
+    recordatorios: [
+      { _id: 'r1', caso_id: 'c1', indicacion_id: '', cita_id: 'k1', estado: 'pendiente', programado_para: '2026-10-30T21:00:00Z' },
+      { _id: 'r2', caso_id: 'c1', indicacion_id: '', cita_id: 'k1', estado: 'pendiente', programado_para: '2026-10-31T19:00:00Z' },
+    ],
+    turnos: [],
+  } as unknown as Tratamiento;
+  assert.deepEqual(
+    avisosDe([tratamiento], AHORA).map((a) => a.clave),
+    ['cita|k1|24', 'cita|k1|2']
+  );
 });
 
 console.log(`\n${pasaron} pruebas pasan.`);

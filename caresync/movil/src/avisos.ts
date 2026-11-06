@@ -65,10 +65,14 @@ export function avisosDe(tratamientos: Tratamiento[], ahora: Date, dias = 3): Av
 
     // Lo que dejó la Lambda de reloj, cuando corre. Las tomas ya salen de arriba, así que
     // de esa tabla sólo se suma lo que no sea de una indicación que ya se está calculando.
+    // Tampoco los avisos de cita: desde el 6/11 la Lambda escribe los mismos dos de
+    // arriba para mandarlos por correo, y sin este salto la cita se anunciaba dos veces,
+    // la segunda como «Recordatorio de tu plan».
     const calculadas = new Set(vigentes.map(idDe));
     for (const fila of recordatorios) {
       const momento = fecha(fila.programado_para);
       if (!momento || momento <= ahora || fila.estado !== 'pendiente') continue;
+      if (fila.cita_id) continue;
       if (calculadas.has(String(fila.indicacion_id ?? ''))) continue;
       avisos.push({
         clave: `recordatorio|${idDe(fila)}`,
