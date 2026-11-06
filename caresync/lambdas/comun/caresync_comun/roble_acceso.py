@@ -647,9 +647,11 @@ class AccesoRoble:
         ya no está en la fila.
 
         No es serialización perfecta —hay una ventana en la que ambas ven
-        `libre`—, pero sí garantiza que **nunca queden dos citas sobre el mismo
-        cupo**, que es la propiedad que importa. La consecuencia visible para el
-        perdedor es un 409 y una lista de alternativas, no una doble reserva.
+        `libre`—, y el testigo solo no garantiza que **nunca queden dos citas sobre
+        el mismo cupo**, que es la propiedad que importa: si la escritura del segundo
+        llega cuando el primero ya releyó, los dos confirman. Lo que cierra esa
+        ventana es `ceder_si_hay_otra`, después de confirmar. La consecuencia
+        visible para el perdedor es una lista de alternativas, no una doble reserva.
         """
         actual = self.cupo(cupo_id)
         if actual.get("estado") == CUPO_CONFIRMADO:
@@ -733,6 +735,50 @@ class AccesoRoble:
             cupo_id,
             {"estado": CUPO_LIBRE, "caso_id": None, "reserva_testigo": None, "reservado_en": None},
         )
+
+    def ceder_si_hay_otra(self, cita: dict[str, Any], *, caso_id: str) -> bool:
+        """Después de confirmar: si el cupo tiene otra cita confirmada, ésta cede. Dice si cedió.
+
+        Es la mitad «reconciliar» de *reservar, releer y reconciliar*. El testigo de
+        `reservar_cupo` cierra casi toda la carrera, pero no toda: si dos intentos leen
+        `libre` y la escritura del segundo llega cuando el primero ya releyó su testigo
+        y pasó la comprobación de `confirmar_cita`, los dos crean su cita. Hace falta
+        que una petición a ROBLE tarde mucho más que la otra, y M4 no lo vio en 10
+        pares simultáneos (`evaluacion/informes/2026-11-05-concurrencia-*.md`),
+        pero lo que la agenda promete es que no haya dos citas sobre un cupo, no que
+        sea raro.
+
+        La regla no depende del reloj de nadie: **quien ve otra cita confirmada sobre su
+        cupo, cede**. Cada intento relee después de crear la suya, así que el que creó
+        la segunda siempre ve la primera. Si los dos se ven, ceden los dos: ninguna
+        persona se queda con el cupo, que es mejor que dos en la misma hora, y las dos
+        reciben alternativas. El último en ceder devuelve el cupo a la agenda.
+
+        Arregla también lo que dejaba el fallo anterior a este método: una cita
+        confirmada sobre un cupo que había vuelto a `libre`. Quien lo tome después verá
+        esa cita y cederá, en vez de sentar a dos personas en la misma hora.
+        """
+        cita_id = fila_id(cita)
+        cupo_id = str(cita.get("cupo_id") or "")
+        if not cita_id or not es_uuid(cupo_id):
+            return False
+
+        def confirmadas() -> list[dict[str, Any]]:
+            return [c for c in self._leer(CITAS, {"cupo_id": cupo_id}) if c.get("estado") == CITA_CONFIRMADA]
+
+        if not [c for c in confirmadas() if fila_id(c) != cita_id]:
+            return False
+
+        self._actualizar(CITAS, str(cita_id), {"estado": CITA_CANCELADA})
+        evento(log, "cita_cedida", caso_id=caso_id, cupo_id=cupo_id, cita_id=cita_id)
+        quedan = confirmadas()
+        if quedan:
+            # El cupo es de la cita que queda; `reservar_cupo` pudo dejar escrito el
+            # caso de quien cedió, que fue el último en reservar.
+            self._actualizar(CUPOS, cupo_id, {"estado": CUPO_CONFIRMADO, "caso_id": quedan[0].get("caso_id")})
+        else:
+            self.liberar_cupo(cupo_id)
+        return True
 
     def liberar_reservas_vencidas(self, *, minutos: int = 2) -> int:
         """Devuelve a `libre` los cupos reservados que nadie confirmó.

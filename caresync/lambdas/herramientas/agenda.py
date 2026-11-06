@@ -28,6 +28,8 @@ from caresync_comun.roble_acceso import (
     CASO_AGENDADO,
     CASO_CANALIZADO,
     CITA_CANCELADA,
+    CITA_CONFIRMADA,
+    CUPO_RESERVADO,
     AccesoRoble,
     cita_por_delante,
     fila_id,
@@ -577,33 +579,64 @@ def _reservar_y_confirmar(
     caso_id = str(fila_id(caso))
     cupo_id = str(fila_id(cupo))
 
-    try:
-        acceso.reservar_cupo(cupo_id=cupo_id, caso_id=caso_id)
-    except Conflicto as exc:
+    def tomado(publico: str) -> dict[str, Any]:
         # Perder la carrera no es un error para la persona: es «ese ya lo
         # tomaron, mira estos». Se devuelve como resultado y no como excepción
         # para que el modelo tenga las alternativas en la misma vuelta.
-        evento(log, "reserva_en_conflicto", caso_id=caso_id, cupo_id=cupo_id)
-        return None, {
-            "error": exc.publico,
+        return {
+            "error": publico,
             "motivo": "espacio_tomado",
             "alternativas": [_opcion(acceso, c) for c in _alternativas(acceso, caso=caso, centro=centro)],
             "instruccion": "Ofrece las alternativas. No vuelvas a intentar el mismo espacio.",
         }
 
     try:
-        return (
-            acceso.confirmar_cita(cupo_id=cupo_id, caso_id=caso_id, tipo=tipo, indicacion_id=indicacion_id),
-            None,
-        )
+        acceso.reservar_cupo(cupo_id=cupo_id, caso_id=caso_id)
+    except Conflicto as exc:
+        evento(log, "reserva_en_conflicto", caso_id=caso_id, cupo_id=cupo_id)
+        return None, tomado(exc.publico)
+
+    try:
+        cita = acceso.confirmar_cita(cupo_id=cupo_id, caso_id=caso_id, tipo=tipo, indicacion_id=indicacion_id)
+    except Conflicto as exc:
+        # Entre releer el testigo y confirmar, otro intento escribió el suyo: el cupo ya
+        # es de otro caso. Hasta el 5/11 se liberaba aquí como ante cualquier fallo, y
+        # eso borraba la reserva del otro o, si ya había confirmado, dejaba libre un
+        # cupo con su cita encima para que un tercero lo tomara.
+        evento(log, "confirmacion_en_conflicto", caso_id=caso_id, cupo_id=cupo_id)
+        return None, tomado(exc.publico)
     except Exception:
-        # Si la confirmación falla, el cupo queda reservado y bloqueado. Se
-        # libera aquí en lugar de esperar el barrido de los 15 minutos.
-        try:
-            acceso.liberar_cupo(cupo_id)
-        except Exception:  # noqa: BLE001
-            evento(log, "cupo_no_liberado", cupo_id=cupo_id)
+        # Si la confirmación falla por otra cosa, el cupo queda reservado y bloqueado.
+        # Se libera aquí en lugar de esperar el barrido, si sigue siendo de este caso.
+        _liberar_si_es_del_caso(acceso, cupo_id=cupo_id, caso_id=caso_id)
         raise
+
+    if acceso.ceder_si_hay_otra(cita, caso_id=caso_id):
+        # `confirmar_cita` ya movió el caso a `agendado`; vuelve a como estaba.
+        if caso.get("estado") and caso.get("estado") != CASO_AGENDADO:
+            acceso.actualizar_caso(caso_id, {"estado": caso["estado"]})
+        return None, tomado(Conflicto.publico)
+    return cita, None
+
+
+def _liberar_si_es_del_caso(acceso: AccesoRoble, *, cupo_id: str, caso_id: str) -> None:
+    """Devuelve a la agenda un cupo que este caso dejó reservado, y ninguno más.
+
+    No se libera el cupo de otro caso, ni uno sobre el que este caso alcanzó a crear su
+    cita: los dos dejarían una cita confirmada sobre un cupo libre.
+    """
+    try:
+        cupo = acceso.cupo(cupo_id)
+        if cupo.get("caso_id") != caso_id or cupo.get("estado") != CUPO_RESERVADO:
+            return
+        if any(
+            c.get("cupo_id") == cupo_id and c.get("estado") == CITA_CONFIRMADA
+            for c in acceso.citas_del_caso(caso_id)
+        ):
+            return
+        acceso.liberar_cupo(cupo_id)
+    except Exception:  # noqa: BLE001 - el barrido de reservas vencidas lo recoge
+        evento(log, "cupo_no_liberado", cupo_id=cupo_id)
 
 
 def _citas_por_delante(acceso: AccesoRoble, caso_id: str) -> list[dict[str, Any]]:
