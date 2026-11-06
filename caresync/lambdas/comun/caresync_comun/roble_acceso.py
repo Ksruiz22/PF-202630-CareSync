@@ -805,6 +805,16 @@ class AccesoRoble:
     def citas_del_profesional(self, user_id: str) -> list[dict[str, Any]]:
         return self._leer(CITAS, {"profesional_user_id": user_id})
 
+    def citas_confirmadas(self) -> list[dict[str, Any]]:
+        """Todas las citas en firme, pasadas o no: `read` no filtra por rango."""
+        return self._leer(CITAS, {"estado": CITA_CONFIRMADA})
+
+    def cita(self, cita_id: str) -> dict[str, Any] | None:
+        if not es_uuid(cita_id):
+            return None
+        filas = self._leer(CITAS, {"_id": cita_id})
+        return filas[0] if filas else None
+
     def cancelar_cita(self, cita: dict[str, Any]) -> bool:
         """Cancela la cita y devuelve su cupo a la agenda. Dice si el cupo volvió.
 
@@ -925,21 +935,32 @@ class AccesoRoble:
     def recordatorios_de_indicacion(self, indicacion_id: str) -> list[dict[str, Any]]:
         return self._leer(RECORDATORIOS, {"indicacion_id": indicacion_id})
 
+    def recordatorios_de_cita(self, cita_id: str) -> list[dict[str, Any]]:
+        return self._leer(RECORDATORIOS, {"cita_id": cita_id})
+
     def programar_recordatorio(
-        self, *, caso_id: str, indicacion_id: str, cuando: datetime, texto: str
+        self,
+        *,
+        caso_id: str,
+        indicacion_id: str,
+        cuando: datetime,
+        texto: str,
+        cita_id: str | None = None,
     ) -> dict[str, Any]:
-        return self._crear(
-            RECORDATORIOS,
-            {
-                "caso_id": caso_id,
-                "indicacion_id": indicacion_id,
-                "programado_para": reloj.iso(cuando),
-                "estado": "pendiente",
-                "canal": "correo",
-                "texto": texto[:500],
-                "creado_en": reloj.iso(),
-            },
-        )
+        datos = {
+            "caso_id": caso_id,
+            "indicacion_id": indicacion_id,
+            "programado_para": reloj.iso(cuando),
+            "estado": "pendiente",
+            "canal": "correo",
+            "texto": texto[:500],
+            "creado_en": reloj.iso(),
+        }
+        if cita_id:
+            # El aviso de una cita lleva `indicacion_id` vacío y no nulo: la columna no
+            # admite nulo y la consola de ROBLE no deja cambiarlo.
+            datos["cita_id"] = cita_id
+        return self._crear(RECORDATORIOS, datos)
 
     def marcar_recordatorio(self, recordatorio_id: str, *, estado: str, detalle: str = "") -> None:
         self._actualizar(

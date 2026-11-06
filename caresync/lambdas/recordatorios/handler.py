@@ -14,7 +14,8 @@ bloqueada porque el envío de un correo se cayera.
 2. **Materializar.** Convierte las indicaciones activas del plan en
    recordatorios con fecha y hora concretas. Se hace por adelantado y en la base
    —y no calculando al vuelo— para que quede rastro de qué se le prometió a la
-   persona y cuándo.
+   persona y cuándo. Las citas confirmadas de los dos días siguientes reciben aquí
+   también sus dos avisos, 24 y 2 horas antes (`_materializar_citas`).
 3. **Enviar.** Manda los que ya toca y los marca.
 4. **Vigilar.** Busca silencios: indicaciones sin reporte y casos sin evolución.
    Un silencio no es una alarma clínica, pero sí es lo que el profesional
@@ -36,6 +37,7 @@ from caresync_comun.frecuencia import intervalo
 from caresync_comun.registro import evento, excepcion, registro
 from caresync_comun.roble_acceso import (
     CASO_CERRADO,
+    CITA_CONFIRMADA,
     AccesoRoble,
     fila_id,
 )
@@ -74,6 +76,7 @@ def manejar(entrada: dict[str, Any] | None = None, contexto: Any = None) -> dict
         for nombre, tarea in (
             ("reconciliar", _reconciliar),
             ("materializar", _materializar),
+            ("materializar_citas", _materializar_citas),
             ("enviar", _enviar),
             ("vigilar", _vigilar),
         ):
@@ -231,10 +234,18 @@ def _enviar(acceso: AccesoRoble) -> dict[str, Any]:
             )
             continue
 
-        salio = correo.enviar(
-            para=str(caso.get("paciente_email") or ""),
-            asunto="[CareSync] Recordatorio de tu plan",
-            cuerpo="\n".join(
+        cita_id = str(recordatorio.get("cita_id") or "")
+        if cita_id:
+            cita = _cita_en_pie(acceso, cita_id)
+            if not cita:
+                acceso.marcar_recordatorio(
+                    recordatorio_id, estado="cancelado", detalle="la cita ya no está en pie"
+                )
+                continue
+            asunto, cuerpo = _correo_de_la_cita(caso, cita)
+        else:
+            asunto = "[CareSync] Recordatorio de tu plan"
+            cuerpo = "\n".join(
                 [
                     f"Hola {caso.get('paciente_nombre') or ''}".strip() + ",",
                     "",
@@ -243,7 +254,10 @@ def _enviar(acceso: AccesoRoble) -> dict[str, Any]:
                     "Cuando puedas, entra a CareSync y cuéntanos si lo cumpliste. "
                     "Con eso el profesional sabe cómo vas.",
                 ]
-            ),
+            )
+
+        salio = correo.enviar(
+            para=str(caso.get("paciente_email") or ""), asunto=asunto, cuerpo=cuerpo
         )
 
         # `enviado` aunque el correo no salga: el estado describe que esta
@@ -352,3 +366,96 @@ def _ya_anotado(acceso: AccesoRoble, caso_id: str, tipo: str, desde: datetime) -
         if cuando and cuando > desde:
             return True
     return False
+
+
+# ------------------------------------------------- avisos de las citas (A6)
+#
+# Hasta el 6/11 nada le recordaba la cita a quien no tuviera la app móvil: la
+# confirmación salía al agendar y después silencio, a veces por una semana. La app
+# calcula por su cuenta los mismos dos avisos (`movil/src/avisos.ts`); estos son los
+# del correo, que le llegan también a quien sólo usa la PWA.
+
+# Los mismos dos de la app. Si fueran otros, el correo y la notificación del teléfono
+# anunciarían la misma cita a horas distintas.
+AVISOS_DE_CITA = (timedelta(hours=24), timedelta(hours=2))
+
+# Los avisos se escriben cuando la cita entra en los dos días siguientes, no al
+# agendarla. Así la función no lee cada 15 minutos los recordatorios de todas las
+# citas del mes, y una cita cancelada antes de esa ventana no deja filas que anular.
+HORIZONTE_CITAS = timedelta(hours=48)
+
+
+def _materializar_citas(acceso: AccesoRoble) -> dict[str, Any]:
+    """Escribe los avisos de 24 y 2 horas de cada cita en firme de los dos días siguientes.
+
+    Se miran las citas y no se engancha el aviso a `agendar_cita`, por dos razones:
+    las citas también las crea la PWA, y una cita cancelada o cambiada de hora no
+    necesita que nadie se acuerde de anular sus avisos. Cambiar la hora crea una cita
+    nueva y cancela la anterior; los avisos de la anterior se descartan al enviarlos
+    (`_cita_en_pie`) y la nueva recibe los suyos en la corrida siguiente.
+    """
+    ahora = reloj.ahora()
+    creados = 0
+    for cita in acceso.citas_confirmadas():
+        cita_id = str(fila_id(cita) or "")
+        caso_id = str(cita.get("caso_id") or "")
+        inicio = reloj.desde_iso(cita.get("inicio"))
+        if not cita_id or not caso_id or not inicio:
+            continue
+        if not ahora < inicio <= ahora + HORIZONTE_CITAS:
+            continue
+
+        # Un aviso cuyo momento ya pasó no se escribe: una cita agendada para dentro de
+        # tres horas no recibe el «mañana tienes cita», sólo el de dos horas.
+        faltan = [inicio - antes for antes in AVISOS_DE_CITA if inicio - antes > ahora]
+        if not faltan:
+            continue
+        programados = [
+            m
+            for m in (reloj.desde_iso(r.get("programado_para")) for r in acceso.recordatorios_de_cita(cita_id))
+            if m is not None
+        ]
+        for cuando in faltan:
+            if any(abs(cuando - m) < timedelta(minutes=1) for m in programados):
+                continue
+            acceso.programar_recordatorio(
+                caso_id=caso_id,
+                indicacion_id="",
+                cita_id=cita_id,
+                cuando=cuando,
+                texto=f"Cita del {reloj.humano(inicio)} en el {cita.get('centro') or 'centro'}",
+            )
+            creados += 1
+    return {"creados": creados}
+
+
+def _cita_en_pie(acceso: AccesoRoble, cita_id: str) -> dict[str, Any] | None:
+    """La cita, si sigue confirmada y todavía no empieza; si no, nada que avisar."""
+    try:
+        cita = acceso.cita(cita_id)
+    except ErrorDeCareSync:
+        return None
+    if not cita or cita.get("estado") != CITA_CONFIRMADA:
+        return None
+    inicio = reloj.desde_iso(cita.get("inicio"))
+    if not inicio or inicio <= reloj.ahora():
+        return None
+    return cita
+
+
+def _correo_de_la_cita(caso: dict[str, Any], cita: dict[str, Any]) -> tuple[str, str]:
+    cuerpo = "\n".join(
+        [
+            f"Hola {caso.get('paciente_nombre') or ''}".strip() + ",",
+            "",
+            "Te recordamos tu cita:",
+            f"  Cuándo: {reloj.humano(cita.get('inicio'))} (hora de Bogotá)",
+            f"  Dónde: {cita.get('centro')}",
+            f"  Con: {cita.get('profesional_nombre') or 'el profesional asignado'}",
+            "",
+            "Si no puedes asistir, entra a CareSync y escríbelo en la conversación: ahí "
+            "mismo puedes cancelarla o cambiarla de hora, y el espacio le queda libre a "
+            "otra persona.",
+        ]
+    )
+    return "[CareSync] Recordatorio de tu cita", cuerpo
