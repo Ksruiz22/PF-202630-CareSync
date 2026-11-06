@@ -683,8 +683,16 @@ class AccesoRoble:
         evento(log, "cupo_reservado", cupo_id=cupo_id, caso_id=caso_id)
         return confirmado
 
-    def confirmar_cita(self, *, cupo_id: str, caso_id: str) -> dict[str, Any]:
-        """Convierte una reserva propia en cita. Debe seguir a `reservar_cupo`."""
+    def confirmar_cita(
+        self, *, cupo_id: str, caso_id: str, tipo: str | None = None, indicacion_id: str | None = None
+    ) -> dict[str, Any]:
+        """Convierte una reserva propia en cita. Debe seguir a `reservar_cupo`.
+
+        `tipo` e `indicacion_id` son de las citas que pide el plan —un control, una
+        sesión de una serie—. Ésas no pasan el caso a `agendado`: el caso sigue en
+        seguimiento, y si pasara, el próximo mensaje de la persona lo atendería el
+        agente de agenda en vez del de seguimiento.
+        """
         cupo = self.cupo(cupo_id)
         if cupo.get("caso_id") != caso_id or cupo.get("estado") != CUPO_RESERVADO:
             raise Conflicto("La reserva de ese espacio ya no es válida")
@@ -706,11 +714,16 @@ class AccesoRoble:
                 "fin": cupo.get("fin"),
                 "estado": CITA_CONFIRMADA,
                 "creado_en": reloj.iso(),
+                # Sólo si vienen: una columna que se escribe sin valor sigue siendo
+                # una columna más que ROBLE tiene que reconocer.
+                **({"tipo": tipo} if tipo else {}),
+                **({"indicacion_id": indicacion_id} if indicacion_id else {}),
             },
         )
 
         self._actualizar(CUPOS, cupo_id, {"estado": CUPO_CONFIRMADO})
-        self.actualizar_caso(caso_id, {"estado": CASO_AGENDADO})
+        if not tipo:
+            self.actualizar_caso(caso_id, {"estado": CASO_AGENDADO})
         evento(log, "cita_confirmada", caso_id=caso_id, cupo_id=cupo_id, cita_id=fila_id(cita))
         return cita
 

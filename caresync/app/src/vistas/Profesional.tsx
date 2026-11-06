@@ -34,7 +34,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Aviso, Cabecera, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
 import { IconoCalendario, IconoChispas, IconoDocumento } from '../componentes/Iconos';
-import { EditorDelPlan, type PlanAGuardar } from '../componentes/EditorDelPlan';
+import { EditorDelPlan, type IndicacionAGuardar, type PlanAGuardar } from '../componentes/EditorDelPlan';
 import {
   AdherenciaPorIndicacion,
   Alertas,
@@ -627,10 +627,16 @@ async function registrarPlan(datos: {
   autor: { userId: string; nombre: string };
   resumen: string;
   // Cada indicación con su frecuencia: «acetaminofén cada 8 horas» y «caminar a
-  // diario» no se recuerdan igual. Antes había una sola para todo el plan.
-  indicaciones: Array<{ texto: string; frecuencia: string }>;
+  // diario» no se recuerdan igual. Antes había una sola para todo el plan. Desde el
+  // 2/11 también con su tipo y lo que ese tipo necesita: un control con su plazo es
+  // lo que el seguimiento le ofrece agendar.
+  indicaciones: IndicacionAGuardar[];
 }): Promise<void> {
   const ahora = new Date().toISOString();
+  // Se leen antes de crear las nuevas, para no confundirlas con ellas.
+  const anteriores = (await leer<Indicacion>('indicaciones', { caso_id: datos.casoId })).filter(
+    (i) => i.activa === true || i.activa === 'true'
+  );
 
   const plan = await roble.create('planes', {
     caso_id: datos.casoId,
@@ -638,6 +644,8 @@ async function registrarPlan(datos: {
     profesional_nombre: datos.autor.nombre,
     resumen: datos.resumen,
     creado_en: ahora,
+    // La consulta en la que se escribió: con controles, un caso tiene varios planes.
+    cita_id: datos.citaId || null,
   });
 
   const planId = idDeInsercion(plan);
@@ -649,15 +657,27 @@ async function registrarPlan(datos: {
 
   await roble.createMany(
     'indicaciones',
-    datos.indicaciones.map(({ texto, frecuencia }) => ({
+    datos.indicaciones.map((indicacion) => ({
       caso_id: datos.casoId,
       plan_id: planId,
-      texto,
-      frecuencia,
+      ...indicacion,
       activa: true,
       creado_en: ahora,
     }))
   );
+
+  // Un plan nuevo reemplaza al anterior: sus indicaciones dejan de recordarse y de
+  // acompañarse. Antes se sumaban, y en la prueba del 2/11 quedaron activos a la vez
+  // el acetaminofén de un plan y el ibuprofeno del siguiente: la persona habría
+  // recibido recordatorios de los dos. Va después de crear las nuevas: si algo falla
+  // antes, el plan anterior sigue en pie en vez de quedar el caso sin ninguno.
+  for (const anterior of anteriores) {
+    try {
+      await roble.update('indicaciones', idDe(anterior), { activa: false });
+    } catch (error) {
+      console.warn('No se pudo desactivar una indicación del plan anterior', error);
+    }
+  }
 
   if (datos.citaId) {
     try {

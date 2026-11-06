@@ -173,6 +173,13 @@ class ActorFalso:
         return self.rol in ("admin_cmu", "admin_cae")
 
 
+def texto(bloque: dict[str, Any]) -> str:
+    """El texto de un bloque de mensaje, también si va marcado para la salvaguarda."""
+    if "guardContent" in bloque:
+        return bloque["guardContent"]["text"]["text"]
+    return bloque["text"]
+
+
 class AccesoFalso:
     """Un `AccesoRoble` en memoria: anota lo que se escribe y devuelve lo que se le dé."""
 

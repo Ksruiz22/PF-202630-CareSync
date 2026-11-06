@@ -21,7 +21,7 @@ import os
 from datetime import timedelta
 from typing import Any
 
-from caresync_comun import correo, plazos, reloj
+from caresync_comun import correo, plazos, reloj, tratamiento
 from caresync_comun.errores import Conflicto, NoEncontrado, SolicitudInvalida
 from caresync_comun.registro import evento, registro
 from caresync_comun.roble_acceso import (
@@ -55,6 +55,10 @@ MAX_CUPOS_CONTADOS = 300
 # el chat: no alcanza a llegar. Se ofrece a partir de esta anticipación.
 ANTICIPACION = timedelta(minutes=int(os.environ.get("MINUTOS_ANTICIPACION", "60")))
 
+# Un caso en estos estados ya tuvo su primera consulta: la cita que se agenda es la
+# que pide su plan —un control, una sesión— y no la primera.
+EN_SEGUIMIENTO = ("en_seguimiento", "atendido")
+
 # 0 = lunes … 6 = domingo, la convención de la columna `dia_semana`.
 DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 
@@ -85,6 +89,11 @@ def consultar_disponibilidad(
         acceso.liberar_reservas_vencidas(minutos=MINUTOS_RESERVA)
     except Exception as exc:  # noqa: BLE001 - listar es lo importante
         evento(log, "barrido_omitido", detalle=type(exc).__name__)
+
+    # Con el caso en seguimiento la cita es la del plan, y su fecha la puso el
+    # profesional: «control en dos semanas» no se busca dentro del plazo del nivel.
+    if caso.get("estado") in EN_SEGUIMIENTO:
+        return _disponibilidad_del_plan(acceso, caso)
 
     nivel = plazos.nivel_de(caso)
     plazo = plazos.plazo_de(nivel)
@@ -150,12 +159,84 @@ _OFRECER = (
 
 
 def _libres(
-    acceso: AccesoRoble, *, centro: str, hasta: Any, maximo: int
+    acceso: AccesoRoble, *, centro: str, hasta: Any, maximo: int, desde: Any = None
 ) -> list[dict[str, Any]]:
     """Los cupos libres del centro desde dentro de una hora, ordenados por cercanía."""
+    temprano = reloj.ahora() + ANTICIPACION
     return acceso.cupos_libres(
-        centro=centro, desde=reloj.ahora() + ANTICIPACION, hasta=hasta, maximo=maximo
+        centro=centro, desde=max(desde, temprano) if desde else temprano, hasta=hasta, maximo=maximo
     )
+
+
+# ------------------------------------------------------------ citas del plan
+
+def _del_plan(acceso: AccesoRoble, caso: dict[str, Any]) -> dict[str, Any] | None:
+    """La indicación del plan —control o sesiones— que todavía necesita una cita."""
+    caso_id = str(fila_id(caso))
+    return tratamiento.pendiente(acceso.indicaciones_activas(caso_id), acceso.citas_del_caso(caso_id))
+
+
+def _centro_de_la_indicacion(
+    caso: dict[str, Any], indicacion: dict[str, Any]
+) -> tuple[str, dict[str, Any] | None]:
+    """Dónde se agenda la cita de una indicación, o lo que hay que decir si no es aquí.
+
+    `centro_destino` nulo es el centro del caso. Si es externo, la cita no la da la
+    universidad y no hay agenda que mirar: se dice así y no se ofrece un cupo del CMU
+    para algo que pasa en otra parte.
+    """
+    destino = indicacion.get("centro_destino")
+    if destino == "externo":
+        return "", {
+            "fuera_de_la_universidad": True,
+            "indicacion": indicacion.get("texto"),
+            "instruccion": (
+                "Esa indicación es fuera de la universidad: aquí no hay agenda para ella. "
+                "Díselo así, sin ofrecer un espacio del CMU o del CAE en su lugar."
+            ),
+        }
+    return (destino if destino in ("CMU", "CAE") else _centro_del_caso(caso)), None
+
+
+def _disponibilidad_del_plan(acceso: AccesoRoble, caso: dict[str, Any]) -> dict[str, Any]:
+    """Los espacios para el control o la sesión que pide el plan, en su plazo."""
+    indicacion = _del_plan(acceso, caso)
+    if not indicacion:
+        return {
+            "nada_por_agendar": True,
+            "instruccion": (
+                "El plan no tiene un control ni sesiones por agendar: los que tiene ya "
+                "están agendados o hechos. No ofrezcas otra cita. Si la persona necesita "
+                "consultar por algo nuevo, eso es nuevo_motivo."
+            ),
+        }
+    centro, salida = _centro_de_la_indicacion(caso, indicacion)
+    if salida:
+        return salida
+
+    desde, hasta = tratamiento.ventana(indicacion)
+    base = {
+        "para": indicacion.get("texto"),
+        "tipo": tratamiento.SE_AGENDAN[indicacion["tipo"]],
+        "centro": centro,
+    }
+    en_plazo = _libres(acceso, centro=centro, desde=desde, hasta=hasta, maximo=MAX_OPCIONES)
+    if en_plazo:
+        return {**base, "en_la_fecha_indicada": True, "opciones": [_opcion(acceso, c) for c in en_plazo],
+                "instruccion": _OFRECER}
+    despues = _libres(acceso, centro=centro, desde=hasta, hasta=hasta + timedelta(days=DIAS_ALTERNATIVAS),
+                      maximo=3)
+    return {
+        **base,
+        "en_la_fecha_indicada": False,
+        "opciones": [_opcion(acceso, c) for c in despues],
+        "instruccion": (
+            "No hay espacio cerca de la fecha que indicó el profesional. Ofrece lo "
+            "primero que hay después, diciéndolo como tal." if despues else
+            "No hay espacios publicados para esa cita. Dilo con claridad: el centro "
+            "publica su agenda y puede volver a intentarlo más tarde. No inventes un espacio."
+        ),
+    }
 
 
 def _anotar_sin_cupo_en_plazo(
@@ -454,6 +535,13 @@ def _hay_que_reconsultar(
 
 def _alternativas(acceso: AccesoRoble, *, caso: dict[str, Any], centro: str) -> list[dict[str, Any]]:
     """Tres espacios para ofrecer en lugar del que no se pudo: en plazo si los hay."""
+    if caso.get("estado") in EN_SEGUIMIENTO:
+        indicacion = _del_plan(acceso, caso)
+        if indicacion:
+            desde, hasta = tratamiento.ventana(indicacion)
+            cerca = _libres(acceso, centro=centro, desde=desde, hasta=hasta, maximo=3)
+            if cerca:
+                return cerca
     plazo = plazos.plazo_de(plazos.nivel_de(caso))
     if plazo:
         en_plazo = _libres(acceso, centro=centro, hasta=reloj.ahora() + plazo, maximo=3)
@@ -473,7 +561,13 @@ def _nombre_del_profesional(acceso: AccesoRoble, cupo: dict[str, Any]) -> str:
 
 
 def _reservar_y_confirmar(
-    acceso: AccesoRoble, *, caso: dict[str, Any], centro: str, cupo: dict[str, Any]
+    acceso: AccesoRoble,
+    *,
+    caso: dict[str, Any],
+    centro: str,
+    cupo: dict[str, Any],
+    tipo: str | None = None,
+    indicacion_id: str | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     """Toma el espacio: lo reserva, lo confirma como cita y devuelve la cita.
 
@@ -498,7 +592,10 @@ def _reservar_y_confirmar(
         }
 
     try:
-        return acceso.confirmar_cita(cupo_id=cupo_id, caso_id=caso_id), None
+        return (
+            acceso.confirmar_cita(cupo_id=cupo_id, caso_id=caso_id, tipo=tipo, indicacion_id=indicacion_id),
+            None,
+        )
     except Exception:
         # Si la confirmación falla, el cupo queda reservado y bloqueado. Se
         # libera aquí en lugar de esperar el barrido de los 15 minutos.
@@ -594,14 +691,40 @@ def agendar_cita(
             ),
         )
 
+    # Con el caso en seguimiento, la cita es la que pide el plan, y se agenda en su
+    # centro: la cita dice de qué indicación es, y el caso sigue en seguimiento.
+    indicacion = None
+    if caso.get("estado") in EN_SEGUIMIENTO:
+        indicacion = _del_plan(acceso, caso)
+        if not indicacion:
+            raise SolicitudInvalida(
+                "El plan no tiene un control ni sesiones por agendar",
+                publico=(
+                    "El plan de este caso no tiene un control ni sesiones por agendar. "
+                    "No agendes otra cita; si es un problema nuevo, usa nuevo_motivo."
+                ),
+            )
+        centro, salida = _centro_de_la_indicacion(caso, indicacion)
+        if salida:
+            return salida
+
     # La búsqueda ya es por centro, así que un espacio de otro centro no puede
     # colarse: no hay identificador ajeno que arrastrar.
     cupo, salida = _resolver_espacio(acceso, caso=caso, centro=centro, argumentos=argumentos)
     if salida:
         return salida
-    cita, salida = _reservar_y_confirmar(acceso, caso=caso, centro=centro, cupo=cupo)
+    cita, salida = _reservar_y_confirmar(
+        acceso,
+        caso=caso,
+        centro=centro,
+        cupo=cupo,
+        tipo=tratamiento.SE_AGENDAN[indicacion["tipo"]] if indicacion else None,
+        indicacion_id=str(fila_id(indicacion)) if indicacion else None,
+    )
     if salida:
         return salida
+    if indicacion:
+        return _cita_del_plan_agendada(acceso, caso, cita=cita, cupo=cupo, indicacion=indicacion)
 
     # La hora sale del cupo y no de la cita recién creada. Lo que ROBLE devuelve al
     # insertar trae las fechas reinterpretadas en la zona de su servidor —Colombia—
@@ -630,6 +753,49 @@ def agendar_cita(
         "siguiente": (
             "Confirma a la persona el día, la hora y el centro, y llama a "
             "notificar_profesional una sola vez."
+        ),
+    }
+
+
+def _cita_del_plan_agendada(
+    acceso: AccesoRoble,
+    caso: dict[str, Any],
+    *,
+    cita: dict[str, Any],
+    cupo: dict[str, Any],
+    indicacion: dict[str, Any],
+) -> dict[str, Any]:
+    """Lo que sigue a agendar un control o una sesión: bitácora, avisos y respuesta.
+
+    Al profesional se le manda el resumen aquí mismo, como en `reprogramar_cita`:
+    seguimiento no tiene `notificar_profesional`, y quien atiende el control tiene
+    que saber de qué caso viene.
+    """
+    caso_id = str(fila_id(caso))
+    cuando = reloj.humano(cupo.get("inicio"))
+    tipo = tratamiento.SE_AGENDAN[indicacion["tipo"]]
+    acceso.registrar_evento(
+        caso_id=caso_id,
+        tipo=f"{tipo}_agendado" if tipo == "control" else "sesion_agendada",
+        detalle={
+            "cita_id": fila_id(cita),
+            "indicacion_id": fila_id(indicacion),
+            "inicio": cupo.get("inicio"),
+            "profesional": cita.get("profesional_nombre"),
+        },
+    )
+    _avisar_a_la_persona(caso, cita=cita, cuando=cuando)
+    profesional_avisado = _enviar_resumen(acceso, caso, cita)
+    return {
+        "ok": True,
+        "cuando": cuando,
+        "centro": cita.get("centro"),
+        "profesional": cita.get("profesional_nombre"),
+        "para": indicacion.get("texto"),
+        "profesional_avisado": profesional_avisado,
+        "instruccion": (
+            "Confírmale el día, la hora y el centro. El profesional ya recibió el "
+            "resumen del caso: no hace falta avisarle de otra forma."
         ),
     }
 
@@ -723,11 +889,13 @@ def reprogramar_cita(
     de otra persona.
     """
     caso_id = str(fila_id(caso))
-    centro = _centro_del_caso(caso)
 
     anterior, salida = _cita_elegida(acceso, caso_id, argumentos, accion="cambiar")
     if salida:
         return salida
+    # El centro de la cita, no el del caso: un control en el CAE de un caso del CMU
+    # se cambia por otro espacio del CAE.
+    centro = str(anterior.get("centro") or "") or _centro_del_caso(caso)
     cupo, salida = _resolver_espacio(acceso, caso=caso, centro=centro, argumentos=argumentos)
     if salida:
         return salida
@@ -747,7 +915,16 @@ def reprogramar_cita(
             ),
         }
 
-    nueva, salida = _reservar_y_confirmar(acceso, caso=caso, centro=centro, cupo=cupo)
+    # La cita nueva es de lo mismo que la anterior: un control cambiado de hora sigue
+    # siendo el control de esa indicación.
+    nueva, salida = _reservar_y_confirmar(
+        acceso,
+        caso=caso,
+        centro=centro,
+        cupo=cupo,
+        tipo=anterior.get("tipo") or None,
+        indicacion_id=anterior.get("indicacion_id") or None,
+    )
     if salida:
         # Otra persona tomó el espacio nuevo. La cita anterior sigue intacta.
         return salida

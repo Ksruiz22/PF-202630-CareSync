@@ -109,6 +109,15 @@ def _guardrail() -> dict[str, Any] | None:
     }
 
 
+def _sin_marcas(mensajes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def bloque(b: Any) -> Any:
+        if isinstance(b, dict) and "guardContent" in b:
+            return {"text": b["guardContent"]["text"]["text"]}
+        return b
+
+    return [{**m, "content": [bloque(b) for b in m.get("content", [])]} for m in mensajes]
+
+
 def _texto_de(mensaje: dict[str, Any]) -> str:
     partes = [
         bloque["text"]
@@ -312,6 +321,10 @@ def _llamar(
     salvaguardas = _guardrail()
     if salvaguardas:
         peticion["guardrailConfig"] = salvaguardas
+    else:
+        # Sin salvaguarda, la marca de lo que ella evalúa (`guardContent`, ver
+        # `_lo_que_escribio` en el orquestador) no tiene a quién servirle.
+        peticion["messages"] = _sin_marcas(mensajes)
 
     try:
         return _bedrock().converse(**peticion)

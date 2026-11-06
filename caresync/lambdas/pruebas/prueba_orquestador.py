@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from entorno import LAMBDAS, AccesoFalso, ActorFalso, cargar, comprobar, fallos, preparar  # noqa: E402
+from entorno import LAMBDAS, AccesoFalso, ActorFalso, cargar, comprobar, fallos, preparar, texto  # noqa: E402
 
 preparar()
 
@@ -186,6 +186,12 @@ def probar_herramientas_declaradas() -> None:
     comprobar("seguimiento para el profesional: no registra por la persona",
               _nombres(de(seguimiento, "profesional", con_caso=True))
               == ["consultar_estado_caso", "consultar_plan", "escalar_urgencia"])
+    para_la_persona = _nombres(de(seguimiento, "paciente", con_caso=True))
+    comprobar("seguimiento para el paciente: agenda el control del plan, sin traspasar a agenda",
+              {"consultar_disponibilidad", "agendar_cita", "reprogramar_cita", "cancelar_cita"} <= set(para_la_persona)
+              and "notificar_profesional" not in para_la_persona, str(para_la_persona))
+    comprobar("y, como agenda, no contesta de memoria",
+              "seguimiento" in orquestador._NO_CONTESTAN_DE_MEMORIA and "triaje" not in orquestador._NO_CONTESTAN_DE_MEMORIA)
 
 
 def probar_traspaso() -> None:
@@ -290,7 +296,7 @@ def probar_cambio_de_caso() -> None:
     comprobar("la respuesta ya es del caso nuevo, y la vista sigue en él",
               cuerpo["caso"]["id"] == "nuevo", str(cuerpo["caso"]))
     comprobar("el triaje empieza sólo con el mensaje de la persona, no con el hilo del otro caso",
-              [b["text"] for m in llamadas[1]["mensajes"] for b in m["content"]] == ["Además me duele la rodilla"])
+              [texto(b) for m in llamadas[1]["mensajes"] for b in m["content"]] == ["Además me duele la rodilla"])
     comprobar("y con las instrucciones del triaje", "Agente de Triaje" in "".join(llamadas[1]["sistema"]))
     escritos = [(d["caso_id"], d["autor"], d["contenido"]) for que, d in acceso.escrito if que == "mensaje"]
     comprobar("cada caso guarda lo suyo: el viejo, lo que dijo seguimiento; el nuevo, el mensaje y el triaje",
@@ -485,11 +491,16 @@ def probar_correccion_de_la_cita_inventada() -> None:
 
     falsa = "Listo, tu cita quedó agendada para el miércoles 04/11 a las 08:00."
     cuerpo, llamadas, acceso = turno(falsa, "Todavía no tienes cita. ¿Busco los espacios libres?")
-    ultimo = [b["text"] for b in llamadas[0]["mensajes"][-1]["content"]]
+    ultimo = [texto(b) for b in llamadas[0]["mensajes"][-1]["content"]]
     comprobar("agenda recibe, junto al mensaje, el recordatorio de llamar a la herramienta",
               ultimo[0] == "Sí, confirmo" and len(ultimo) == 2 and "llamas ahora a la herramienta" in ultimo[1],
               str(ultimo))
     comprobar("y la llamada de agenda exige una herramienta", llamadas[0].get("exigir_herramienta") is True)
+    comprobar("el mensaje de la persona va marcado: la salvaguarda de entrada mira sólo eso",
+              "guardContent" in llamadas[0]["mensajes"][-1]["content"][0])
+    sin = bedrock_conversa._sin_marcas([{"role": "user", "content": [{"guardContent": {"text": {"text": "Hola"}}}]}])
+    comprobar("sin salvaguarda configurada, la marca vuelve a ser texto",
+              sin == [{"role": "user", "content": [{"text": "Hola"}]}], str(sin))
     comprobar("el recordatorio no se guarda en el hilo",
               "llamas ahora" not in str([d for q, d in acceso.escrito if q == "mensaje"]))
     comprobar("se le pide al mismo agente que responda otra vez", len(llamadas) == 2, str(len(llamadas)))
@@ -504,6 +515,20 @@ def probar_correccion_de_la_cita_inventada() -> None:
     cuerpo, llamadas, _ = turno(falsa, "Ya quedó agendada para el 04/11, tranquila.")
     comprobar("si vuelve a inventarla, la persona recibe lo que de verdad hay",
               "todavía no tienes ninguna cita agendada" in cuerpo["respuesta"], cuerpo["respuesta"])
+
+    cuerpo, llamadas, _ = turno("Listo, quedó registrado que hoy te tomaste la pastilla.",
+                                "¿Me confirmas cuál de las indicaciones cumpliste?")
+    aviso = llamadas[1]["mensajes"][-1]["content"][0]["text"] if len(llamadas) == 2 else ""
+    comprobar("un «quedó registrado» sin registrar_adherencia tampoco sale",
+              len(llamadas) == 2 and "registrar_adherencia" in aviso, aviso)
+    cuerpo, llamadas, _ = turno("Ya quedó registrado.", "Ya quedó anotado, tranquila.")
+    comprobar("y si insiste, la persona sabe que no se registró",
+              "no alcancé a dejarlo registrado" in cuerpo["respuesta"], cuerpo["respuesta"])
+    inventado = orquestador._registro_inventado
+    Uso = bedrock_conversa.Uso
+    comprobar("con registrar_adherencia en el turno, el «quedó registrado» es cierto",
+              not inventado("Quedó registrado.", [Uso("registrar_adherencia", {}, {"ok": True}, True)]))
+    comprobar("y «no quedó registrado» no afirma nada", not inventado("Eso no quedó registrado.", []))
 
     cuerpo, llamadas, _ = turno("¿Cuál de las tres opciones te sirve?")
     comprobar("una respuesta que no afirma ninguna cita sale tal cual, sin otra llamada",

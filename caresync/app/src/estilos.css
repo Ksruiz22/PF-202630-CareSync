@@ -2209,6 +2209,28 @@ code {
   font-size: 0.78rem;
 }
 
+/* El tipo y sus datos, debajo del texto: caben en una línea en escritorio y bajan
+   solos en el celular. */
+.indicaciones-editables .detalles-indicacion {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  align-items: center;
+}
+
+.indicaciones-editables .detalles-indicacion label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--tinta-suave);
+}
+
+.indicaciones-editables .detalles-indicacion input[type='number'] {
+  width: 4.5rem;
+}
+
 @media (max-width: 520px) {
   .indicaciones-editables li {
     grid-template-columns: minmax(0, 1fr) auto;

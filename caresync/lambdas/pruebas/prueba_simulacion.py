@@ -47,6 +47,7 @@ from entorno import (  # noqa: E402
     fallos,
     lanza,
     preparar,
+    texto,
 )
 
 preparar()
@@ -456,7 +457,7 @@ def probar_lo_que_se_escribe() -> None:
     )
     conversa, _cuerpo, _r = correr(previo, mensaje="Desde el lunes", llamadas=[])
     comprobar("el historial del hilo llega al modelo",
-              len(conversa.mensajes) == 3 and conversa.mensajes[-1]["content"][0]["text"] == "Desde el lunes",
+              len(conversa.mensajes) == 3 and texto(conversa.mensajes[-1]["content"][0]) == "Desde el lunes",
               str(len(conversa.mensajes)))
 
     # Y un fallo deja su nota, igual que en el camino real (invariante 8).

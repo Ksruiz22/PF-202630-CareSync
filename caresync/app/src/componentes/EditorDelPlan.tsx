@@ -21,18 +21,44 @@ import { proponerPlan } from '../consulta';
 import { dictar, sePuedeDictar, type Dictado, type EstadoDelDictado } from '../dictado';
 import { EJEMPLOS_DE_FRECUENCIA, programaRecordatorios } from '../frecuencia';
 import { mensajeDeError } from '../roble';
+import {
+  CAMPOS_POR_TIPO,
+  CENTROS_DESTINO,
+  ETIQUETA_DEL_CAMPO,
+  TIPOS,
+  esTipo,
+  type CampoDeTipo,
+  type CentroDestino,
+} from '../tratamiento';
+import type { TipoIndicacion } from '../tipos';
 import { Aviso, Tarjeta } from './Piezas';
 import { IconoChispas, IconoMas, IconoMicrofono, IconoPlan, IconoQuitar } from './Iconos';
 
-export interface PlanAGuardar {
-  resumen: string;
-  indicaciones: Array<{ texto: string; frecuencia: string }>;
+export interface IndicacionAGuardar {
+  texto: string;
+  frecuencia: string;
+  tipo: TipoIndicacion;
+  duracion_dias: number | null;
+  plazo_dias: number | null;
+  sesiones: number | null;
+  centro_destino: CentroDestino | null;
 }
 
+export interface PlanAGuardar {
+  resumen: string;
+  indicaciones: IndicacionAGuardar[];
+}
+
+/** Una fila mientras se edita: los números todavía como el texto del campo. */
 interface Fila {
   clave: number;
   texto: string;
   frecuencia: string;
+  tipo: TipoIndicacion;
+  duracion_dias: string;
+  plazo_dias: string;
+  sesiones: string;
+  centro_destino: CentroDestino | '';
 }
 
 interface Revision {
@@ -46,8 +72,40 @@ interface Revision {
 const LIMITE_TEXTO = 6000;
 let siguienteClave = 1;
 
-function fila(texto = '', frecuencia = ''): Fila {
-  return { clave: siguienteClave++, texto, frecuencia };
+function fila(datos: Partial<Omit<IndicacionAGuardar, 'tipo'>> & { tipo?: string } = {}): Fila {
+  const numero = (valor: number | null | undefined) => (valor ? String(valor) : '');
+  return {
+    clave: siguienteClave++,
+    texto: datos.texto ?? '',
+    frecuencia: datos.frecuencia ?? '',
+    tipo: esTipo(datos.tipo) ? datos.tipo : 'otro',
+    duracion_dias: numero(datos.duracion_dias),
+    plazo_dias: numero(datos.plazo_dias),
+    sesiones: numero(datos.sesiones),
+    centro_destino: datos.centro_destino ?? '',
+  };
+}
+
+/**
+ * Lo que se guarda de una fila: sólo los campos de su tipo. Si el profesional pasó de
+ * «control» a «medicamento», el plazo que había escrito no viaja escondido.
+ */
+function aGuardar(f: Fila): IndicacionAGuardar {
+  const campos = CAMPOS_POR_TIPO[f.tipo];
+  const numero = (campo: 'duracion_dias' | 'plazo_dias' | 'sesiones') => {
+    const valor = Number.parseInt(f[campo], 10);
+    return campos.includes(campo) && valor > 0 ? valor : null;
+  };
+  return {
+    texto: f.texto.trim(),
+    // Una señal de alarma no se recuerda a una hora: sin frecuencia, ni por error.
+    frecuencia: f.tipo === 'vigilancia' ? '' : f.frecuencia.trim(),
+    tipo: f.tipo,
+    duracion_dias: numero('duracion_dias'),
+    plazo_dias: numero('plazo_dias'),
+    sesiones: numero('sesiones'),
+    centro_destino: campos.includes('centro_destino') && f.centro_destino ? f.centro_destino : null,
+  };
 }
 
 export function EditorDelPlan({
@@ -73,7 +131,7 @@ export function EditorDelPlan({
       setRevision({
         resumen: propuesta.resumen,
         filas: propuesta.indicaciones.length
-          ? propuesta.indicaciones.map((i) => fila(i.texto, i.frecuencia))
+          ? propuesta.indicaciones.map((i) => fila(i))
           : [fila()],
         dudas: propuesta.dudas,
         original: texto.trim(),
@@ -94,9 +152,7 @@ export function EditorDelPlan({
   async function guardar(evento: FormEvent) {
     evento.preventDefault();
     if (!revision) return;
-    const indicaciones = revision.filas
-      .map((f) => ({ texto: f.texto.trim(), frecuencia: f.frecuencia.trim() }))
-      .filter((f) => f.texto);
+    const indicaciones = revision.filas.map(aGuardar).filter((f) => f.texto);
 
     if (!revision.resumen.trim() || indicaciones.length === 0) {
       setError('Hace falta el resumen y al menos una indicación.');
@@ -218,10 +274,11 @@ export function EditorDelPlan({
                   <span className="lectores">Frecuencia de la indicación {posicion + 1}</span>
                   <input
                     type="text"
-                    value={f.frecuencia}
+                    value={f.tipo === 'vigilancia' ? '' : f.frecuencia}
                     onChange={(e) => actualizarFila(f.clave, { frecuencia: e.target.value })}
                     maxLength={60}
-                    placeholder="cada 8 horas"
+                    placeholder={f.tipo === 'vigilancia' ? 'no se recuerda' : 'cada 8 horas'}
+                    disabled={f.tipo === 'vigilancia'}
                   />
                 </label>
                 <button
@@ -235,7 +292,12 @@ export function EditorDelPlan({
                 >
                   <IconoQuitar width={16} height={16} />
                 </button>
-                <AyudaDeFrecuencia frecuencia={f.frecuencia} />
+                <DetallesDelTipo
+                  fila={f}
+                  posicion={posicion}
+                  alCambiar={(cambios) => actualizarFila(f.clave, cambios)}
+                />
+                <AyudaDeFrecuencia frecuencia={f.frecuencia} tipo={f.tipo} />
               </li>
             ))}
           </ol>
@@ -257,6 +319,13 @@ export function EditorDelPlan({
             <summary>Lo que dictaste</summary>
             <p>{revision.original}</p>
           </details>
+        )}
+
+        {hayPlan && (
+          <p className="fino">
+            Este plan reemplaza al anterior: sus indicaciones dejan de recordarse y de
+            acompañarse.
+          </p>
         )}
 
         <div className="botonera">
@@ -282,8 +351,23 @@ export function EditorDelPlan({
   );
 }
 
-/** Qué va a pasar con los recordatorios de esta indicación, dicho antes de guardar. */
-function AyudaDeFrecuencia({ frecuencia }: { frecuencia: string }) {
+/** Qué va a pasar con esta indicación en el seguimiento, dicho antes de guardar. */
+function AyudaDeFrecuencia({ frecuencia, tipo }: { frecuencia: string; tipo: TipoIndicacion }) {
+  if (tipo === 'vigilancia') {
+    return (
+      <p className="fino ayuda-frecuencia">
+        Señal de alarma: no se recuerda, y si la persona la cuenta en el seguimiento, se escala.
+      </p>
+    );
+  }
+  if (tipo === 'control' || tipo === 'sesiones') {
+    return (
+      <p className="fino ayuda-frecuencia">
+        El seguimiento le ofrecerá a la persona agendar{' '}
+        {tipo === 'control' ? 'este control' : 'estas sesiones'}.
+      </p>
+    );
+  }
   if (!frecuencia.trim()) {
     return <p className="fino ayuda-frecuencia">Sin frecuencia: se hace una vez y no se recuerda.</p>;
   }
@@ -293,6 +377,71 @@ function AyudaDeFrecuencia({ frecuencia }: { frecuencia: string }) {
       Esta frecuencia no la entiende el sistema y no va a generar recordatorios. Escríbela como
       «cada 8 horas», «2 veces al día» o «diario».
     </p>
+  );
+}
+
+/** El tipo de la indicación y los datos que ese tipo necesita, en la línea de abajo. */
+function DetallesDelTipo({
+  fila: f,
+  posicion,
+  alCambiar,
+}: {
+  fila: Fila;
+  posicion: number;
+  alCambiar: (cambios: Partial<Fila>) => void;
+}) {
+  const campos = CAMPOS_POR_TIPO[f.tipo];
+  const numero = (campo: Exclude<CampoDeTipo, 'centro_destino'>, maximo: number) => (
+    <label key={campo}>
+      {ETIQUETA_DEL_CAMPO[campo]}
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={maximo}
+        value={f[campo]}
+        onChange={(e) => alCambiar({ [campo]: e.target.value })}
+        aria-label={`${ETIQUETA_DEL_CAMPO[campo]}, indicación ${posicion + 1}`}
+      />
+    </label>
+  );
+  return (
+    <div className="detalles-indicacion">
+      <label>
+        Tipo
+        <select
+          value={f.tipo}
+          onChange={(e) => alCambiar({ tipo: e.target.value as TipoIndicacion })}
+          aria-label={`Tipo de la indicación ${posicion + 1}`}
+        >
+          {TIPOS.map((t) => (
+            <option key={t.valor} value={t.valor}>
+              {t.etiqueta}
+            </option>
+          ))}
+        </select>
+      </label>
+      {campos.includes('duracion_dias') && numero('duracion_dias', 365)}
+      {campos.includes('plazo_dias') && numero('plazo_dias', 365)}
+      {campos.includes('sesiones') && numero('sesiones', 100)}
+      {campos.includes('centro_destino') && (
+        <label>
+          {ETIQUETA_DEL_CAMPO.centro_destino}
+          <select
+            value={f.centro_destino}
+            onChange={(e) => alCambiar({ centro_destino: e.target.value as CentroDestino | '' })}
+            aria-label={`Dónde, indicación ${posicion + 1}`}
+          >
+            <option value="">El centro del caso</option>
+            {CENTROS_DESTINO.map((c) => (
+              <option key={c.valor} value={c.valor}>
+                {c.etiqueta}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </div>
   );
 }
 
