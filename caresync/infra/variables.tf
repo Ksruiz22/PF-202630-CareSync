@@ -90,6 +90,16 @@ variable "correo_emergencias" {
   default     = ""
 }
 
+variable "correos_de_prueba" {
+  description = <<-TXT
+    Destinatarios que se verifican en SES mientras la cuenta esté en sandbox: las
+    cuentas de paciente de una demo. Sin esto, la confirmación de la cita y los
+    recordatorios no les llegan.
+  TXT
+  type        = list(string)
+  default     = []
+}
+
 # --------------------------------------------------------------- Operación
 
 variable "retencion_logs" {

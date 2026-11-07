@@ -23,6 +23,15 @@ resource "aws_sesv2_email_identity" "emergencias" {
   email_identity = var.correo_emergencias
 }
 
+resource "aws_sesv2_email_identity" "prueba" {
+  # En sandbox, cada destinatario tiene que estar verificado. Hasta el 7/11 sólo lo
+  # estaban el remitente y el buzón de emergencias, así que a ninguna cuenta de
+  # paciente le llegaba la confirmación de su cita. Se excluyen las dos ya creadas
+  # arriba: SES no admite la misma identidad dos veces.
+  for_each       = local.con_correo ? toset([for c in var.correos_de_prueba : c if c != var.correo_remitente && c != var.correo_emergencias]) : toset([])
+  email_identity = each.value
+}
+
 resource "aws_sesv2_configuration_set" "principal" {
   count                  = local.con_correo ? 1 : 0
   configuration_set_name = "${local.nombre}-envios"

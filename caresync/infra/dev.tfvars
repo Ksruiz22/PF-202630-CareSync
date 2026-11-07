@@ -31,6 +31,14 @@ roble_contract_id = "caresync_099060687b"
 correo_remitente   = "kevinre739@gmail.com"
 correo_emergencias = "ksruiz@uninorte.edu.co"
 
+# Las tres cuentas de paciente de la demo del 7/11, alias del Gmail de Kevin: los
+# enlaces de verificación le llegan a él. Se quitan junto con las dos de arriba.
+correos_de_prueba = [
+  "kevinre739+laura@gmail.com",
+  "kevinre739+andres@gmail.com",
+  "kevinre739+valentina@gmail.com",
+]
+
 presupuesto_mensual_usd = 20
 retencion_logs          = 14
 cadencia_recordatorios  = "rate(15 minutes)"
