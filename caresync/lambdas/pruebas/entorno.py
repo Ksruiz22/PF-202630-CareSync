@@ -228,6 +228,10 @@ class AccesoFalso:
     def registrar_evento(self, **datos: Any) -> dict[str, Any]:
         return self._escribir("evento", datos)
 
+    def ceder_si_hay_otra(self, cita: dict[str, Any], *, caso_id: str) -> bool:
+        # La agenda en memoria no tiene carreras: ninguna cita encuentra a otra en su cupo.
+        return False
+
     def cerrar(self) -> None:
         # Las rutas que abren su propio acceso tienen que cerrarlo también cuando
         # rechazan a quien llama; la prueba lo mira aquí.

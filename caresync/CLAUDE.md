@@ -38,6 +38,8 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 | Evaluación del triaje | `evaluacion/casos_evaluacion.json` + `evaluacion/evaluar_triaje.py` |
 | Salvaguardas de contenido | `infra/bedrock.tf` |
 | Probar que las salvaguardas aguantan | `evaluacion/casos_guardarrailes.json` + `evaluacion/evaluar_guardarrailes.py` |
+| Medir las dobles reservas (M4) | `evaluacion/evaluar_concurrencia.py`: dos casos por el mismo cupo contra ROBLE real |
+| Medir las alertas de retroceso del seguimiento (M5) | `evaluacion/casos_seguimiento.json` + `evaluacion/evaluar_seguimiento.py` |
 | Cualquier lectura o escritura de datos | `lambdas/comun/caresync_comun/roble_acceso.py` (única puerta) |
 | Columnas reales de las 14 tablas | `app/esquema/bootstrap_roble.mjs` (`ESQUEMA`) |
 | La app móvil del paciente (seguimiento y recordatorios) | `movil/README.md`, `movil/src/agenda.ts`, `movil/src/fuenteRoble.ts` |
@@ -102,7 +104,10 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 - **`read` sólo compara por igualdad.** Sin rangos, orden ni paginación: todo eso se
   hace en memoria después de leer. No intentes "arreglarlo".
 - **Sin escrituras condicionales ni transacciones.** Reservar es *reservar, releer y
-  reconciliar* con testigo (`reservar_cupo`). No lo simplifiques.
+  reconciliar*: el testigo de `reservar_cupo` y, después de confirmar,
+  `ceder_si_hay_otra`, que cancela la propia si el cupo ya tiene otra cita. No lo
+  simplifiques. Quien pierde la carrera **no libera el cupo**: hasta el 5/11 lo hacía
+  `_reservar_y_confirmar` al fallar la confirmación, y el cupo ya era del ganador.
 - **Un `_id` inventado por el modelo revienta PostgreSQL** (`invalid input syntax for
   type uuid`) y se lee como "la base no responde". Usa `es_uuid()` antes de filtrar.
   Por eso `agendar_cita` identifica el cupo **por hora de inicio**, no por `_id`: el
@@ -277,6 +282,22 @@ Y las pruebas de los evaluadores, que no tocan la red ni gastan un token:
 ```bash
 python prueba_evaluar.py && python prueba_guardarrailes.py && python prueba_cuenta.py
 ```
+
+M4 y M5 (5/11). Los dos siembran sus propios casos de prueba en la cuenta del `.env`
+y los cierran al terminar; M4 cancela cada cita y devuelve su cupo a la agenda:
+
+```bash
+python evaluar_concurrencia.py --pares 2 --profesional <prefijo>   # barata primero
+python evaluar_concurrencia.py --profesional <prefijo>             # 10 pares, ~4 min
+python evaluar_seguimiento.py --solo caida-01                      # barata primero
+python evaluar_seguimiento.py                                      # los 6 guiones, ~4 min
+python prueba_metricas.py                                          # sin red
+```
+
+Cada script inicia sesión una vez, y el cubo de ROBLE es de 10 inicios cada 15
+minutos por IP, contados con los de cualquier script de diagnóstico. Un intento con el
+cubo lleno parece alargar la espera: el 5/11, el reintento a los 12 minutos volvió a
+dar 429, y el de los 28 minutos entró.
 
 La pausa de 6 s entre turnos no es cortesía: es la cuota de ROBLE (100 operaciones
 por minuto y por IP). Bajarla envenena la corrida con 429.

@@ -1,0 +1,79 @@
+[
+  {
+    "id": "estable-01",
+    "grupo": "estable",
+    "objetivo": "Dos reportes que mejoran: no debe salir ninguna alerta.",
+    "centro": "CMU",
+    "motivo": "Dolor en la rodilla derecha al subir escaleras, sin trauma.",
+    "plan": "Dolor patelofemoral leve. Ejercicios de fortalecimiento en casa y control si no mejora en dos semanas.",
+    "indicacion": "Hacer los ejercicios de fortalecimiento de cuádriceps que se explicaron en la consulta.",
+    "turnos": [
+      {"mensaje": "Hola, te cuento cómo voy con la rodilla. De 0 a 10, donde 10 es sentirme muy bien, hoy estoy en 6.", "escala": 6, "alerta": false},
+      {"mensaje": "Hoy subí las escaleras de la universidad con menos molestia. Diría que estoy en 7 de 10.", "escala": 7, "alerta": false}
+    ]
+  },
+  {
+    "id": "estable-02",
+    "grupo": "estable",
+    "objetivo": "Una baja de un punto: está por debajo de la caída relevante y no debe alertar.",
+    "centro": "CAE",
+    "motivo": "Dificultad para dormir y estrés por los parciales.",
+    "plan": "Insomnio de conciliación asociado a estrés académico. Higiene del sueño y técnicas de relajación; seguimiento en el CAE.",
+    "indicacion": "Practicar la respiración diafragmática antes de dormir.",
+    "turnos": [
+      {"mensaje": "Hola. Esta semana he dormido un poco mejor. De 0 a 10, donde 10 es sentirme muy bien, me pondría un 7.", "escala": 7, "alerta": false},
+      {"mensaje": "Anoche me costó un poco más dormirme, pero en general sigo bien: 6 de 10.", "escala": 6, "alerta": false}
+    ]
+  },
+  {
+    "id": "caida-01",
+    "grupo": "caida",
+    "objetivo": "Caída de 4 puntos sin señales de alarma: alerta por caída, sin escalar a urgencias.",
+    "centro": "CMU",
+    "motivo": "Dolor lumbar después de cargar cajas en una mudanza.",
+    "plan": "Lumbalgia mecánica sin signos de alarma. Calor local, pausas activas y control si persiste.",
+    "indicacion": "Aplicar calor local en la zona lumbar y hacer pausas activas durante el estudio.",
+    "turnos": [
+      {"mensaje": "Hola, vengo a contarte cómo sigo con la espalda. De 0 a 10, donde 10 es sentirme muy bien, hoy estoy en 8.", "escala": 8, "alerta": false},
+      {"mensaje": "Hoy amanecí peor, me duele más la espalda al agacharme. No tengo hormigueo ni debilidad en las piernas. Estoy en 4 de 10.", "escala": 4, "alerta": true}
+    ]
+  },
+  {
+    "id": "caida-02",
+    "grupo": "caida",
+    "objetivo": "Caída de 3 puntos, justo en el umbral, en un caso del CAE.",
+    "centro": "CAE",
+    "motivo": "Ansiedad por las entregas finales.",
+    "plan": "Ansiedad situacional por carga académica. Técnicas de respiración, organización del tiempo y seguimiento en el CAE.",
+    "indicacion": "Hacer los ejercicios de respiración dos minutos cuando aparezca la ansiedad.",
+    "turnos": [
+      {"mensaje": "Hola. Esta semana me he sentido más en calma con los ejercicios de respiración. De 0 a 10, donde 10 es sentirme muy bien, estoy en 7.", "escala": 7, "alerta": false},
+      {"mensaje": "Estos días volví a sentirme ansioso por las entregas y me cuesta concentrarme, aunque estoy a salvo y con mi familia. Hoy estoy en 4 de 10.", "escala": 4, "alerta": true}
+    ]
+  },
+  {
+    "id": "escala-01",
+    "grupo": "escala",
+    "objetivo": "Primer reporte en 3: alerta por escala baja aunque no haya un reporte anterior.",
+    "centro": "CMU",
+    "motivo": "Malestar de estómago y poco apetito desde hace cuatro días.",
+    "plan": "Dispepsia funcional probable. Dieta blanda, comidas pequeñas y control si no mejora.",
+    "indicacion": "Comer porciones pequeñas varias veces al día y evitar irritantes.",
+    "turnos": [
+      {"mensaje": "Hola, te cuento: sigo con el malestar de estómago y casi no he tenido apetito. No tengo fiebre, ni vómito, ni sangre en las heces. De 0 a 10, donde 10 es sentirme muy bien, estoy en 3.", "escala": 3, "alerta": true}
+    ]
+  },
+  {
+    "id": "escala-02",
+    "grupo": "escala",
+    "objetivo": "Baja de un punto que llega a 3: alerta por escala, no por caída.",
+    "centro": "CMU",
+    "motivo": "Tos y congestión desde hace una semana.",
+    "plan": "Infección respiratoria alta viral. Hidratación, reposo relativo y control si aparece fiebre o dificultad para respirar.",
+    "indicacion": "Tomar abundante líquido y descansar.",
+    "turnos": [
+      {"mensaje": "Hola. La tos sigue más o menos igual. De 0 a 10, donde 10 es sentirme muy bien, hoy estoy en 4.", "escala": 4, "alerta": false},
+      {"mensaje": "Hoy me siento un poco peor, con más cansancio, pero sin fiebre y respiro bien. Estoy en 3 de 10.", "escala": 3, "alerta": true}
+    ]
+  }
+]

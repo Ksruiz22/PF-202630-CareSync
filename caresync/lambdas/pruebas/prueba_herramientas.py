@@ -810,6 +810,111 @@ def probar_id_al_crear() -> None:
               cliente.creadas[-1]["_id"] == "5eed0000-0000-4000-8000-000000000099")
 
 
+class _CarreraPerdida(_AgendaViva):
+    """Una agenda donde otro caso escribe su testigo entre la relectura y la confirmación."""
+
+    def __init__(self, *, confirmar_lanza: Exception, cupo_de: str = "otro-caso", **kw: Any) -> None:
+        super().__init__(**kw)
+        self.confirmar_lanza = confirmar_lanza
+        self.cupo_de = cupo_de
+
+    def confirmar_cita(self, *, cupo_id: str, caso_id: str, **kw: Any) -> dict[str, Any]:
+        raise self.confirmar_lanza
+
+    def cupo(self, cupo_id: str) -> dict[str, Any]:
+        return {"_id": cupo_id, "estado": "reservado", "caso_id": self.cupo_de}
+
+
+class _CupoCompartido:
+    """El cliente de ROBLE de un cupo con varias citas: lee por igualdad y anota lo que cambia."""
+
+    def __init__(self, citas: list[dict[str, Any]], *, entre_medias: Any = None) -> None:
+        self.citas = [dict(c) for c in citas]
+        self.cambios: list[tuple[str, str, dict[str, Any]]] = []
+        # Lo que hace el otro intento entre esta escritura y la siguiente lectura.
+        self.entre_medias = entre_medias
+
+    def read(self, tabla: str, filtros: dict[str, Any]) -> list[dict[str, Any]]:
+        assert tabla == "citas"
+        return [dict(c) for c in self.citas if all(c.get(k) == v for k, v in filtros.items())]
+
+    def update(self, tabla: str, fila_id: str, datos: dict[str, Any]) -> dict[str, Any]:
+        self.cambios.append((tabla, fila_id, datos))
+        for cita in self.citas:
+            if tabla == "citas" and cita["_id"] == fila_id:
+                cita.update(datos)
+        if self.entre_medias:
+            self.entre_medias(self)
+            self.entre_medias = None
+        return datos
+
+
+def probar_carrera_de_reserva() -> None:
+    print("\nDos casos por el mismo cupo (M4)")
+    agenda.correo.config = _sin_correo
+    cupo = _cupo("cupo-disputado", days=2)
+    inicio = agenda.reloj.iso_local(cupo["inicio"])
+
+    # El otro escribió su testigo después de nuestra relectura: confirmar ve su caso.
+    perdida = _CarreraPerdida(cupos=[cupo, _cupo("otro-libre", days=3)],
+                              confirmar_lanza=Conflicto("La reserva de ese espacio ya no es válida"))
+    salida = agenda.agendar_cita(perdida, _caso(estado="canalizado"), {"inicio": inicio})
+    comprobar("perder al confirmar es «ese ya lo tomaron», con alternativas",
+              salida.get("motivo") == "espacio_tomado" and salida.get("alternativas"), str(salida)[:120])
+    comprobar("y no libera el cupo, que ya es del otro",
+              not any(que == "cupo_liberado" for que, _ in perdida.escrito))
+
+    # Un fallo cualquiera al confirmar: el cupo se devuelve sólo si sigue siendo nuestro.
+    propia = _CarreraPerdida(cupos=[cupo], confirmar_lanza=RuntimeError("ROBLE no responde"), cupo_de="k")
+    comprobar("si la confirmación falla por otra cosa, la excepción sigue su curso",
+              lanza(RuntimeError, agenda.agendar_cita, propia, _caso(estado="canalizado"), {"inicio": inicio})
+              is not None)
+    comprobar("y el cupo reservado por este caso vuelve a la agenda",
+              any(que == "cupo_liberado" for que, _ in propia.escrito))
+    ajena = _CarreraPerdida(cupos=[cupo], confirmar_lanza=RuntimeError("ROBLE no responde"))
+    lanza(RuntimeError, agenda.agendar_cita, ajena, _caso(estado="canalizado"), {"inicio": inicio})
+    comprobar("pero el de otro caso no se toca",
+              not any(que == "cupo_liberado" for que, _ in ajena.escrito))
+
+    print("\nReconciliar después de confirmar")
+    cupo_id = "5eed0000-0000-4000-8000-0000000000c1"
+    mia = {"_id": "cita-mia", "cupo_id": cupo_id, "caso_id": "k", "estado": "confirmada"}
+    otra = {"_id": "cita-otra", "cupo_id": cupo_id, "caso_id": "otro", "estado": "confirmada"}
+
+    sola = _CupoCompartido([mia])
+    acceso = roble_acceso.AccesoRoble(sola, ActorFalso("paciente"))
+    comprobar("sin otra cita en el cupo, la cita se queda", acceso.ceder_si_hay_otra(mia, caso_id="k") is False
+              and not sola.cambios)
+
+    dos = _CupoCompartido([otra, mia])
+    acceso = roble_acceso.AccesoRoble(dos, ActorFalso("paciente"))
+    comprobar("con otra confirmada, ésta cede", acceso.ceder_si_hay_otra(mia, caso_id="k") is True)
+    comprobar("se cancela la propia y no la otra",
+              ("citas", "cita-mia", {"estado": "cancelada"}) in dos.cambios
+              and not any(f == "cita-otra" for _, f, _ in dos.cambios))
+    comprobar("y el cupo queda confirmado a nombre de la que se quedó",
+              ("cupos", cupo_id, {"estado": "confirmado", "caso_id": "otro"}) in dos.cambios)
+
+    def el_otro_tambien_cede(cliente: _CupoCompartido) -> None:
+        # Los dos se vieron al releer; el otro cancela la suya mientras ésta cancela.
+        next(c for c in cliente.citas if c["_id"] == "cita-otra")["estado"] = "cancelada"
+
+    ambas = _CupoCompartido([otra, mia], entre_medias=el_otro_tambien_cede)
+    acceso = roble_acceso.AccesoRoble(ambas, ActorFalso("paciente"))
+    comprobar("si ceden las dos, la última devuelve el cupo a la agenda",
+              acceso.ceder_si_hay_otra(mia, caso_id="k") is True
+              and any(t == "cupos" and d.get("estado") == "libre" for t, _, d in ambas.cambios))
+
+    # Lo que dejaba el fallo de antes: una cita confirmada sobre un cupo libre.
+    reparada = _AgendaViva(cupos=[cupo])
+    reparada.ceder_si_hay_otra = lambda cita, *, caso_id: True  # type: ignore[method-assign]
+    salida = agenda.agendar_cita(reparada, _caso(estado="canalizado"), {"inicio": inicio})
+    comprobar("quien cede recibe alternativas, no una cita",
+              salida.get("motivo") == "espacio_tomado", str(salida)[:120])
+    comprobar("y su caso vuelve a como estaba",
+              any(que == "caso" and d.get("estado") == "canalizado" for que, d in reparada.escrito))
+
+
 def main() -> int:
     for prueba in (
         probar_escalar_urgencia,
@@ -829,6 +934,7 @@ def main() -> int:
         probar_nuevo_motivo,
         probar_sesion_vencida,
         probar_id_al_crear,
+        probar_carrera_de_reserva,
     ):
         prueba()
 
