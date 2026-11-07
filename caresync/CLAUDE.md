@@ -31,6 +31,7 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 | El plan dictado: propuesta, revisión y guardado | `app/src/componentes/EditorDelPlan.tsx` + `app/src/consulta.ts`; en el backend `lambdas/orquestador/plan_propuesta.py` (`POST /plan/propuesta`) |
 | El dictado por voz (Amazon Transcribe en tiempo real) | `app/src/dictado.ts` (micrófono, remuestreo, *event stream*) + `lambdas/orquestador/dictado.py` (`POST /dictado/sesion`, la URL firmada) |
 | El progreso del paciente: alertas, evolución, adherencia | `app/src/componentes/Progreso.tsx` |
+| Los avisos de una cita, 24 y 2 horas antes | Correo: `_materializar_citas` y `_enviar` en `lambdas/recordatorios/handler.py`; teléfono: `movil/src/avisos.ts`. Los dos con los mismos dos momentos |
 | Qué frecuencias generan recordatorios | `lambdas/comun/caresync_comun/frecuencia.py` (la usan recordatorios y la propuesta del plan) y su espejo `app/src/frecuencia.ts` |
 | Leer el hilo de un caso desde la PWA | `app/src/conversaciones.ts` (dos miradas: la de la persona y la del profesional) |
 | Criterios clínicos, niveles, matriz CMU/CAE | `protocolos/triaje-v0.md` (fuente única; se copia al paquete al construir) |

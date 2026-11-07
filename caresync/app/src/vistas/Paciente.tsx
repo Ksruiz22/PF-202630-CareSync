@@ -495,7 +495,9 @@ function primerNombre(nombre: string | undefined): string {
 
 function nombreDeCentro(centro: unknown): string {
   const clave = String(centro ?? '').toUpperCase();
-  if (clave === 'CMU') return 'Centro Médico Universitario';
+  // El mismo nombre que usan el protocolo y los agentes. Decía «Universitario», y la
+  // persona leía un nombre en la tarjeta y otro en la respuesta del agente.
+  if (clave === 'CMU') return 'Centro Médico Uninorte';
   if (clave === 'CAE') return 'Centro de Acompañamiento Estudiantil';
   return 'por definir';
 }

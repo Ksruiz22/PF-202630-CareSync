@@ -7,9 +7,15 @@ de no mandar a la persona a canales que no existen dejaba dos salidas: decir «n
 sé» o canalizar la duda a un centro que no tiene cómo responderle.
 
 Sólo dice lo que es cierto por cómo funciona CareSync, más la dirección de la
-universidad. No inventa edificios, horarios ni costos: donde falta un dato, lo dice,
-y el agente responde que no lo tiene. Los huecos marcados con «Pendiente» los
-tienen que llenar los centros antes de cualquier uso real.
+universidad y el contacto directo de cada centro. No inventa edificios, horarios ni
+costos: donde falta un dato, lo dice, y el agente responde que no lo tiene. Los huecos
+marcados con «Pendiente» los tienen que llenar los centros antes de cualquier uso real.
+
+Los dos contactos los dio Kevin el 2026-11-06. Están aquí porque el prompt común no
+deja mandar a la persona a ningún canal que no esté escrito en sus instrucciones, y
+esta base va dentro de ese prompt: sin ellos, a «¿cómo le escribo al CAE?» el agente
+sólo podía contestar que no sabe. No son un sustituto de la cita ni de la ruta de
+emergencia, y así lo dice el texto.
 
 Es la única copia. `scripts/construir_paquetes.sh` la mete en el paquete del
 orquestador, y `agentes.py` la pone en el prompt de los tres agentes sin estos
@@ -40,6 +46,15 @@ universidad, como la biblioteca, matrículas, notas o trámites académicos.
   <!-- Pendiente de los centros: horario general de atención. -->
 - Los costos no están en esta información.
   <!-- Pendiente de los centros: si la consulta tiene costo y para quién. -->
+
+## Contacto directo con los centros
+
+- **CAE**: el correo es hablaconnosotros@uninorte.edu.co.
+- **CMU**: el teléfono es +57 301 6011002.
+- Son para quien quiera comunicarse por su cuenta con el centro. La cita se sigue
+  pidiendo en esta conversación, y lo que la persona cuenta aquí no le llega al
+  centro por esos canales, ni el centro la va a contactar por ellos.
+- En una urgencia no se usan estos contactos: vale la ruta de emergencia.
 
 ## Citas
 
