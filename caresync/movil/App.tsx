@@ -7,9 +7,16 @@
  * en la base, no aquí, y es la única forma de que la pantalla no mienta.
  */
 
+import {
+  AtkinsonHyperlegible_400Regular,
+  AtkinsonHyperlegible_700Bold,
+  useFonts,
+} from '@expo-google-fonts/atkinson-hyperlegible';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { agenteParaMensaje } from './src/agenda';
 import { avisosDe } from './src/avisos';
 import { SesionVencida, type Fuente, type Reporte } from './src/fuente';
@@ -18,19 +25,22 @@ import { programar } from './src/notificaciones';
 import { Acceso } from './src/pantallas/Acceso';
 import { Asistente } from './src/pantallas/Asistente';
 import { Avisos } from './src/pantallas/Avisos';
-import { Hoy } from './src/pantallas/Hoy';
+import { Hoy, porResponder } from './src/pantallas/Hoy';
 import { MiPlan } from './src/pantallas/MiPlan';
-import { AvisoEmergencia, Boton, Tarjeta } from './src/piezas';
-import { estilosDe, useColores } from './src/tema';
+import { Aparece, DURACION } from './src/movimiento';
+import { AvisoEmergencia, Boton, Etiqueta, Tarjeta } from './src/piezas';
+import { estilosDe, F, useColores } from './src/tema';
 import { idDe, type AgenteDestino, type Identidad, type Tratamiento, type Turno } from './src/tipos';
 
 type Pestana = 'hoy' | 'plan' | 'avisos' | 'asistente';
+type NombreDeIcono = keyof typeof Ionicons.glyphMap;
 
-const PESTANAS: { clave: Pestana; nombre: string }[] = [
-  { clave: 'hoy', nombre: 'Hoy' },
-  { clave: 'plan', nombre: 'Mi plan' },
-  { clave: 'avisos', nombre: 'Avisos' },
-  { clave: 'asistente', nombre: 'Asistente' },
+/** Con icono además del nombre: con sólo texto, la pestaña activa se distinguía apenas por una raya. */
+const PESTANAS: { clave: Pestana; nombre: string; icono: NombreDeIcono; activo: NombreDeIcono }[] = [
+  { clave: 'hoy', nombre: 'Hoy', icono: 'today-outline', activo: 'today' },
+  { clave: 'plan', nombre: 'Mi plan', icono: 'clipboard-outline', activo: 'clipboard' },
+  { clave: 'avisos', nombre: 'Avisos', icono: 'notifications-outline', activo: 'notifications' },
+  { clave: 'asistente', nombre: 'Asistente', icono: 'chatbubbles-outline', activo: 'chatbubbles' },
 ];
 
 export default function App() {
@@ -38,6 +48,13 @@ export default function App() {
   const [quien, setQuien] = useState<Identidad | null>(null);
   const [fuente, setFuente] = useState<Fuente>(fuenteRoble);
   const [arrancando, setArrancando] = useState(true);
+  // Se espera a la fuente para no pintar la app dos veces: con la del sistema primero
+  // y la propia un instante después, cada texto cambia de ancho y la pantalla salta.
+  // Si no carga, `useFonts` devuelve un error y la app sigue con la del sistema.
+  const [fuentesListas, errorDeFuentes] = useFonts({
+    AtkinsonHyperlegible_400Regular,
+    AtkinsonHyperlegible_700Bold,
+  });
 
   useEffect(() => {
     void fuenteRoble
@@ -52,7 +69,8 @@ export default function App() {
     setFuente(fuenteRoble);
   }, [fuente]);
 
-  const contenido = arrancando ? (
+  const fase = arrancando || !(fuentesListas || errorDeFuentes) ? 'arranque' : quien ? 'sesion' : 'acceso';
+  const contenido = fase === 'arranque' ? (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
       <ActivityIndicator color={c.primario} />
     </View>
@@ -67,16 +85,38 @@ export default function App() {
     />
   );
 
+  // El `SafeAreaView` de React Native sólo respeta los bordes en iOS: en Android la
+  // barra de pestañas quedaba bajo la barra de gestos del sistema. El de
+  // `safe-area-context` cubre los dos; el borde de abajo lo pone la barra de pestañas,
+  // para que su fondo llegue hasta el filo de la pantalla.
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.papel }}>
-      <StatusBar style="auto" />
-      {/* En el navegador se muestra del ancho de un teléfono: es lo que se está probando. */}
-      <View style={Platform.OS === 'web' ? { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' } : { flex: 1 }}>
-        {contenido}
-      </View>
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: c.papel }}>
+        <StatusBar style="auto" />
+        {/* En el navegador se muestra del ancho de un teléfono: es lo que se está probando. */}
+        <View style={Platform.OS === 'web' ? { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' } : { flex: 1 }}>
+          {/* La app entra con un fundido al abrirse, y otra vez al pasar del acceso a
+              la sesión o al salir: son cambios de lugar, no de pestaña. El indicador
+              de carga no lo lleva, para no animar dos veces seguidas. */}
+          {fase === 'arranque' ? (
+            contenido
+          ) : (
+            <Aparece clave={fase} opacidadInicial={0} desde={0.97} duracion={DURACION.entrada} style={{ flex: 1 }}>
+              {contenido}
+            </Aparece>
+          )}
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
+
+const TITULOS: Record<Pestana, string> = {
+  hoy: 'CareSync',
+  plan: 'Mi plan',
+  avisos: 'Avisos',
+  asistente: 'Asistente',
+};
 
 function Sesion({
   quien,
@@ -89,6 +129,7 @@ function Sesion({
 }) {
   const c = useColores();
   const e = estilosDe(c);
+  const abajo = useSafeAreaInsets().bottom;
   const [tratamientos, setTratamientos] = useState<Tratamiento[]>([]);
   const [casoId, setCasoId] = useState('');
   const [pestana, setPestana] = useState<Pestana>('hoy');
@@ -174,27 +215,35 @@ function Sesion({
   );
 
   const turnos = actual ? [...actual.turnos, ...(pendiente ? [pendiente] : [])] : [];
+  const pendientesHoy = actual ? porResponder(actual, ahora) : 0;
+
+  // Una sola fila de cabecera, con el nombre de la pestaña. Antes eran tres bandas
+  // fijas —emergencia en dos renglones, la franja de demostración y «CareSync / Hola»—
+  // que se comían unos 160 px de cada pestaña y no decían en cuál se estaba. En Hoy la
+  // cabecera sólo lleva la marca: el saludo es el panel de resumen de la pantalla.
+  const titulo = TITULOS[pestana];
 
   return (
     <View style={{ flex: 1, backgroundColor: c.papel }}>
       <AvisoEmergencia />
-      {fuente.esDemo ? (
-        <View style={{ backgroundColor: c.ambarClaro, paddingHorizontal: 16, paddingVertical: 6 }}>
-          <Text style={{ color: c.ambar, fontSize: 13 }}>
-            Demostración: datos de ejemplo, no se guarda nada en CareSync.
-          </Text>
-        </View>
-      ) : null}
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 12, gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, gap: 8 }}>
         <View style={{ flex: 1 }}>
-          <Text style={e.fino}>CareSync</Text>
-          <Text accessibilityRole="header" style={{ color: c.tinta, fontSize: 22, fontWeight: '700' }}>
-            Hola, {primerNombre(quien.nombre)}
+          <Text
+            accessibilityRole="header"
+            numberOfLines={1}
+            style={{ color: pestana === 'hoy' ? c.primario : c.tinta, fontSize: pestana === 'hoy' ? 20 : 26, fontFamily: F.negrita }}
+          >
+            {titulo}
           </Text>
         </View>
+        {fuente.esDemo ? (
+          <View accessibilityLabel="Demostración: datos de ejemplo, no se guarda nada en CareSync.">
+            <Etiqueta tono="ambar" texto="Demostración" />
+          </View>
+        ) : null}
         <Pressable accessibilityRole="button" onPress={alSalir} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 }}>
-          <Text style={{ color: c.primario, fontSize: 14, fontWeight: '600' }}>Salir</Text>
+          <Text style={{ color: c.primario, fontSize: 15, fontFamily: F.negrita }}>Salir</Text>
         </Pressable>
       </View>
 
@@ -221,7 +270,7 @@ function Sesion({
                   backgroundColor: activo ? c.primario : c.primarioSuave,
                 }}
               >
-                <Text style={{ color: activo ? c.sobrePrimario : c.primario, fontSize: 13, fontWeight: '600' }}>
+                <Text style={{ color: activo ? c.sobrePrimario : c.primario, fontSize: 13, fontFamily: F.negrita }}>
                   {String(tratamiento.caso.motivo ?? 'Tu caso').slice(0, 28)}
                 </Text>
               </Pressable>
@@ -231,12 +280,13 @@ function Sesion({
       ) : null}
 
       {error ? (
-        <Text accessibilityRole="alert" style={{ color: c.rojo, fontSize: 14, paddingHorizontal: 16, paddingTop: 8 }}>
+        <Text accessibilityRole="alert" style={{ color: c.rojo, fontSize: 14, fontFamily: F.regular, paddingHorizontal: 16, paddingTop: 8 }}>
           {error}
         </Text>
       ) : null}
 
-      <View style={{ flex: 1 }}>
+      {/* Cada pestaña entra con un fade-through corto: ver `movimiento.tsx`. */}
+      <Aparece clave={pestana} style={{ flex: 1 }}>
         {cargando ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator color={c.primario} />
@@ -253,6 +303,7 @@ function Sesion({
           </View>
         ) : pestana === 'hoy' ? (
           <Hoy
+            nombre={primerNombre(quien.nombre)}
             tratamiento={actual}
             reportar={reportar}
             conversar={conversar}
@@ -271,31 +322,62 @@ function Sesion({
             enviar={(mensaje) => conversar(mensaje, agenteParaMensaje(actual))}
           />
         )}
-      </View>
+      </Aparece>
 
       {actual ? (
         <View
           accessibilityRole="tablist"
-          style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: c.borde, backgroundColor: c.papelAlto }}
+          style={{
+            flexDirection: 'row',
+            borderTopWidth: 1,
+            borderTopColor: c.borde,
+            backgroundColor: c.papelAlto,
+            paddingBottom: abajo,
+          }}
         >
-          {PESTANAS.map(({ clave, nombre }) => {
+          {PESTANAS.map(({ clave, nombre, icono, activo }) => {
             const activa = pestana === clave;
+            // El contador va en «Hoy»: es lo único que espera una respuesta de la
+            // persona. Los avisos son futuros y no hay nada que «leer» en ellos.
+            const cuenta = clave === 'hoy' ? pendientesHoy : 0;
             return (
               <Pressable
                 key={clave}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: activa }}
+                accessibilityLabel={cuenta > 0 ? `${nombre}, ${cuenta} por responder` : nombre}
                 onPress={() => setPestana(clave)}
-                style={{
-                  flex: 1,
-                  minHeight: 52,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderTopWidth: 2,
-                  borderTopColor: activa ? c.primario : 'transparent',
-                }}
+                style={{ flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 6 }}
               >
-                <Text style={{ color: activa ? c.primario : c.tintaSuave, fontSize: 13, fontWeight: '600' }}>
+                <View
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 2,
+                    borderRadius: 999,
+                    backgroundColor: activa ? c.primarioSuave : 'transparent',
+                  }}
+                >
+                  <Ionicons name={activa ? activo : icono} size={22} color={activa ? c.primario : c.tintaSuave} />
+                  {cuenta > 0 ? (
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: -2,
+                        right: 6,
+                        minWidth: 18,
+                        height: 18,
+                        borderRadius: 9,
+                        paddingHorizontal: 4,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: c.coral,
+                      }}
+                    >
+                      <Text style={{ color: c.sobrePrimario, fontSize: 11, fontFamily: F.negrita }}>{cuenta}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={{ color: activa ? c.primario : c.tintaSuave, fontSize: 12, fontFamily: activa ? F.negrita : F.regular }}>
                   {nombre}
                 </Text>
               </Pressable>

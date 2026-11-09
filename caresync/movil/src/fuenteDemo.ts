@@ -17,7 +17,9 @@ const enDias = (dias: number) => new Date(Date.now() + dias * DIA).toISOString()
 const PERSONA: Identidad = {
   userId: 'demo',
   email: 'demostracion@caresync.invalid',
-  nombre: 'Persona de demostración',
+  // Un nombre de verdad: la cabecera saluda con la primera palabra, y con «Persona de
+  // demostración» se leía «Hola, Persona». Que es una demo ya lo dice la etiqueta.
+  nombre: 'Ana de demostración',
 };
 
 function ejemplo(): Tratamiento {
