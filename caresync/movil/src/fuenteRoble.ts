@@ -289,6 +289,21 @@ export const fuenteRoble: Fuente = {
   },
 };
 
+/**
+ * Le pide a ROBLE el correo para cambiar la contraseña. No está en `Fuente` porque la
+ * demostración no tiene cuenta que recuperar.
+ *
+ * Sólo se pide el correo: el enlace lleva a la página de ROBLE producción, donde se
+ * pone la contraseña nueva con un clic, y la app nunca ve el token. En `test-openlab`
+ * esa página fallaba siempre; es la razón de la migración del 2026-11-04 (ver el
+ * comentario de «recuperar la contraseña» en `app/src/roble.ts`).
+ *
+ * ROBLE responde lo mismo exista o no la cuenta, y la pantalla también.
+ */
+export async function pedirEnlaceDeContrasena(email: string): Promise<void> {
+  await roble.forgotPassword({ email: email.trim().toLowerCase() });
+}
+
 export function mensajeDeError(error: unknown): string {
   if (error instanceof RobleApiHttpException) {
     if (error.statusCode === 429) {
