@@ -1,9 +1,15 @@
 /**
  * El plan completo, con las palabras del profesional. Aquí se lee; no se edita nada,
  * porque no existe forma de que nadie más que el profesional cambie una indicación.
+ *
+ * El orden es el de la urgencia: primero lo que no puede esperar —las señales de
+ * alarma, el único bloque de color fuerte de la pantalla—, después qué indicó el
+ * profesional y al final cómo va la persona. Antes las cinco tarjetas tenían el mismo
+ * peso, y «Si te pasa esto, no esperes» quedaba tercera, entre el resumen y la lista.
  */
 
-import { ScrollView, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Text, View } from 'react-native';
 import {
   acompanamientoDe,
   avanceDe,
@@ -14,8 +20,8 @@ import {
   sigueVigente,
   venceEn,
 } from '../agenda';
-import { Boton, Etiqueta, Tarjeta } from '../piezas';
-import { estilosDe, useColores } from '../tema';
+import { Boton, Desplazable, Etiqueta, Seccion, Tarjeta } from '../piezas';
+import { estilosDe, F, S, T, useColores } from '../tema';
 import { idDe, type AgenteDestino, type Indicacion, type Tratamiento } from '../tipos';
 
 const NOMBRE_DE_TIPO: Record<string, string> = {
@@ -44,11 +50,11 @@ export function MiPlan({
 
   if (!plan) {
     return (
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <Desplazable>
         <Tarjeta titulo="Aún no hay plan">
-          <Text style={e.texto}>Tu profesional lo escribe después de la consulta.</Text>
+          <Text style={e.texto}>Tu profesional lo escribe después de la consulta y aparece aquí.</Text>
         </Tarjeta>
-      </ScrollView>
+      </Desplazable>
     );
   }
 
@@ -58,40 +64,27 @@ export function MiPlan({
   const avance = avanceDe(indicaciones, adherencias, ahora);
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-      <Tarjeta titulo="Tu plan">
+    <Desplazable>
+      <View style={{ gap: S.xs, paddingHorizontal: S.xs }}>
         <Text style={e.texto}>{String(plan.resumen ?? '')}</Text>
         <Text style={e.fino}>
-          {plan.profesional_nombre ?? 'Tu profesional'} · {diaDe(plan.creado_en)}
+          Lo escribió {plan.profesional_nombre ?? 'tu profesional'} el {diaDe(plan.creado_en)}.
         </Text>
-      </Tarjeta>
-
-      {avance.proporcion !== null ? (
-        <Tarjeta titulo="Últimos 7 días">
-          <View
-            accessibilityRole="progressbar"
-            accessibilityValue={{ min: 0, max: avance.esperadas, now: avance.cumplidas }}
-            style={{ height: 8, borderRadius: 4, backgroundColor: c.primarioSuave, overflow: 'hidden' }}
-          >
-            <View
-              style={{
-                height: 8,
-                width: `${Math.round(avance.proporcion * 100)}%`,
-                backgroundColor: c.primario,
-              }}
-            />
-          </View>
-          <Text style={e.fino}>
-            Reportaste {avance.cumplidas} de {avance.esperadas} como hechas
-            {avance.sinReporte > 0 ? `; ${avance.sinReporte} quedaron sin respuesta` : ''}.
-          </Text>
-        </Tarjeta>
-      ) : null}
+      </View>
 
       {vigilancia.length > 0 ? (
-        <Tarjeta titulo="Si te pasa esto, no esperes">
+        <View
+          accessibilityRole="summary"
+          style={{ backgroundColor: c.coralClaro, borderRadius: 16, padding: S.l, gap: S.m }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: S.s }}>
+            <Ionicons name="warning" size={20} color={c.coral} accessibilityElementsHidden importantForAccessibility="no" />
+            <Text accessibilityRole="header" style={{ color: c.coral, fontSize: T.titulo, fontFamily: F.negrita }}>
+              Si te pasa esto, no esperes
+            </Text>
+          </View>
           {vigilancia.map((indicacion) => (
-            <Text key={idDe(indicacion)} style={e.texto}>
+            <Text key={idDe(indicacion)} style={[e.texto, { color: c.tinta }]}>
               {String(indicacion.texto ?? '')}
             </Text>
           ))}
@@ -106,36 +99,52 @@ export function MiPlan({
               )
             }
           />
-        </Tarjeta>
+        </View>
       ) : null}
 
-      <Tarjeta titulo="Lo que te indicaron">
-        {resto.length === 0 ? (
-          <Text style={e.fino}>Sin indicaciones vigentes.</Text>
-        ) : (
-          resto.map((indicacion) => (
-            <View
-              key={idDe(indicacion)}
-              style={{ borderTopWidth: 1, borderTopColor: c.borde, paddingTop: 10, gap: 6 }}
-            >
-              {NOMBRE_DE_TIPO[String(indicacion.tipo)] ? (
-                <View style={{ flexDirection: 'row' }}>
+      {resto.length === 0 ? (
+        <Tarjeta titulo="Lo que te indicaron">
+          <Text style={e.fino}>No hay indicaciones vigentes.</Text>
+        </Tarjeta>
+      ) : (
+        <Seccion titulo="Lo que te indicaron">
+          {resto.map((indicacion) => (
+            <View key={idDe(indicacion)} style={{ gap: S.xs }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: S.s }}>
+                <Text style={[e.fuerte, { flex: 1 }]}>{String(indicacion.texto ?? '')}</Text>
+                {NOMBRE_DE_TIPO[String(indicacion.tipo)] ? (
                   <Etiqueta texto={NOMBRE_DE_TIPO[String(indicacion.tipo)] ?? ''} />
-                </View>
-              ) : null}
-              <Text style={e.texto}>{String(indicacion.texto ?? '')}</Text>
+                ) : null}
+              </View>
               <Detalle indicacion={indicacion} tratamiento={tratamiento} conversar={conversar} />
             </View>
-          ))
-        )}
-      </Tarjeta>
+          ))}
+        </Seccion>
+      )}
 
-      {adherencias.length === 0 && citas.length === 0 ? (
-        <Text style={[e.fino, { textAlign: 'center' }]}>
-          Lo que reportes aquí lo ve tu profesional antes de la siguiente consulta.
-        </Text>
+      {avance.proporcion !== null ? (
+        <Tarjeta titulo="Tus últimos 7 días">
+          <View
+            accessibilityRole="progressbar"
+            accessibilityValue={{ min: 0, max: avance.esperadas, now: avance.cumplidas }}
+            style={{ height: 10, borderRadius: 5, backgroundColor: c.primarioSuave, overflow: 'hidden' }}
+          >
+            <View
+              style={{
+                height: 10,
+                width: `${Math.round(avance.proporcion * 100)}%`,
+                backgroundColor: c.primario,
+              }}
+            />
+          </View>
+          <Text style={e.fino}>
+            Marcaste {avance.cumplidas} de {avance.esperadas} como hechas
+            {avance.sinReporte > 0 ? ` y ${avance.sinReporte} quedaron sin respuesta` : ''}. Tu profesional
+            lo ve antes de la siguiente consulta.
+          </Text>
+        </Tarjeta>
       ) : null}
-    </ScrollView>
+    </Desplazable>
   );
 }
 
@@ -153,6 +162,7 @@ function Detalle({
   const { adherencias, citas } = tratamiento;
   const vence = venceEn(indicacion);
   const texto = String(indicacion.texto ?? '');
+  const centro = indicacion.centro_destino ? `, en el ${String(indicacion.centro_destino)}` : '';
 
   switch (acompanamientoDe(indicacion)) {
     case 'reposo':
@@ -161,20 +171,23 @@ function Detalle({
     case 'serie': {
       const serie = estadoDeSerie(indicacion, citas);
       return (
-        <View style={{ gap: 6 }}>
+        <View style={{ gap: S.s, alignItems: 'flex-start' }}>
           <Text style={e.fino}>
-            {serie.atendidas} de {serie.total ?? '?'} sesiones
-            {indicacion.frecuencia ? ` · ${String(indicacion.frecuencia)}` : ''}
-            {indicacion.centro_destino ? ` · ${String(indicacion.centro_destino)}` : ''}
+            Llevas {serie.atendidas} de {serie.total ?? '?'} sesiones
+            {indicacion.frecuencia ? `, ${String(indicacion.frecuencia)}` : ''}
+            {centro}
           </Text>
           {serie.proxima ? (
-            <Text style={e.fino}>Siguiente: {fechaHoraDe(serie.proxima.inicio)}</Text>
+            <Text style={e.fino}>La siguiente: {fechaHoraDe(serie.proxima.inicio)}</Text>
           ) : serie.falta ? (
-            <Boton
-              suave
-              texto="Agendar la siguiente"
-              alPulsar={() => conversar(`Quiero agendar la siguiente sesión de: ${texto}.`, 'agenda')}
-            />
+            <View style={{ alignSelf: 'stretch' }}>
+              <Boton
+                suave
+                compacto
+                texto="Agendar la siguiente con el asistente"
+                alPulsar={() => conversar(`Quiero agendar la siguiente sesión de: ${texto}.`, 'agenda')}
+              />
+            </View>
           ) : (
             <Etiqueta tono="verde" texto="Serie completa" />
           )}
@@ -184,15 +197,21 @@ function Detalle({
 
     case 'hito': {
       const hito = estadoDeHito(indicacion, adherencias, citas);
-      if (hito.hecho) return <Etiqueta tono="verde" texto="Hecho" />;
+      if (hito.hecho) {
+        return (
+          <View style={{ alignItems: 'flex-start' }}>
+            <Etiqueta tono="verde" texto="Hecho" />
+          </View>
+        );
+      }
       return (
-        <Text style={[e.fino, { color: c.tintaSuave }]}>
+        <Text style={e.fino}>
           {hito.cita
             ? `Agendado: ${fechaHoraDe(hito.cita.inicio)}`
             : hito.limite
               ? `Antes del ${diaDe(hito.limite)}`
               : 'Sin fecha límite'}
-          {indicacion.centro_destino ? ` · ${String(indicacion.centro_destino)}` : ''}
+          {centro}
         </Text>
       );
     }
@@ -200,9 +219,13 @@ function Detalle({
     default:
       return (
         <Text style={e.fino}>
-          {indicacion.frecuencia ? String(indicacion.frecuencia) : 'Sin horario'}
-          {vence ? ` · hasta el ${diaDe(vence)}` : ''}
+          {indicacion.frecuencia ? capitalizar(String(indicacion.frecuencia)) : 'Sin horario'}
+          {vence ? `, hasta el ${diaDe(vence)}` : ''}
         </Text>
       );
   }
+}
+
+function capitalizar(texto: string): string {
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
