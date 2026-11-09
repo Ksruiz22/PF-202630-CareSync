@@ -6,9 +6,20 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "caresync",
-    "plugins": ["expo-secure-store", "expo-notifications"],
-    "android": { "package": "co.edu.uninorte.caresync" },
-    "ios": { "bundleIdentifier": "co.edu.uninorte.caresync" },
-    "web": { "bundler": "metro", "output": "single" }
+    "plugins": [
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-font"
+    ],
+    "android": {
+      "package": "co.edu.uninorte.caresync"
+    },
+    "ios": {
+      "bundleIdentifier": "co.edu.uninorte.caresync"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
   }
 }
