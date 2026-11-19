@@ -205,14 +205,15 @@ prueba('sin plan decide el orquestador: un triaje a medias no se salta', () => {
   assert.equal(agenteParaMensaje({ plan: {}, caso: { estado: 'urgencia_escalada' } }), undefined);
 });
 
-prueba('a mitad de agendar, la respuesta sigue con agenda y no con seguimiento', () => {
+prueba('a mitad de agendar no se fuerza seguimiento: decide el orquestador', () => {
   const ahora = new Date('2026-11-19T18:37:30Z');
   const turnos = [
     { quien: 'yo' as const, texto: 'Quiero agendar mi control', agente: 'agenda', cuando: Date.parse('2026-11-19T18:37:09Z') },
     { quien: 'agente' as const, texto: '¿A las 8:00 o a las 8:30?', agente: 'agenda', cuando: Date.parse('2026-11-19T18:37:12Z') },
   ];
   const conPlan = { plan: {}, caso: { estado: 'en_seguimiento' } };
-  assert.equal(agenteParaMensaje({ ...conPlan, turnos }, ahora), 'agenda');
+  // Sin sugerencia: `agente_que_sigue` ve si agenda dejó algo abierto.
+  assert.equal(agenteParaMensaje({ ...conPlan, turnos }, ahora), undefined);
   // Una hora después ya no es la respuesta a esa pregunta.
   assert.equal(agenteParaMensaje({ ...conPlan, turnos }, new Date('2026-11-19T19:40:00Z')), 'seguimiento');
   // Si la última respuesta fue de seguimiento, sigue seguimiento.

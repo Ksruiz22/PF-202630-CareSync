@@ -221,21 +221,46 @@ def agente_que_sigue(
 
     Sigue el mismo agente cuando la última respuesta de un agente en el hilo fue de
     agenda o de seguimiento, hace menos de `VENTANA_DE_CONTINUIDAD_MS`, el caso está en
-    un estado que los dos atienden y el rol puede usar ese agente. Si no, `None` y
-    decide el estado. `filas` es el hilo antes del mensaje nuevo, ya en orden.
+    un estado que los dos atienden, el rol puede usar ese agente **y ese turno dejó
+    algo abierto** (`_dejo_algo_abierto`). Si no, `None` y decide el estado. `filas` es
+    el hilo antes del mensaje nuevo, ya en orden.
+
+    Lo último no estaba en la primera versión. La prueba en la PWA del mismo día:
+    agenda canceló una cita —«quedó cancelada. Si después quieres agendar otra, me lo
+    dices»—, la persona escribió a continuación «hoy me siento como un 7 de 10» y le
+    contestó agenda, que no tiene `registrar_evolucion`: la evolución no quedó
+    registrada. Un trámite cerrado no es una conversación en curso.
     """
     if not caso or caso.get("estado") not in _ESTADOS_COMPARTIDOS:
         return None
-    ultima = next((f for f in reversed(filas) if f.get("autor") == "agente"), None)
-    if not ultima:
+    indice = next((i for i in range(len(filas) - 1, -1, -1) if filas[i].get("autor") == "agente"), None)
+    if indice is None:
         return None
+    ultima = filas[indice]
     clave = str(ultima.get("agente") or "")
     if clave not in (AGENDA, SEGUIMIENTO) or rol not in AGENTES[clave].roles:
         return None
     momento = momento_de_mensaje(ultima)
     if not momento or ahora_ms - momento >= VENTANA_DE_CONTINUIDAD_MS:
         return None
+    if not _dejo_algo_abierto(ultima, filas[indice + 1 :], clave):
+        return None
     return clave
+
+
+def _dejo_algo_abierto(ultima: dict[str, Any], despues: list[dict[str, Any]], clave: str) -> bool:
+    """Si el último turno del agente espera una respuesta de la persona.
+
+    Dos señales, y basta una. Que la respuesta pregunte algo («¿8:00 o 8:30?», «¿con
+    cuál profesional?», «¿confirmas que cancelas?»). Y la nota `[sistema]` que deja el
+    orquestador tras un turno de agenda con espacios mostrados o una confirmación
+    pendiente (`_dejar_constancia_de_la_agenda`), que hace falta porque el modelo a
+    veces ofrece sin preguntar —«los que tengo siguen siendo a las 08:00 o a las
+    08:30»—. Una cita hecha o cancelada no deja ninguna de las dos.
+    """
+    if "?" in str(ultima.get("contenido") or ""):
+        return True
+    return any(f.get("autor") == "sistema" and str(f.get("agente") or "") == clave for f in despues)
 
 
 # ------------------------------------------------------------------- prompts
