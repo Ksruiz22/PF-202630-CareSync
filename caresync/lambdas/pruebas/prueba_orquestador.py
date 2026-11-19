@@ -70,7 +70,8 @@ def probar_agente_que_sigue() -> None:
     hace = lambda minutos: ahora - minutos * 60_000  # noqa: E731
 
     def hilo(*filas: tuple[str, str, float]) -> list[dict]:
-        return [{"autor": a, "agente": g, "creado_ms": m, "contenido": "…"} for a, g, m in filas]
+        return [{"autor": a, "agente": g, "creado_ms": m, "contenido": "¿Te sirve a las 8:30?"}
+                for a, g, m in filas]
 
     sigue = agentes.agente_que_sigue
     en_seguimiento = {"estado": "en_seguimiento"}
@@ -108,12 +109,42 @@ def probar_agente_que_sigue() -> None:
               sigue(hilo(("paciente", "agenda", hace(1))), en_seguimiento,
                     rol="paciente", ahora_ms=ahora) is None)
     comprobar("una fila de antes, sólo con creado_en, también sirve",
-              sigue([{"autor": "agente", "agente": "agenda",
-                      "creado_en": orquestador.reloj.iso(orquestador.reloj.mas(minutos=-5))}],
+              sigue([{"autor": "agente", "agente": "agenda", "contenido": "¿8:00 o 8:30?",
+                      "creado_en":orquestador.reloj.iso(orquestador.reloj.mas(minutos=-5))}],
                     en_seguimiento, rol="paciente",
                     ahora_ms=orquestador.reloj.ahora().timestamp() * 1000) == "agenda")
     comprobar("creado_ms como texto, como puede llegar de ROBLE",
-              sigue([{"autor": "agente", "agente": "agenda", "creado_ms": str(int(hace(2)))}],
+              sigue([{"autor": "agente", "agente": "agenda", "creado_ms": str(int(hace(2))),
+                      "contenido": "¿Con cuál profesional?"}],
+                    en_seguimiento, rol="paciente", ahora_ms=ahora) == "agenda")
+
+    # Lo que destapó la prueba en la PWA: tras cancelar, «me siento como un 7 de 10»
+    # caía en agenda, que no registra la evolución.
+    def dijo(texto: str, minutos: float = 1, agente: str = "agenda") -> dict:
+        return {"autor": "agente", "agente": agente, "creado_ms": hace(minutos), "contenido": texto}
+
+    for cerrado in ("Tu cita del viernes 20 de noviembre a las 08:30 quedó cancelada. "
+                    "Si después quieres agendar otra, me lo dices.",
+                    "Listo. Tu cita es mañana viernes 20 de noviembre a las 08:30 en el CMU."):
+        comprobar(f"trámite cerrado («{cerrado[:28]}…»): decide el estado",
+                  sigue([dijo(cerrado)], en_seguimiento, rol="paciente", ahora_ms=ahora) is None)
+    ofrece_sin_preguntar = "Los que tengo siguen siendo para mañana: a las 08:00 o a las 08:30."
+    comprobar("ofreció horas sin pregunta, pero con la nota [sistema] de agenda: sigue agenda",
+              sigue([dijo(ofrece_sin_preguntar),
+                     {"autor": "sistema", "agente": "agenda", "creado_ms": hace(1),
+                      "contenido": "[sistema] Espacios que se le mostraron…"}],
+                    en_seguimiento, rol="paciente", ahora_ms=ahora) == "agenda")
+    comprobar("sin pregunta ni nota: decide el estado",
+              sigue([dijo(ofrece_sin_preguntar)], en_seguimiento, rol="paciente", ahora_ms=ahora) is None)
+    comprobar("una nota [sistema] de otro agente no la abre",
+              sigue([dijo(ofrece_sin_preguntar),
+                     {"autor": "sistema", "agente": "seguimiento", "creado_ms": hace(1), "contenido": "x"}],
+                    en_seguimiento, rol="paciente", ahora_ms=ahora) is None)
+    comprobar("una nota [sistema] de antes de la respuesta tampoco",
+              sigue([{"autor": "sistema", "agente": "agenda", "creado_ms": hace(3), "contenido": "x"},
+                     dijo(ofrece_sin_preguntar)], en_seguimiento, rol="paciente", ahora_ms=ahora) is None)
+    comprobar("la confirmación pendiente sí: «¿confirmas que cancelas…?»",
+              sigue([dijo("¿Confirmas que cancelas tu cita del viernes a las 08:30?")],
                     en_seguimiento, rol="paciente", ahora_ms=ahora) == "agenda")
 
 
@@ -178,6 +209,18 @@ def probar_conversacion_que_no_se_mezcla() -> None:
     comprobar("el control que ofreció seguimiento lo termina seguimiento, que también agenda",
               cuerpo["agentes"] == ["seguimiento"]
               and "agendar_cita" in _nombres(llamadas[0]["herramientas"]), str(cuerpo["agentes"]))
+
+    cancelo = [
+        {"autor": "paciente", "agente": "agenda", "contenido": "Sí, confirmo",
+         "creado_ms": ahora_ms - 60_000},
+        {"autor": "agente", "agente": "agenda",
+         "contenido": "Tu cita del viernes quedó cancelada. Si después quieres agendar otra, me lo dices.",
+         "creado_ms": ahora_ms - 55_000},
+    ]
+    cuerpo, llamadas, _ = turno({}, cancelo)
+    comprobar("tras cancelar, lo siguiente que escribe lo atiende seguimiento, que registra la evolución",
+              cuerpo["agentes"] == ["seguimiento"]
+              and "registrar_evolucion" in _nombres(llamadas[0]["herramientas"]), str(cuerpo["agentes"]))
 
 
 def probar_historial() -> None:
