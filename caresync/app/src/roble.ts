@@ -96,6 +96,60 @@ roble.createMany = ((tabla: string, filas: Record<string, unknown>[]) =>
 // y la siguiente recarga usaría el viejo, ya vencido.
 roble.onTokenUpdate = () => guardar(roble);
 
+/*
+ * La renovación del token, con el token de renovación nuevo guardado.
+ *
+ * ROBLE producción rota el token de renovación en cada uso, y si le llega uno ya usado
+ * responde 401 «Sesión revocada por reutilización de token» y anula la sesión entera.
+ * El `refreshAccessToken` del SDK guarda sólo el `accessToken` y se queda con el token
+ * de renovación viejo: la primera renovación funcionaba, la segunda —a los 15 minutos,
+ * o al recargar— lo reutilizaba y la persona salía de la sesión. Lo destapó la prueba
+ * de punta a punta del 2026-11-19, en la que la PWA cerraba la sesión en cada recarga.
+ *
+ * Se reemplaza en la instancia, y no sólo en `renovar`, porque el SDK lo llama por su
+ * cuenta tras un 401 de datos (`this.refreshAccessToken()`). Va en una sola promesa a
+ * la vez: dos lecturas que reciben 401 juntas renovarían dos veces con el mismo token,
+ * y la segunda revocaría la sesión. Y antes de renovar se mira `localStorage`: si otra
+ * pestaña ya lo rotó, el token que hay en memoria está gastado y se adopta el suyo.
+ */
+interface ClienteInterno {
+  refreshAccessToken(): Promise<void>;
+  _makeRequest(
+    tipo: string,
+    metodo: string,
+    ruta: string,
+    opciones: Record<string, unknown>
+  ): Promise<{ accessToken?: string; refreshToken?: string } | undefined>;
+}
+const interno = roble as unknown as ClienteInterno;
+let refrescoEnCurso: Promise<void> | null = null;
+
+interno.refreshAccessToken = () => {
+  refrescoEnCurso ??= refrescar().finally(() => {
+    refrescoEnCurso = null;
+  });
+  return refrescoEnCurso;
+};
+
+async function refrescar(): Promise<void> {
+  const deOtraPestana = leerGuardada();
+  if (deOtraPestana && deOtraPestana.refreshToken !== roble.refreshToken) {
+    roble.setTokens(deOtraPestana);
+    const quedan = segundosRestantes(deOtraPestana.accessToken);
+    if (quedan !== null && quedan > MARGEN_DE_RENOVACION_S) return;
+  }
+  const usado = roble.refreshToken;
+  if (!usado) throw new Error('No hay token de renovación.');
+  const datos = await interno._makeRequest('auth', 'POST', 'refresh-token', {
+    body: { refreshToken: usado },
+    isAuthRequest: true,
+  });
+  if (!datos?.accessToken) throw new Error('Respuesta inválida al renovar el token.');
+  // `setTokens` deja primero el de renovación y luego avisa a `onTokenUpdate`, que
+  // guarda los dos juntos.
+  roble.setTokens({ accessToken: datos.accessToken, refreshToken: datos.refreshToken ?? usado });
+}
+
 const guardada = leerGuardada();
 if (guardada) {
   roble.setTokens(guardada);
@@ -187,6 +241,10 @@ export interface Identidad {
  * `_resolver_actor` en `roble_acceso.py` hace lo mismo, y por el mismo motivo.
  */
 export async function identidad(): Promise<Identidad> {
+  // `currentUser()` va a `/verify-token`, que el SDK trata como petición de
+  // autenticación y no renueva tras un 401. Sin esto, recargar la PWA pasados los 15
+  // minutos del token de acceso cerraba la sesión aunque la renovación siguiera viva.
+  await renovarSiVence();
   const usuario = await roble.currentUser();
   const userId = String(usuario.sub);
 

@@ -69,6 +69,41 @@ async function guardarSesion(): Promise<void> {
 // El SDK renueva el token solo tras un 401; sin esto, el nuevo se perdería al cerrar.
 roble.onTokenUpdate = () => void guardarSesion();
 
+/*
+ * La renovación con el token de renovación nuevo guardado. ROBLE producción lo rota en
+ * cada uso y revoca la sesión entera si le llega uno ya usado («Sesión revocada por
+ * reutilización de token»), y el `refreshAccessToken` del SDK se queda con el viejo: la
+ * segunda renovación sacaba a la persona. Una sola a la vez, porque dos 401 juntos
+ * renovarían dos veces con el mismo token. Ver el mismo arreglo en `app/src/roble.ts`.
+ */
+interface ClienteInterno {
+  refreshAccessToken(): Promise<void>;
+  _makeRequest(
+    tipo: string,
+    metodo: string,
+    ruta: string,
+    opciones: Record<string, unknown>
+  ): Promise<{ accessToken?: string; refreshToken?: string } | undefined>;
+}
+const interno = roble as unknown as ClienteInterno;
+let refrescoEnCurso: Promise<void> | null = null;
+
+interno.refreshAccessToken = () => {
+  refrescoEnCurso ??= (async () => {
+    const usado = roble.refreshToken;
+    if (!usado) throw new Error('No hay token de renovación.');
+    const datos = await interno._makeRequest('auth', 'POST', 'refresh-token', {
+      body: { refreshToken: usado },
+      isAuthRequest: true,
+    });
+    if (!datos?.accessToken) throw new Error('Respuesta inválida al renovar el token.');
+    roble.setTokens({ accessToken: datos.accessToken, refreshToken: datos.refreshToken ?? usado });
+  })().finally(() => {
+    refrescoEnCurso = null;
+  });
+  return refrescoEnCurso;
+};
+
 /**
  * Renueva el token si vence en menos de dos minutos, igual que `renovarSiVence` en la
  * PWA. El SDK sólo lo renueva tras un 401 de ROBLE, y `/agente` no pasa por el SDK: con
@@ -170,6 +205,9 @@ export const fuenteRoble: Fuente = {
     if (!crudo) return null;
     try {
       roble.setTokens(JSON.parse(crudo) as { accessToken: string; refreshToken: string });
+      // `currentUser()` va a `/verify-token`, que el SDK no renueva tras un 401: sin
+      // esto, abrir la app pasados los 15 minutos del token de acceso cerraba la sesión.
+      await renovarSiVence();
       return await identidad();
     } catch {
       roble.clearTokens();
