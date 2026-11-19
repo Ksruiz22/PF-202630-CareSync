@@ -24,6 +24,7 @@ from caresync_comun.roble_acceso import (
     PACIENTE,
     PROFESIONAL,
     Actor,
+    momento_de_mensaje,
 )
 
 TRIAJE = "triaje"
@@ -192,6 +193,49 @@ def agente_por_defecto(caso: dict[str, Any] | None, *, rol: str = PACIENTE) -> s
     if estado in ("canalizado", "agendado"):
         return AGENDA
     return TRIAJE
+
+
+# Cuánto dura un trámite con un agente. Pasado esto, lo que la persona escriba ya no es
+# la respuesta a «¿te sirve a las 8:00 o a las 8:30?», y vuelve a decidir el estado.
+VENTANA_DE_CONTINUIDAD_MS = 30 * 60 * 1000
+
+# Los estados en que agenda y seguimiento pueden atender los dos el mismo caso. Fuera
+# de aquí no hay continuidad: un caso abierto es del triaje, uno escalado sigue la ruta
+# de urgencias y uno cerrado no se reabre por haber hablado hace poco.
+_ESTADOS_COMPARTIDOS = ("canalizado", "agendado", "atendido", "en_seguimiento")
+
+
+def agente_que_sigue(
+    filas: list[dict[str, Any]],
+    caso: dict[str, Any] | None,
+    *,
+    rol: str,
+    ahora_ms: float,
+) -> str | None:
+    """El agente que venía atendiendo, si hay que seguir con él en vez del del estado.
+
+    `agente_por_defecto` decide sólo por el estado del caso, y eso mezclaba los
+    trámites. El 2026-11-19 agenda le ofreció a una persona «¿8:00 o 8:30?» en un caso
+    en seguimiento; la respuesta «a las 8:30» cayó en seguimiento, que aplica otras
+    reglas al agendar, y en el turno siguiente terminó registrando las gárgaras.
+
+    Sigue el mismo agente cuando la última respuesta de un agente en el hilo fue de
+    agenda o de seguimiento, hace menos de `VENTANA_DE_CONTINUIDAD_MS`, el caso está en
+    un estado que los dos atienden y el rol puede usar ese agente. Si no, `None` y
+    decide el estado. `filas` es el hilo antes del mensaje nuevo, ya en orden.
+    """
+    if not caso or caso.get("estado") not in _ESTADOS_COMPARTIDOS:
+        return None
+    ultima = next((f for f in reversed(filas) if f.get("autor") == "agente"), None)
+    if not ultima:
+        return None
+    clave = str(ultima.get("agente") or "")
+    if clave not in (AGENDA, SEGUIMIENTO) or rol not in AGENTES[clave].roles:
+        return None
+    momento = momento_de_mensaje(ultima)
+    if not momento or ahora_ms - momento >= VENTANA_DE_CONTINUIDAD_MS:
+        return None
+    return clave
 
 
 # ------------------------------------------------------------------- prompts
