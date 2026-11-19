@@ -377,16 +377,18 @@ const VENTANA_DE_AGENDA = 30 * 60 * 1000;
  * con plan, que es lo único que `agente_por_defecto` no sabe: un caso `agendado` puede
  * tener plan de una consulta anterior. Con la urgencia escalada tampoco se toca.
  *
- * **Y si la última respuesta reciente fue de agenda, sigue agenda.** El 2026-11-19, en
- * medio de elegir hora, la persona respondió «a las 8:30» y la app lo mandó a
- * seguimiento, que no agenda: falló `agendar_cita` y el agente terminó hablando de las
- * gárgaras. El orquestador no recuerda qué agente venía atendiendo; decide por el estado
- * del caso, que en un caso con plan es seguimiento.
+ * **Y si la última respuesta reciente fue de agenda, no se sugiere nada.** El 2026-11-19,
+ * en medio de elegir hora, la persona respondió «a las 8:30» y la app lo mandó a
+ * seguimiento: falló `agendar_cita` y el agente terminó hablando de las gárgaras. La
+ * primera corrección mandaba `agenda` a ciegas, y eso llevó a agenda —que no registra la
+ * evolución— el «me siento como un 7 de 10» escrito justo después de cancelar. Quién
+ * sigue lo decide ahora el orquestador (`agente_que_sigue`): mira si agenda dejó algo
+ * abierto, y para eso lee las notas `[sistema]` del hilo, que esta app no conserva.
  */
 export function agenteParaMensaje(
   tratamiento: { plan: unknown; caso: { estado?: string }; turnos?: Turno[] },
   ahora: Date = new Date()
-): 'seguimiento' | 'agenda' | undefined {
+): 'seguimiento' | undefined {
   if (tratamiento.caso.estado === 'urgencia_escalada') return undefined;
   const ultima = [...(tratamiento.turnos ?? [])].reverse().find((turno) => turno.quien === 'agente');
   if (
@@ -394,7 +396,7 @@ export function agenteParaMensaje(
     ultima.cuando &&
     ahora.getTime() - ultima.cuando < VENTANA_DE_AGENDA
   ) {
-    return 'agenda';
+    return undefined;
   }
   return tratamiento.plan ? 'seguimiento' : undefined;
 }
