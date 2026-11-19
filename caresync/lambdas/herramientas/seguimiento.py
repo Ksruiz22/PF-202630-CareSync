@@ -273,6 +273,25 @@ def registrar_adherencia(
             ),
         }
 
+    # Lo mismo que con la evolución: el mismo reporte hace un momento no es uno nuevo.
+    # El 2026-11-19, en la PWA, «sí, ayer me hice el frotis» quedó registrado tres
+    # veces en dos minutos: el modelo lo volvía a ver en el historial en cada turno
+    # —mientras la persona cambiaba la hora del control— y lo volvía a anotar. Sólo
+    # cuenta lo que registró el agente (`origen` nulo): una toma marcada en la app es
+    # de una toma concreta y tiene su propio control de doble toque.
+    if _ya_reportada(acceso, caso_id, indicacion_id, cumplida):
+        return {
+            "ok": True,
+            "repetido": True,
+            "indicacion": indicacion.get("texto"),
+            "cumplida": cumplida,
+            "instruccion": (
+                "Eso ya estaba registrado hace un momento: no se guardó otra vez. No "
+                "vuelvas a anotarlo ni a decirle que quedó registrado; sigue con lo que "
+                "pide la persona."
+            ),
+        }
+
     acceso.registrar_adherencia(
         caso_id=caso_id, indicacion_id=indicacion_id, cumplida=cumplida, nota=nota
     )
@@ -295,3 +314,17 @@ def registrar_adherencia(
         if not cumplida
         else "Reconócelo en una frase corta y cierra.",
     }
+
+
+def _ya_reportada(acceso: AccesoRoble, caso_id: str, indicacion_id: str, cumplida: bool) -> bool:
+    """Si el agente ya registró lo mismo de esa indicación en `VENTANA_REPETIDO`."""
+    for fila in reversed(acceso.adherencia_del_caso(caso_id)):
+        if str(fila.get("indicacion_id")) != indicacion_id or fila.get("origen"):
+            continue
+        cuando = reloj.desde_iso(fila.get("reportado_en"))
+        if not cuando or reloj.ahora() - cuando >= VENTANA_REPETIDO:
+            return False
+        # ROBLE puede devolver el lógico como texto.
+        anterior = str(fila.get("cumplida")).strip().lower() in ("true", "t", "1")
+        return anterior == cumplida
+    return False

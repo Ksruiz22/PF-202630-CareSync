@@ -334,7 +334,10 @@ def probar_adherencia() -> None:
             return [{"_id": "ind-1", "texto": "Tomar acetaminofén"}, {"_id": "ind-2", "texto": "Hacer gárgaras"}]
 
         def registrar_adherencia(self, **datos: Any) -> None:
-            self._escribir("adherencia", datos)
+            self._escribir("adherencia", {**datos, "reportado_en": seguimiento.reloj.iso()})
+
+        def adherencia_del_caso(self, caso_id: str) -> list[dict[str, Any]]:
+            return [d for que, d in self.escrito if que == "adherencia"] + list(getattr(self, "previas", []))
 
     acceso = _ConPlan(ActorFalso("paciente"))
     salida = seguimiento.registrar_adherencia(acceso, {"_id": "k"}, {"indicacion_id": "de-otro-turno", "cumplida": False})
@@ -346,6 +349,39 @@ def probar_adherencia() -> None:
     salida = seguimiento.registrar_adherencia(acceso, {"_id": "k"}, {"indicacion_id": "ind-2", "cumplida": False, "nota": "duele"})
     comprobar("con el identificador correcto registra, y el incumplimiento deja evento",
               salida.get("ok") is True and [que for que, _ in acceso.escrito] == ["adherencia", "evento"])
+
+    print("\nLa misma adherencia dos veces seguidas (2026-11-19)")
+    acceso = _ConPlan(ActorFalso("paciente"))
+    frotis = {"indicacion_id": "ind-1", "cumplida": True}
+    seguimiento.registrar_adherencia(acceso, {"_id": "k"}, frotis)
+    salida = seguimiento.registrar_adherencia(acceso, {"_id": "k"}, frotis)
+    comprobar("el mismo reporte un turno después no se escribe otra vez",
+              [que for que, _ in acceso.escrito] == ["adherencia"] and salida.get("repetido") is True, str(salida))
+    comprobar("y se lo dice al agente, para que no repita «quedó registrado»",
+              "no se guardó otra vez" in str(salida.get("instruccion")))
+    seguimiento.registrar_adherencia(acceso, {"_id": "k"}, {"indicacion_id": "ind-2", "cumplida": True})
+    comprobar("otra indicación sí se registra",
+              [d["indicacion_id"] for que, d in acceso.escrito if que == "adherencia"] == ["ind-1", "ind-2"])
+    seguimiento.registrar_adherencia(acceso, {"_id": "k"}, {"indicacion_id": "ind-1", "cumplida": False, "nota": "no"})
+    comprobar("la misma indicación con lo contrario también: la persona se corrigió",
+              [d["cumplida"] for que, d in acceso.escrito if que == "adherencia"] == [True, True, False])
+
+    viejo = _ConPlan(ActorFalso("paciente"))
+    viejo.previas = [{"indicacion_id": "ind-1", "cumplida": "true",
+                      "reportado_en": seguimiento.reloj.iso(seguimiento.reloj.mas(minutos=-90))}]
+    seguimiento.registrar_adherencia(viejo, {"_id": "k"}, frotis)
+    comprobar("pasada la hora, es un reporte nuevo", len(viejo.escrito) == 1)
+
+    de_la_app = _ConPlan(ActorFalso("paciente"))
+    de_la_app.previas = [{"indicacion_id": "ind-1", "cumplida": True, "origen": "app",
+                          "reportado_en": seguimiento.reloj.iso()}]
+    seguimiento.registrar_adherencia(de_la_app, {"_id": "k"}, frotis)
+    comprobar("una toma marcada en la app no tapa lo que cuenta al agente", len(de_la_app.escrito) == 1)
+
+    como_texto = _ConPlan(ActorFalso("paciente"))
+    como_texto.previas = [{"indicacion_id": "ind-1", "cumplida": "true", "reportado_en": seguimiento.reloj.iso()}]
+    seguimiento.registrar_adherencia(como_texto, {"_id": "k"}, frotis)
+    comprobar("el lógico como texto, como puede llegar de ROBLE, también cuenta", como_texto.escrito == [])
 
 
 def probar_plan_con_reportes_de_la_app() -> None:
