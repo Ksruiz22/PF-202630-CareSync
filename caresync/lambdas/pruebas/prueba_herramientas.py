@@ -915,6 +915,36 @@ def probar_carrera_de_reserva() -> None:
               any(que == "caso" and d.get("estado") == "canalizado" for que, d in reparada.escrito))
 
 
+def probar_orden_del_hilo() -> None:
+    print("\nEl hilo llega al modelo en el orden en que se escribió")
+
+    class _Hilo:
+        """El `read` de ROBLE del 2026-11-19: minutos cortados y en desorden."""
+
+        def read(self, tabla: str, filtros: dict[str, Any]) -> list[dict[str, Any]]:
+            return [
+                {"contenido": "a las 8:30", "creado_en": "2026-11-19T18:37", "creado_ms": 1795631857533},
+                {"contenido": "Quiero agendar", "creado_en": "2026-11-19T18:37", "creado_ms": "1795631829160"},
+                {"contenido": "¿8:00 u 8:30?", "creado_en": "2026-11-19T18:37", "creado_ms": 1795631832242},
+                {"contenido": "de antes", "creado_en": "2026-11-19T18:35"},
+            ]
+
+        def create(self, tabla: str, datos: dict[str, Any]) -> dict[str, Any]:
+            self.creado = datos
+            return datos
+
+    cliente = _Hilo()
+    acceso = roble_acceso.AccesoRoble(cliente, ActorFalso("paciente"))
+    orden = [fila["contenido"] for fila in acceso.mensajes("c-1")]
+    comprobar("por creado_ms y no por el minuto",
+              orden == ["de antes", "Quiero agendar", "¿8:00 u 8:30?", "a las 8:30"], str(orden))
+
+    acceso.anotar_mensaje(caso_id="c-1", agente="agenda", autor="paciente", contenido="hola")
+    ms = cliente.creado.get("creado_ms")
+    comprobar("cada mensaje nuevo guarda creado_ms en milisegundos",
+              isinstance(ms, int) and ms > 1_700_000_000_000, str(ms))
+
+
 def main() -> int:
     for prueba in (
         probar_escalar_urgencia,
@@ -935,6 +965,7 @@ def main() -> int:
         probar_sesion_vencida,
         probar_id_al_crear,
         probar_carrera_de_reserva,
+        probar_orden_del_hilo,
     ):
         prueba()
 
