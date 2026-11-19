@@ -805,10 +805,13 @@ def _dejar_constancia_de_la_agenda(
 
     partes = []
     if opciones:
+        # Con el profesional: a una misma hora puede haber espacios de varios, y sin el
+        # nombre la nota del 2026-11-19 decía tres veces «viernes 20/11 a las 08:00» y
+        # el modelo no tenía con qué distinguir lo que la persona eligió.
         partes.append(
             "Espacios que se le mostraron, con el «inicio» que hay que copiar tal cual "
             "si elige uno: "
-            + "; ".join(f"{o.get('cuando')} = «{o.get('inicio')}»" for o in opciones)
+            + "; ".join(_espacio_para_la_nota(o) for o in opciones)
             + "."
         )
     if pendientes:
@@ -816,6 +819,12 @@ def _dejar_constancia_de_la_agenda(
     acceso.anotar_mensaje(
         caso_id=hilo_id, agente=agente, autor="sistema", contenido="[sistema] " + " ".join(partes)
     )
+
+
+def _espacio_para_la_nota(opcion: dict[str, Any]) -> str:
+    profesional = str(opcion.get("profesional") or "").strip()
+    con_quien = f" con {profesional}" if profesional else ""
+    return f"{opcion.get('cuando')}{con_quien} = «{opcion.get('inicio')}»"
 
 
 def _lo_pendiente(pendientes: dict[str, bedrock_conversa.Uso]) -> str:

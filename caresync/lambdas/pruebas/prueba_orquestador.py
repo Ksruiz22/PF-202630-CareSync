@@ -547,6 +547,19 @@ def probar_constancia_de_lo_pendiente() -> None:
     nota = str([d.get("contenido") for q, d in ofrecidas.escrito if q == "mensaje"])
     comprobar("los espacios mostrados quedan con su «inicio» literal: el modelo lo reconstruía mal",
               "martes 03/11 a las 08:30 = «2026-11-03T08:30:00-05:00»" in nota, nota)
+
+    # La nota del 2026-11-19 repetía «viernes 20/11 a las 08:00» tres veces: tres
+    # profesionales a la misma hora, sin decir cuál era cuál.
+    misma_hora = [{"inicio": "2026-11-20T08:00:00-05:00", "cuando": "viernes 20/11 a las 08:00",
+                   "profesional": nombre} for nombre in ("Dra. Laura Prueba", "Dr. Prueba CMU")]
+    varios = AccesoFalso(ActorFalso("paciente"))
+    orquestador._dejar_constancia_de_la_agenda(
+        varios, hilo_id="k", agente="agenda",
+        usos=[Uso("consultar_disponibilidad", {}, {"opciones": misma_hora}, True)],
+    )
+    nota = str([d.get("contenido") for q, d in varios.escrito if q == "mensaje"])
+    comprobar("a la misma hora, cada espacio lleva su profesional",
+              "08:00 con Dra. Laura Prueba = «" in nota and "08:00 con Dr. Prueba CMU = «" in nota, nota)
     agendada = AccesoFalso(ActorFalso("paciente"))
     orquestador._dejar_constancia_de_la_agenda(
         agendada, hilo_id="k", agente="agenda",
