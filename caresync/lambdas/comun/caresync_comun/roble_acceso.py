@@ -537,7 +537,10 @@ class AccesoRoble:
         abiertos.sort(key=lambda c: str(c.get("creado_en") or ""), reverse=True)
         return abiertos[0] if abiertos else None
 
-    def abrir_caso(self, *, motivo: str) -> dict[str, Any]:
+    def abrir_caso(self, *, motivo: str, caso_origen_id: str | None = None) -> dict[str, Any]:
+        # `caso_origen_id`: el caso del que nace este (`nuevo_motivo`). La columna existía
+        # desde el 29/10 y nada la escribía; la prueba del 2026-11-19 encontró el caso de
+        # una muela, abierto desde el seguimiento de una lumbalgia, sin su origen.
         fila = self._crear(
             CASOS,
             {
@@ -551,6 +554,7 @@ class AccesoRoble:
                 "resumen_triaje": None,
                 "creado_en": reloj.iso(),
                 "actualizado_en": reloj.iso(),
+                **({"caso_origen_id": caso_origen_id} if caso_origen_id else {}),
             },
         )
         evento(log, "caso_abierto", caso_id=fila_id(fila))

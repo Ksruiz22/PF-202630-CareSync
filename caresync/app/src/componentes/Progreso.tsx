@@ -14,7 +14,7 @@
  */
 
 import { useMemo, useRef, useState, type PointerEvent } from 'react';
-import { bandaDeEscala, escalaVisible, fechaHora, hace } from '../formato';
+import { bandaDeEscala, escalaVisible, fechaHora, hace, msDeRoble } from '../formato';
 import { esVerdad, idDe, type Adherencia, type EventoCaso, type Evolucion, type Indicacion } from '../tipos';
 import { Tarjeta } from './Piezas';
 import { IconoAlerta, IconoCampana, IconoTendencia } from './Iconos';
@@ -111,7 +111,7 @@ export function CurvaDeEvolucion({ filas }: { filas: Evolucion[] }) {
       filas
         .map((fila) => ({
           clave: idDe(fila),
-          momento: new Date(String(fila.reportado_en ?? '')).getTime(),
+          momento: msDeRoble(fila.reportado_en),
           escala: Number(fila.escala),
           nota: String(fila.nota ?? ''),
           cuando: String(fila.reportado_en ?? ''),

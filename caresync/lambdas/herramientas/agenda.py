@@ -204,6 +204,9 @@ def _disponibilidad_del_plan(acceso: AccesoRoble, caso: dict[str, Any]) -> dict[
     """Los espacios para el control o la sesión que pide el plan, en su plazo."""
     indicacion = _del_plan(acceso, caso)
     if not indicacion:
+        para_cambiar = _para_cambiar_la_del_plan(acceso, caso)
+        if para_cambiar:
+            return para_cambiar
         return {
             "nada_por_agendar": True,
             "instruccion": (
@@ -239,6 +242,59 @@ def _disponibilidad_del_plan(acceso: AccesoRoble, caso: dict[str, Any]) -> dict[
             "publica su agenda y puede volver a intentarlo más tarde. No inventes un espacio."
         ),
     }
+
+
+def _para_cambiar_la_del_plan(acceso: AccesoRoble, caso: dict[str, Any]) -> dict[str, Any] | None:
+    """Los espacios para mover un control o una sesión que ya está agendado.
+
+    Sin esto, con el control ya agendado no había nada por agendar y esta herramienta
+    respondía «no ofrezcas otra cita». En la prueba del 2026-11-19 la persona pidió
+    pasar el control del miércoles al jueves y el agente de seguimiento, sin una sola
+    hora que darle a `reprogramar_cita`, contestó dos veces que «no hay otro control
+    por agendar». Se busca en la misma ventana del plan que al agendarlo: lo que se
+    mueve es la cita, no la fecha que puso el profesional.
+
+    Un espacio por día y no los primeros seis: quien cambia una cita suele pedir un día
+    («el jueves»), y los seis primeros caían todos en el primer día de la ventana.
+    """
+    caso_id = str(fila_id(caso))
+    citas = acceso.citas_del_caso(caso_id)
+    for indicacion in acceso.indicaciones_activas(caso_id):
+        if indicacion.get("tipo") not in tratamiento.SE_AGENDAN:
+            continue
+        actual = tratamiento.estado(indicacion, citas)["por_delante"]
+        if not actual:
+            continue
+        centro = str(actual.get("centro") or "") or _centro_del_caso(caso)
+        desde, hasta = tratamiento.ventana(indicacion)
+        libres = _libres(acceso, centro=centro, desde=desde, hasta=hasta, maximo=MAX_CANDIDATOS)
+        por_dia: dict[str, dict[str, Any]] = {}
+        for cupo in libres:
+            dia = reloj.iso_local(cupo.get("inicio"))[:10]
+            por_dia.setdefault(dia, cupo)
+        opciones = [_opcion(acceso, c) for c in list(por_dia.values())[:MAX_OPCIONES]]
+        actual_inicio = reloj.iso_local(actual.get("inicio"))
+        return {
+            "para_cambiar": True,
+            "para": indicacion.get("texto"),
+            "cita_actual": _ficha(actual),
+            "opciones": opciones,
+            "instruccion": (
+                f"Esto es para cambiar la cita que ya tiene, la del {reloj.humano(actual.get('inicio'))}. "
+                "Ofrécele estas opciones (una por día) y, cuando elija, llama a "
+                f"reprogramar_cita con el «inicio» de esa opción, cita_actual «{actual_inicio}» "
+                "y confirmado en false; con su sí, otra vez con confirmado en true. Cada "
+                "opción es la primera hora libre de ese día: si la persona pide otra hora "
+                "del mismo día, pásale a reprogramar_cita esa hora, que la busca entre las "
+                "libres."
+                if opciones
+                else (
+                    "No hay otros espacios libres en las fechas que indicó el profesional. "
+                    "Díselo así: la cita que tiene sigue en pie. No inventes un espacio."
+                )
+            ),
+        }
+    return None
 
 
 def _anotar_sin_cupo_en_plazo(

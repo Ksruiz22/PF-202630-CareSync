@@ -255,8 +255,12 @@ def probar_cita_del_plan() -> None:
         {"_id": "c-1", "indicacion_id": "ind-1", "estado": "confirmada",
          "inicio": tratamiento.reloj.iso(tratamiento.reloj.mas(dias=10)),
          "fin": tratamiento.reloj.iso(tratamiento.reloj.mas(dias=10, minutos=30))}])
-    comprobar("con el control ya agendado no hay nada por agendar",
-              agenda.consultar_disponibilidad(agendado, caso, {}).get("nada_por_agendar") is True)
+    # Desde el 2026-11-19 no responde «nada por agendar»: da los espacios para cambiarlo
+    # (ver `probar_cambiar_el_control_desde_seguimiento`), pero tampoco otro control.
+    salida = agenda.consultar_disponibilidad(agendado, caso, {})
+    comprobar("con el control ya agendado no ofrece otro: sólo cambiar el que tiene",
+              salida.get("para_cambiar") is True and "reprogramar_cita" in salida["instruccion"]
+              and "agendar_cita" not in salida["instruccion"], str(salida)[:200])
 
     afuera = _ConPlan(ActorFalso("paciente"), indicaciones=[{**control, "centro_destino": "externo"}])
     comprobar("un control fuera de la universidad no se agenda en el CMU",
@@ -638,6 +642,53 @@ def probar_plazo_del_nivel() -> None:
               "dentro_del_plazo" not in salida and len(salida["opciones"]) == 1)
 
 
+def probar_cambiar_el_control_desde_seguimiento() -> None:
+    print("\nCambiar desde seguimiento un control ya agendado (2026-11-19)")
+    agenda.correo.config = _sin_correo
+    iso_local = agenda.reloj.iso_local
+    control = {"_id": "ind-c", "tipo": "control", "plazo_dias": 7, "centro_destino": "CMU",
+               "texto": "Control en una semana", "creado_en": agenda.reloj.iso()}
+
+    class _ConControl(_AgendaViva):
+        def indicaciones_activas(self, caso_id: str) -> list[dict[str, Any]]:
+            return [control]
+
+    agendada = {**_cita("cita-c", "cupo-c", days=6), "tipo": "control", "indicacion_id": "ind-c"}
+    dia6_tarde, dia7, dia7_tarde, dia8 = (_cupo("c6b", days=6, hours=2), _cupo("c7", days=7),
+                                          _cupo("c7b", days=7, hours=1), _cupo("c8", days=8))
+    lejos = _cupo("c20", days=20)
+    acceso = _ConControl(cupos=[dia7_tarde, dia8, dia6_tarde, dia7, lejos], citas=[agendada])
+    en_seguimiento = _caso(estado="en_seguimiento")
+
+    salida = agenda.consultar_disponibilidad(acceso, en_seguimiento, {})
+    ofrecidas = [o["inicio"] for o in salida.get("opciones", [])]
+    comprobar("con el control agendado ya no responde «nada por agendar»: da con qué cambiarlo",
+              salida.get("para_cambiar") is True and "nada_por_agendar" not in salida, str(salida)[:200])
+    comprobar("un espacio por día, el primero de cada uno, en orden",
+              ofrecidas == [iso_local(c["inicio"]) for c in (dia6_tarde, dia7, dia8)], str(ofrecidas))
+    comprobar("dentro de la ventana del plan: lo de dentro de 20 días no aparece",
+              iso_local(lejos["inicio"]) not in ofrecidas)
+    comprobar("y le dice al agente que es con reprogramar_cita y la cita actual",
+              "reprogramar_cita" in salida["instruccion"]
+              and iso_local(agendada["inicio"]) in salida["instruccion"], salida["instruccion"])
+
+    # Lo que pidió la persona en la prueba: otra hora del jueves, que no salió en la lista.
+    argumentos = {"inicio": iso_local(dia7_tarde["inicio"]), "cita_actual": iso_local(agendada["inicio"])}
+    salida = agenda.reprogramar_cita(acceso, en_seguimiento, {**argumentos, "confirmado": False})
+    comprobar("otra hora del mismo día también se puede pedir, y primero se confirma",
+              salida.get("confirmar_primero") is True, str(salida)[:200])
+    salida = agenda.reprogramar_cita(acceso, en_seguimiento, {**argumentos, "confirmado": True})
+    nueva = acceso.citas[-1]
+    comprobar("confirmado: queda la cita nueva, que sigue siendo el control de esa indicación",
+              salida.get("ok") is True and nueva["tipo"] == "control" and nueva["indicacion_id"] == "ind-c",
+              str(salida)[:200])
+
+    hecho = {**agendada, "estado": "atendida", **_franja(days=-1)}
+    salida = agenda.consultar_disponibilidad(_ConControl(cupos=[dia7], citas=[hecho]), en_seguimiento, {})
+    comprobar("con el control ya hecho, sigue sin ofrecer otra cita",
+              salida.get("nada_por_agendar") is True, str(salida)[:200])
+
+
 def probar_cancelar() -> None:
     print("\nCancelar una cita (A2)")
     agenda.correo.config = _sin_correo
@@ -772,6 +823,8 @@ def probar_nuevo_motivo() -> None:
     abiertos = [d for que, d in acceso.escrito if que == "abrir_caso"]
     comprobar("abre un caso aparte con el problema nuevo como motivo",
               abiertos and abiertos[0]["motivo"] == "Me duele la rodilla" and salida.get("caso_nuevo"))
+    comprobar("con el caso del que nace en caso_origen_id (2026-11-19: quedaba vacío)",
+              abiertos and abiertos[0].get("caso_origen_id") == "viejo", str(abiertos))
     comprobar("y lo anota en la bitácora del caso viejo",
               any(d.get("tipo") == "nuevo_motivo" and d.get("caso_id") == "viejo"
                   for que, d in acceso.escrito if que == "evento"))
@@ -1045,6 +1098,7 @@ def main() -> int:
         probar_horarios_legibles,
         probar_plazo_del_nivel,
         probar_cancelar,
+        probar_cambiar_el_control_desde_seguimiento,
         probar_reprogramar,
         probar_cita_pasada,
         probar_subir_urgencia,

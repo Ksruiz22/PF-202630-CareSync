@@ -33,10 +33,26 @@ const SOLO_HORA = new Intl.DateTimeFormat('es-CO', {
   hour12: false,
 });
 
+/**
+ * Un momento de ROBLE en milisegundos, o `NaN` si no se puede leer.
+ *
+ * El `read` de ROBLE producción devuelve `2026-11-20T13:30`, sin zona ni segundos, y
+ * ese valor es UTC: la cita de las 8:30 de Bogotá. `new Date` sin zona lo toma como
+ * hora del navegador, y el 2026-11-19 la tarjeta del paciente mostró esa cita «a las
+ * 13:30» —la agenda del profesional y la vista administrativa, igual—. Sin zona se
+ * asume UTC, como `reloj.desde_iso` en el backend y `fecha()` en la app móvil.
+ */
+export function msDeRoble(valor: unknown): number {
+  if (valor === null || valor === undefined || valor === '') return Number.NaN;
+  if (valor instanceof Date) return valor.getTime();
+  const texto = String(valor).trim().replace(' ', 'T');
+  const conZona = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(texto) ? texto : `${texto}Z`;
+  return new Date(conZona).getTime();
+}
+
 function comoFecha(valor: unknown): Date | null {
-  if (!valor) return null;
-  const fecha = new Date(String(valor));
-  return Number.isNaN(fecha.getTime()) ? null : fecha;
+  const ms = msDeRoble(valor);
+  return Number.isNaN(ms) ? null : new Date(ms);
 }
 
 export function fechaHora(valor: unknown): string {

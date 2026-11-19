@@ -212,8 +212,11 @@ class AccesoFalso:
     def caso_abierto_de(self, user_id: str) -> dict[str, Any] | None:
         return self._abierto
 
-    def abrir_caso(self, *, motivo: str) -> dict[str, Any]:
-        return self._escribir("abrir_caso", {"motivo": motivo, "estado": "abierto"})
+    def abrir_caso(self, *, motivo: str, caso_origen_id: str | None = None) -> dict[str, Any]:
+        datos = {"motivo": motivo, "estado": "abierto"}
+        if caso_origen_id:
+            datos["caso_origen_id"] = caso_origen_id
+        return self._escribir("abrir_caso", datos)
 
     def mensajes(self, caso_id: str, *, maximo: int = 30) -> list[dict[str, Any]]:
         return list(self._mensajes)[-maximo:]
