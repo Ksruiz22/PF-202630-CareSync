@@ -244,12 +244,20 @@ def _conversar(
     # ningún `_id`; una columna nueva no era opción, ROBLE no admite `alter`.
     hilo_id = caso_id or f"consulta:{actor.user_id}"
 
+    # El hilo se lee antes de anotar el mensaje nuevo: hace falta para saber qué agente
+    # venía atendiendo, y así sigue siendo una sola lectura por turno. El mensaje nuevo
+    # se suma después a mano, igual que lo guarda `anotar_mensaje`.
+    previas = acceso.mensajes(hilo_id, maximo=19)
+
     solicitado = str(cuerpo.get("agente") or "").strip().lower()
-    clave = (
-        solicitado
-        if solicitado in agentes.AGENTES
-        else agentes.agente_por_defecto(caso, rol=actor.rol)
-    )
+    if solicitado in agentes.AGENTES:
+        clave = solicitado
+    else:
+        # Sin sugerencia de la aplicación, sigue el agente del trámite en curso; si no
+        # hay uno reciente, decide el estado del caso. Ver `agente_que_sigue`.
+        clave = agentes.agente_que_sigue(
+            previas, caso, rol=actor.rol, ahora_ms=reloj.ahora().timestamp() * 1000
+        ) or agentes.agente_por_defecto(caso, rol=actor.rol)
     agente = agentes.AGENTES[clave]
 
     if actor.rol not in agente.roles:
@@ -258,13 +266,14 @@ def _conversar(
     acceso.anotar_mensaje(
         caso_id=hilo_id, agente=agente.clave, autor=actor.rol, contenido=mensaje
     )
+    nueva = {"autor": actor.rol, "agente": agente.clave, "contenido": mensaje, "creado_en": reloj.iso()}
 
     # El hilo que se le pasa al modelo es sólo texto: turnos de la persona y del
     # agente. Los bloques `toolUse`/`toolResult` de la vuelta anterior se quedan
     # dentro del bucle y no se arrastran al traspaso, porque el segundo agente
     # declara otras herramientas y la API rechaza un historial que referencia
     # herramientas que ya no existen.
-    filas = acceso.mensajes(hilo_id, maximo=20)
+    filas = [*previas, nueva]
     hilo = _historial_de_filas(filas)
     hilo.append({"role": "user", "content": _turno_de_la_persona(mensaje, agente)})
     pausa = _pausa(filas)

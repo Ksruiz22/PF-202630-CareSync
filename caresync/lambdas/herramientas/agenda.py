@@ -480,8 +480,24 @@ def _coincidencias(
     if len(mismos) > 1 and nombre:
         filtrados = [c for c in mismos if nombre in _nombre_del_profesional(acceso, c).casefold()]
         if filtrados:
-            return filtrados
-    return mismos
+            mismos = filtrados
+    return _uno_si_no_se_distinguen(acceso, mismos)
+
+
+def _uno_si_no_se_distinguen(acceso: AccesoRoble, cupos: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Si los cupos que quedan son de profesionales con el mismo nombre, uno solo.
+
+    La persona elige por hora y por nombre, y no tiene más con qué distinguir. El
+    2026-11-19 había dos filas de «Dra. Laura Prueba» con cupo a las 8:30: la persona
+    eligió «Laura Prueba», quedaban dos, y la herramienta volvía a preguntar con cuál,
+    sin salida. Se toma el del identificador menor, para que sea siempre el mismo.
+    """
+    if len(cupos) < 2:
+        return cupos
+    nombres = {_nombre_del_profesional(acceso, c).strip().casefold() for c in cupos}
+    if len(nombres) == 1 and "" not in nombres:
+        return [min(cupos, key=lambda c: str(c.get("profesional_id") or ""))]
+    return cupos
 
 
 def _resolver_espacio(

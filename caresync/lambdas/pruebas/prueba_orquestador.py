@@ -63,6 +63,123 @@ def probar_agente_por_defecto() -> None:
         comprobar(f"caso «{estado}»: {esperado}", real == esperado, real)
 
 
+def probar_agente_que_sigue() -> None:
+    print("\nSigue el agente del trámite en curso (2026-11-19)")
+
+    ahora = 1_800_000_000_000.0
+    hace = lambda minutos: ahora - minutos * 60_000  # noqa: E731
+
+    def hilo(*filas: tuple[str, str, float]) -> list[dict]:
+        return [{"autor": a, "agente": g, "creado_ms": m, "contenido": "…"} for a, g, m in filas]
+
+    sigue = agentes.agente_que_sigue
+    en_seguimiento = {"estado": "en_seguimiento"}
+    agenda_hace_2 = hilo(("paciente", "agenda", hace(3)), ("agente", "agenda", hace(2)))
+
+    comprobar("agenda ofreció horas hace 2 min en un caso en seguimiento: sigue agenda",
+              sigue(agenda_hace_2, en_seguimiento, rol="paciente", ahora_ms=ahora) == "agenda")
+    comprobar("y al revés: seguimiento atendiendo un caso agendado sigue con seguimiento",
+              sigue(hilo(("agente", "seguimiento", hace(5))), {"estado": "agendado"},
+                    rol="paciente", ahora_ms=ahora) == "seguimiento")
+    comprobar("pasados 30 minutos vuelve a decidir el estado",
+              sigue(hilo(("agente", "agenda", hace(31))), en_seguimiento,
+                    rol="paciente", ahora_ms=ahora) is None)
+    comprobar("a los 29 minutos todavía sigue",
+              sigue(hilo(("agente", "agenda", hace(29))), en_seguimiento,
+                    rol="paciente", ahora_ms=ahora) == "agenda")
+    comprobar("cuenta la última respuesta, no la primera",
+              sigue(hilo(("agente", "agenda", hace(10)), ("agente", "seguimiento", hace(4))),
+                    en_seguimiento, rol="paciente", ahora_ms=ahora) == "seguimiento")
+    comprobar("las notas [sistema] no cuentan como respuesta",
+              sigue(hilo(("agente", "agenda", hace(4)), ("sistema", "seguimiento", hace(4))),
+                    en_seguimiento, rol="paciente", ahora_ms=ahora) == "agenda")
+    for estado in ("abierto", "urgencia_escalada", "cerrado"):
+        comprobar(f"caso «{estado}»: no hay continuidad, decide el estado",
+                  sigue(agenda_hace_2, {"estado": estado}, rol="paciente", ahora_ms=ahora) is None)
+    comprobar("el triaje no se continúa: lo decide el estado",
+              sigue(hilo(("agente", "triaje", hace(1))), {"estado": "canalizado"},
+                    rol="paciente", ahora_ms=ahora) is None)
+    comprobar("un rol que no puede usar ese agente no lo hereda",
+              sigue(hilo(("agente", "seguimiento", hace(1))), {"estado": "agendado"},
+                    rol="admin_cmu", ahora_ms=ahora) is None)
+    comprobar("sin caso no hay trámite que seguir",
+              sigue(agenda_hace_2, None, rol="paciente", ahora_ms=ahora) is None)
+    comprobar("sin respuestas de agente, nada",
+              sigue(hilo(("paciente", "agenda", hace(1))), en_seguimiento,
+                    rol="paciente", ahora_ms=ahora) is None)
+    comprobar("una fila de antes, sólo con creado_en, también sirve",
+              sigue([{"autor": "agente", "agente": "agenda",
+                      "creado_en": orquestador.reloj.iso(orquestador.reloj.mas(minutos=-5))}],
+                    en_seguimiento, rol="paciente",
+                    ahora_ms=orquestador.reloj.ahora().timestamp() * 1000) == "agenda")
+    comprobar("creado_ms como texto, como puede llegar de ROBLE",
+              sigue([{"autor": "agente", "agente": "agenda", "creado_ms": str(int(hace(2)))}],
+                    en_seguimiento, rol="paciente", ahora_ms=ahora) == "agenda")
+
+
+def probar_conversacion_que_no_se_mezcla() -> None:
+    """De punta a punta en el orquestador: la respuesta a agenda la atiende agenda."""
+    print("\nLa respuesta a «¿8:00 o 8:30?» la atiende agenda (2026-11-19)")
+
+    Resultado = bedrock_conversa.Resultado
+    caso = {"_id": "k", "estado": "en_seguimiento", "centro": "CMU", "nivel_urgencia": 3}
+    ahora_ms = orquestador.reloj.ahora().timestamp() * 1000
+
+    class _Acceso(AccesoFalso):
+        def caso(self, caso_id: str) -> dict:
+            return caso
+
+    def turno(cuerpo: dict, previas: list[dict]) -> tuple[dict, list[dict], AccesoFalso]:
+        acceso = _Acceso(ActorFalso("paciente"), casos={"k": caso}, mensajes=previas)
+        llamadas: list[dict] = []
+
+        def conversar(**argumentos):
+            llamadas.append(argumentos)
+            return Resultado(texto="Listo.")
+
+        original = orquestador.bedrock_conversa.conversar
+        orquestador.bedrock_conversa.conversar = conversar
+        try:
+            respuesta = orquestador._conversar(acceso, token="t", mensaje="a las 8:30",
+                                               cuerpo={"caso_id": "k", **cuerpo})
+        finally:
+            orquestador.bedrock_conversa.conversar = original
+        return json.loads(respuesta["body"]), llamadas, acceso
+
+    ofrecio = [
+        {"autor": "paciente", "agente": "agenda", "contenido": "Quiero agendar mi control",
+         "creado_ms": ahora_ms - 40_000},
+        {"autor": "agente", "agente": "agenda", "contenido": "¿Te sirve a las 8:00 o a las 8:30?",
+         "creado_ms": ahora_ms - 35_000},
+        {"autor": "sistema", "agente": "agenda", "contenido": "[sistema] Espacios que se le mostraron…",
+         "creado_ms": ahora_ms - 35_000},
+    ]
+
+    cuerpo, llamadas, acceso = turno({}, ofrecio)
+    comprobar("sin sugerencia de la app (la PWA), atiende agenda y no seguimiento",
+              cuerpo["agentes"] == ["agenda"], str(cuerpo["agentes"]))
+    comprobar("con las instrucciones de agenda", "Agente de Agenda" in "".join(llamadas[0]["sistema"]))
+    comprobar("y el mensaje queda anotado a nombre de agenda",
+              [d["agente"] for que, d in acceso.escrito if que == "mensaje" and d["autor"] == "paciente"]
+              == ["agenda"])
+    comprobar("el modelo recibe la pregunta que se está respondiendo",
+              any("8:00 o a las 8:30" in texto(b) for m in llamadas[0]["mensajes"] for b in m["content"]))
+
+    cuerpo, _, _ = turno({"agente": "seguimiento"}, ofrecio)
+    comprobar("si la app pide un agente, manda lo que pide", cuerpo["agentes"] == ["seguimiento"])
+
+    viejo = [{**f, "creado_ms": ahora_ms - 2 * 3600_000} for f in ofrecio]
+    cuerpo, _, _ = turno({}, viejo)
+    comprobar("dos horas después, la conversación vuelve a seguimiento",
+              cuerpo["agentes"] == ["seguimiento"], str(cuerpo["agentes"]))
+
+    desde_seguimiento = [{**f, "agente": "seguimiento"} for f in ofrecio]
+    cuerpo, llamadas, _ = turno({}, desde_seguimiento)
+    comprobar("el control que ofreció seguimiento lo termina seguimiento, que también agenda",
+              cuerpo["agentes"] == ["seguimiento"]
+              and "agendar_cita" in _nombres(llamadas[0]["herramientas"]), str(cuerpo["agentes"]))
+
+
 def probar_historial() -> None:
     print("\nEl historial que ve el modelo")
 
@@ -699,6 +816,8 @@ def probar_instrucciones() -> None:
 def main() -> int:
     for prueba in (
         probar_agente_por_defecto,
+        probar_agente_que_sigue,
+        probar_conversacion_que_no_se_mezcla,
         probar_historial,
         probar_resolver_caso,
         probar_herramientas_declaradas,

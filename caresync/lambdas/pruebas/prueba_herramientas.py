@@ -849,6 +849,57 @@ class _CupoCompartido:
         return datos
 
 
+def probar_profesionales_con_el_mismo_nombre() -> None:
+    print("\nDos profesionales con el mismo nombre a la misma hora (2026-11-19)")
+    agenda.correo.config = _sin_correo
+
+    nombres = {"p-1": "Dra. Laura Prueba", "p-2": "Dra. Laura Prueba", "p-3": "Dr. Prueba CMU"}
+
+    class _ConNombres(_AgendaViva):
+        def profesional(self, profesional_id: str) -> dict[str, Any]:
+            return {"nombre": nombres[profesional_id], "email": ""}
+
+    def tres_a_la_misma_hora() -> list[dict[str, Any]]:
+        base = _cupo("c-x", days=1)
+        return [{**base, "_id": f"c-{p}", "profesional_id": p} for p in ("p-2", "p-1", "p-3")]
+
+    cupos = tres_a_la_misma_hora()
+    inicio = agenda.reloj.iso_local(cupos[0]["inicio"])
+
+    acceso = _ConNombres(cupos=cupos)
+    salida = agenda.agendar_cita(acceso, _caso(estado="canalizado"), {"inicio": inicio})
+    comprobar("sin nombre y con dos nombres distintos, pregunta con cuál",
+              salida.get("motivo") == "varios_profesionales" and not acceso.citas, str(salida)[:120])
+
+    acceso = _ConNombres(cupos=cupos)
+    salida = agenda.agendar_cita(acceso, _caso(estado="canalizado"),
+                                 {"inicio": inicio, "profesional": "Laura Prueba"})
+    comprobar("eligiendo «Laura Prueba» agenda, aunque haya dos con ese nombre",
+              salida.get("ok") is True and len(acceso.citas) == 1, str(salida)[:120])
+    comprobar("y siempre la misma: la del identificador menor",
+              any(que == "reserva" and d.get("cupo_id") == "c-p-1" for que, d in acceso.escrito))
+
+    acceso = _ConNombres(cupos=cupos)
+    salida = agenda.agendar_cita(acceso, _caso(estado="canalizado"),
+                                 {"inicio": inicio, "profesional": "Prueba CMU"})
+    comprobar("eligiendo al otro, agenda con él",
+              salida.get("ok") is True
+              and any(que == "reserva" and d.get("cupo_id") == "c-p-3" for que, d in acceso.escrito))
+
+    solo_laura = [c for c in tres_a_la_misma_hora() if c["profesional_id"] != "p-3"]
+    acceso = _ConNombres(cupos=solo_laura)
+    salida = agenda.agendar_cita(acceso, _caso(estado="canalizado"), {"inicio": inicio})
+    comprobar("si los dos que quedan se llaman igual, no pregunta: no hay nada que elegir",
+              salida.get("ok") is True and len(acceso.citas) == 1, str(salida)[:120])
+
+    distintos = [{**c, "profesional_id": p} for c, p in zip(tres_a_la_misma_hora()[:2], ("p-1", "p-3"))]
+    acceso = _ConNombres(cupos=distintos)
+    salida = agenda.agendar_cita(acceso, _caso(estado="canalizado"),
+                                 {"inicio": inicio, "profesional": "alguien que no existe"})
+    comprobar("un nombre que no coincide con nadie vuelve a preguntar, no elige al azar",
+              salida.get("motivo") == "varios_profesionales" and not acceso.citas, str(salida)[:120])
+
+
 def probar_carrera_de_reserva() -> None:
     print("\nDos casos por el mismo cupo (M4)")
     agenda.correo.config = _sin_correo
@@ -965,6 +1016,7 @@ def main() -> int:
         probar_sesion_vencida,
         probar_id_al_crear,
         probar_carrera_de_reserva,
+        probar_profesionales_con_el_mismo_nombre,
         probar_orden_del_hilo,
     ):
         prueba()
