@@ -338,7 +338,7 @@ def nuevo_motivo(
         raise SolicitudInvalida("nuevo_motivo sin motivo")
 
     caso_id = str(fila_id(caso))
-    nuevo = acceso.abrir_caso(motivo=motivo)
+    nuevo = acceso.abrir_caso(motivo=motivo, caso_origen_id=caso_id)
     nuevo_id = str(fila_id(nuevo))
     acceso.registrar_evento(
         caso_id=caso_id, tipo="nuevo_motivo", detalle={"caso_nuevo": nuevo_id, "motivo": motivo}

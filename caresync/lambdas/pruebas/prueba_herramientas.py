@@ -823,6 +823,8 @@ def probar_nuevo_motivo() -> None:
     abiertos = [d for que, d in acceso.escrito if que == "abrir_caso"]
     comprobar("abre un caso aparte con el problema nuevo como motivo",
               abiertos and abiertos[0]["motivo"] == "Me duele la rodilla" and salida.get("caso_nuevo"))
+    comprobar("con el caso del que nace en caso_origen_id (2026-11-19: quedaba vacío)",
+              abiertos and abiertos[0].get("caso_origen_id") == "viejo", str(abiertos))
     comprobar("y lo anota en la bitácora del caso viejo",
               any(d.get("tipo") == "nuevo_motivo" and d.get("caso_id") == "viejo"
                   for que, d in acceso.escrito if que == "evento"))
