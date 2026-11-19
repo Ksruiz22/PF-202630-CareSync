@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {
   acompanamientoDe,
   agenteParaMensaje,
+  momentoDeFila,
   avanceDe,
   estadoDeHito,
   estadoDeSerie,
@@ -202,6 +203,37 @@ prueba('sin plan decide el orquestador: un triaje a medias no se salta', () => {
   assert.equal(agenteParaMensaje({ plan: null, caso: { estado: 'canalizado' } }), undefined);
   assert.equal(agenteParaMensaje({ plan: {}, caso: { estado: 'agendado' } }), 'seguimiento');
   assert.equal(agenteParaMensaje({ plan: {}, caso: { estado: 'urgencia_escalada' } }), undefined);
+});
+
+prueba('a mitad de agendar, la respuesta sigue con agenda y no con seguimiento', () => {
+  const ahora = new Date('2026-11-19T18:37:30Z');
+  const turnos = [
+    { quien: 'yo' as const, texto: 'Quiero agendar mi control', agente: 'agenda', cuando: Date.parse('2026-11-19T18:37:09Z') },
+    { quien: 'agente' as const, texto: '¿A las 8:00 o a las 8:30?', agente: 'agenda', cuando: Date.parse('2026-11-19T18:37:12Z') },
+  ];
+  const conPlan = { plan: {}, caso: { estado: 'en_seguimiento' } };
+  assert.equal(agenteParaMensaje({ ...conPlan, turnos }, ahora), 'agenda');
+  // Una hora después ya no es la respuesta a esa pregunta.
+  assert.equal(agenteParaMensaje({ ...conPlan, turnos }, new Date('2026-11-19T19:40:00Z')), 'seguimiento');
+  // Si la última respuesta fue de seguimiento, sigue seguimiento.
+  const otra = [...turnos, { quien: 'agente' as const, texto: 'Quedó registrado', agente: 'seguimiento', cuando: Date.parse('2026-11-19T18:37:20Z') }];
+  assert.equal(agenteParaMensaje({ ...conPlan, turnos: otra }, ahora), 'seguimiento');
+  // La urgencia escalada no se toca, aunque agenda haya hablado.
+  assert.equal(agenteParaMensaje({ plan: {}, caso: { estado: 'urgencia_escalada' }, turnos }, ahora), undefined);
+});
+
+prueba('la conversación se ordena por creado_ms, no por el minuto que devuelve ROBLE', () => {
+  // Como llegaron del read el 2026-11-19: mismo minuto y en desorden.
+  const filas = [
+    { creado_en: '2026-11-19T18:37', creado_ms: Date.parse('2026-11-19T18:37:37.533Z'), contenido: 'a las 8:30' },
+    { creado_en: '2026-11-19T18:37', creado_ms: Date.parse('2026-11-19T18:37:09.160Z'), contenido: 'Quiero agendar' },
+    { creado_en: '2026-11-19T18:37', creado_ms: String(Date.parse('2026-11-19T18:37:12.242Z')), contenido: '¿8:00 u 8:30?' },
+  ];
+  const orden = [...filas].sort((a, b) => momentoDeFila(a) - momentoDeFila(b)).map((f) => f.contenido);
+  assert.deepEqual(orden, ['Quiero agendar', '¿8:00 u 8:30?', 'a las 8:30']);
+  // Una fila de antes, sin creado_ms, cae en su minuto.
+  assert.equal(momentoDeFila({ creado_en: '2026-11-19T18:37' }), Date.parse('2026-11-19T18:37:00Z'));
+  assert.equal(momentoDeFila({ creado_ms: null, creado_en: '2026-11-19T18:37' }), Date.parse('2026-11-19T18:37:00Z'));
 });
 
 prueba('la cita se avisa 24 y 2 horas antes, una sola vez aunque la Lambda la anote', () => {

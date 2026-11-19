@@ -93,13 +93,20 @@ export interface Recordatorio extends Fila {
 
 export interface FilaConversacion extends Fila {
   autor?: string;
+  agente?: string;
   contenido?: string;
   creado_en?: string;
+  /** Milisegundos desde 1970. Ver `momentoDeFila` en `agenda.ts`. */
+  creado_ms?: number | string | null;
 }
 
 export interface Turno {
   quien: 'yo' | 'agente';
   texto: string;
+  /** El agente que atendió ese turno (`triaje`, `agenda`, `seguimiento`), si se sabe. */
+  agente?: string;
+  /** Cuándo, en milisegundos; 0 si no se sabe. */
+  cuando?: number;
 }
 
 export interface Identidad {

@@ -13,7 +13,7 @@
  * preguntar. Ver `HORA_PRIMERA` y `HORA_ULTIMA`.
  */
 
-import { esVerdad, idDe, type Adherencia, type Cita, type Indicacion } from './tipos';
+import { esVerdad, idDe, type Adherencia, type Cita, type Indicacion, type Turno } from './tipos';
 
 const HORA = 60 * 60 * 1000;
 const DIA = 24 * HORA;
@@ -343,7 +343,30 @@ export function avanceDe(
   };
 }
 
+// ------------------------------------------------------------ la conversación
+
+/**
+ * Cuándo se escribió una fila de `conversaciones`, en milisegundos.
+ *
+ * `creado_en` no sirve para ordenar: el `read` de ROBLE lo devuelve cortado al minuto, y
+ * además en el orden que quiere. Un intercambio rápido cae entero en el mismo minuto, y
+ * el 2026-11-19 la app mostró «a las 8:30» antes de la pregunta que respondía. Desde
+ * entonces el orquestador escribe también `creado_ms`, que es un entero y ROBLE no
+ * recorta. Las filas anteriores sólo tienen `creado_en`, con su minuto.
+ */
+export function momentoDeFila(fila: { creado_ms?: unknown; creado_en?: unknown }): number {
+  const ms = Number(fila.creado_ms);
+  if (fila.creado_ms !== null && fila.creado_ms !== undefined && Number.isFinite(ms) && ms > 0) return ms;
+  return fecha(fila.creado_en)?.getTime() ?? 0;
+}
+
 // --------------------------------------------------------------- a qué agente
+
+/**
+ * Cuánto dura una conversación con el agente de agenda. Pasado esto, lo que la persona
+ * escriba ya no es la respuesta a «¿te sirve a las 8:00 o a las 8:30?».
+ */
+const VENTANA_DE_AGENDA = 30 * 60 * 1000;
 
 /**
  * A quién va un mensaje escrito a mano. `undefined` deja que decida el orquestador.
@@ -353,13 +376,27 @@ export function avanceDe(
  * a medias a un agente que no canaliza, y se saltaba el triaje. Por eso sólo se sugiere
  * con plan, que es lo único que `agente_por_defecto` no sabe: un caso `agendado` puede
  * tener plan de una consulta anterior. Con la urgencia escalada tampoco se toca.
+ *
+ * **Y si la última respuesta reciente fue de agenda, sigue agenda.** El 2026-11-19, en
+ * medio de elegir hora, la persona respondió «a las 8:30» y la app lo mandó a
+ * seguimiento, que no agenda: falló `agendar_cita` y el agente terminó hablando de las
+ * gárgaras. El orquestador no recuerda qué agente venía atendiendo; decide por el estado
+ * del caso, que en un caso con plan es seguimiento.
  */
 export function agenteParaMensaje(
-  tratamiento: { plan: unknown; caso: { estado?: string } }
-): 'seguimiento' | undefined {
-  return tratamiento.plan && tratamiento.caso.estado !== 'urgencia_escalada'
-    ? 'seguimiento'
-    : undefined;
+  tratamiento: { plan: unknown; caso: { estado?: string }; turnos?: Turno[] },
+  ahora: Date = new Date()
+): 'seguimiento' | 'agenda' | undefined {
+  if (tratamiento.caso.estado === 'urgencia_escalada') return undefined;
+  const ultima = [...(tratamiento.turnos ?? [])].reverse().find((turno) => turno.quien === 'agente');
+  if (
+    ultima?.agente === 'agenda' &&
+    ultima.cuando &&
+    ahora.getTime() - ultima.cuando < VENTANA_DE_AGENDA
+  ) {
+    return 'agenda';
+  }
+  return tratamiento.plan ? 'seguimiento' : undefined;
 }
 
 // ---------------------------------------------------------------------- texto
