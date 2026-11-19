@@ -52,6 +52,7 @@ const AQUI = dirname(fileURLToPath(import.meta.url));
 const T = {
   texto: 'text',
   entero: 'int4',
+  enteroLargo: 'int8',
   logico: 'bool',
   momento: 'timestamp',
   json: 'jsonb',
@@ -102,6 +103,10 @@ const ESQUEMA = {
     ['autor', T.texto],
     ['contenido', T.texto],
     ['creado_en', T.momento],
+    // Del 2026-11-19: milisegundos desde 1970, para ordenar el hilo. El `read` de ROBLE
+    // devuelve `creado_en` cortado al minuto, y un intercambio rápido llegaba revuelto.
+    // Nulo en las filas de antes. En producción se agregó con `ADD COLUMN`.
+    ['creado_ms', T.enteroLargo, true],
   ],
 
   profesionales: [

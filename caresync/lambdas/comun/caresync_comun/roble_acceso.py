@@ -169,6 +169,26 @@ def fila_id(fila: dict[str, Any] | None) -> str | None:
     return None
 
 
+def momento_de_mensaje(fila: dict[str, Any]) -> float:
+    """Cuándo se escribió una fila de `conversaciones`, en milisegundos.
+
+    No basta `creado_en`: el `read` de ROBLE lo devuelve cortado al minuto
+    (`2026-11-19T18:37`) y en el orden que quiere, así que un intercambio rápido caía
+    entero en el mismo minuto y llegaba revuelto. El 2026-11-19 el agente recibió «a
+    las 8:30» antes de la pregunta que respondía. Desde entonces se escribe también
+    `creado_ms`, un entero que ROBLE no recorta. Las filas de antes sólo tienen
+    `creado_en`, y caen en su minuto.
+    """
+    try:
+        ms = float(fila.get("creado_ms"))
+        if ms > 0:
+            return ms
+    except (TypeError, ValueError):
+        pass
+    momento = reloj.desde_iso(fila.get("creado_en"))
+    return momento.timestamp() * 1000 if momento else 0.0
+
+
 def es_uuid(valor: Any) -> bool:
     """¿Este texto puede ser un `_id` de ROBLE?
 
@@ -558,7 +578,7 @@ class AccesoRoble:
         no puede leer el otro.
         """
         filas = self._leer(CONVERSACIONES, {"caso_id": caso_id})
-        filas.sort(key=lambda f: str(f.get("creado_en") or ""))
+        filas.sort(key=momento_de_mensaje)
         return filas[-maximo:]
 
     def anotar_mensaje(self, *, caso_id: str, agente: str, autor: str, contenido: str) -> None:
@@ -573,6 +593,8 @@ class AccesoRoble:
                 "autor": autor,
                 "contenido": contenido,
                 "creado_en": reloj.iso(),
+                # El orden real del hilo: ver `momento_de_mensaje`.
+                "creado_ms": int(reloj.ahora().timestamp() * 1000),
             },
         )
 

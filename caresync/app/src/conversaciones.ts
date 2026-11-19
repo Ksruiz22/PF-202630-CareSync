@@ -27,6 +27,29 @@
 import { roble } from './roble';
 import { idDe, type FilaConversacion, type Turno } from './tipos';
 
+/**
+ * Las filas en el orden en que se escribieron.
+ *
+ * Por `creado_ms` y no por `creado_en`: el `read` de ROBLE devuelve `creado_en` cortado
+ * al minuto (`2026-11-19T18:37`) y en el orden que quiere, así que un intercambio rápido
+ * quedaba revuelto. El 2026-11-19 la app móvil mostró «a las 8:30» antes de la pregunta
+ * que respondía. Desde entonces el orquestador escribe también `creado_ms`, un entero que
+ * ROBLE no recorta. Las filas de antes sólo traen `creado_en` y caen en su minuto.
+ */
+function enOrden(filas: FilaConversacion[]): FilaConversacion[] {
+  return [...filas].sort((a, b) => momento(a) - momento(b));
+}
+
+function momento(fila: FilaConversacion): number {
+  const ms = Number(fila.creado_ms);
+  if (fila.creado_ms !== null && fila.creado_ms !== undefined && Number.isFinite(ms) && ms > 0) return ms;
+  const texto = String(fila.creado_en ?? '');
+  // Sin zona es UTC, como lo devuelve ROBLE; `Date.parse` lo tomaría como hora local.
+  const conZona = /(?:Z|[+-]\d{2}:?\d{2})$/.test(texto) ? texto : `${texto}Z`;
+  const valor = Date.parse(conZona);
+  return Number.isNaN(valor) ? 0 : valor;
+}
+
 export interface TurnoDelHilo {
   id: string;
   /** 'personal' es el profesional o el administrativo que escribió sobre el caso. */
@@ -57,9 +80,7 @@ export interface TurnoDelHilo {
  * turno: quien pinta puede decir «rol desconocido» en vez de afirmar quién habló.
  */
 export function hiloDeFilas(filas: FilaConversacion[]): TurnoDelHilo[] {
-  const ordenadas = [...filas].sort((a, b) =>
-    String(a.creado_en ?? '').localeCompare(String(b.creado_en ?? ''))
-  );
+  const ordenadas = enOrden(filas);
 
   const turnos: TurnoDelHilo[] = [];
   ordenadas.forEach((fila, indice) => {
@@ -140,9 +161,7 @@ const TURNOS_PREVIOS = 30;
  * `paciente`, así que ahí no se puede distinguir. Es un caso viejo y acotado.
  */
 export function turnosParaLaPersona(filas: FilaConversacion[]): Turno[] {
-  const ordenadas = [...filas].sort((a, b) =>
-    String(a.creado_en ?? '').localeCompare(String(b.creado_en ?? ''))
-  );
+  const ordenadas = enOrden(filas);
 
   const turnos: Turno[] = [];
   let ultimoHumano = '';

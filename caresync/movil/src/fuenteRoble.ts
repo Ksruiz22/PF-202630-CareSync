@@ -18,7 +18,7 @@
 import * as Crypto from 'expo-crypto';
 import { createRobleClient, RobleApiHttpException } from 'roble-client';
 import { almacen } from './almacen';
-import { fecha } from './agenda';
+import { fecha, momentoDeFila } from './agenda';
 import { SesionVencida, type Fuente, type Reporte } from './fuente';
 import {
   esVerdad,
@@ -119,21 +119,21 @@ function descendente<T>(campo: keyof T) {
 
 /** Igual que `turnosParaLaPersona` en la PWA: sin notas `[sistema]` ni lo del personal. */
 function turnosDe(filas: FilaConversacion[]): Turno[] {
-  const ordenadas = [...filas].sort((a, b) =>
-    String(a.creado_en ?? '').localeCompare(String(b.creado_en ?? ''))
-  );
+  // Por `creado_ms`, no por `creado_en`: ver `momentoDeFila`.
+  const ordenadas = [...filas].sort((a, b) => momentoDeFila(a) - momentoDeFila(b));
   const turnos: Turno[] = [];
   let ultimoHumano = '';
   for (const fila of ordenadas) {
     const texto = String(fila.contenido ?? '').trim();
     const autor = String(fila.autor ?? 'paciente');
     if (!texto || autor === 'sistema') continue;
+    const turno = { texto, agente: String(fila.agente ?? ''), cuando: momentoDeFila(fila) };
     if (autor === 'agente') {
-      if (ultimoHumano === 'paciente') turnos.push({ quien: 'agente', texto });
+      if (ultimoHumano === 'paciente') turnos.push({ quien: 'agente', ...turno });
       continue;
     }
     ultimoHumano = autor;
-    if (autor === 'paciente') turnos.push({ quien: 'yo', texto });
+    if (autor === 'paciente') turnos.push({ quien: 'yo', ...turno });
   }
   return turnos.slice(-30);
 }

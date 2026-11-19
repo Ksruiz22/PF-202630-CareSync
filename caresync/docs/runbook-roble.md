@@ -38,6 +38,19 @@ sería un segundo sitio donde equivocarse.
 >   `UNIQUE (clave)` de `ajustes`: dos administradores guardando a la vez la misma clave
 >   dejarían dos filas. Reponerlo es cosa de quien mantiene ROBLE.
 >
+> **Columnas que existen sólo en producción**, agregadas después de migrar. Si algún día
+> se vuelve a test-openlab, hay que crearlas allá **antes** de desplegar, o ROBLE rechaza
+> cada escritura con un 400:
+>
+> ```sql
+> ALTER TABLE indicaciones ADD COLUMN horas text;          -- 2026-11-07, horarios de Kevin
+> ALTER TABLE conversaciones ADD COLUMN creado_ms int8;    -- 2026-11-19, orden del hilo
+> ```
+>
+> `creado_ms` existe porque el `read` devuelve `creado_en` cortado al minuto y en el orden
+> que quiere: un intercambio rápido caía entero en el mismo minuto y el hilo llegaba
+> revuelto, al modelo y a las dos aplicaciones.
+>
 > Los límites por IP medidos más abajo son de test-openlab; en producción están sin medir.
 
 ## Crear el esquema

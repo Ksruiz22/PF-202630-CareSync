@@ -269,6 +269,8 @@ export interface FilaConversacion extends Fila {
   autor?: string;
   contenido?: string;
   creado_en?: string;
+  /** Milisegundos desde 1970: el orden real. Ver `enOrden` en `conversaciones.ts`. */
+  creado_ms?: number | string | null;
 }
 
 /** `true` para `true`, `"true"`, `1` y `"1"`. ROBLE devuelve las cuatro formas. */
