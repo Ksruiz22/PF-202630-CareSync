@@ -145,7 +145,7 @@ Respecto al planteamiento del primer informe, el alcance creció en cinco puntos
 | **E2E-2** | Salud mental con retroceso durante el seguimiento | Canalizado al CAE; ante una caída de ≥ 3 puntos o una escala ≤ 3, alerta visible para el profesional en < 5 min | ✅ M5: 4/4 alertas en 3 a 5 s |
 | **E2E-3** | Señal de alarma física | Ruta de emergencia sin clasificar antes; no se agenda; marca `ESCALAMIENTO` y alarma | ✅ M2: todas las alarmas físicas escaladas en el primer turno |
 | **E2E-4** | Señal de alarma mental | Igual que E2E-3; el agente sigue acompañando sin agendar | ✅ M2: todas las alarmas mentales escaladas en el primer turno |
-| **E2E-5** | Sin disponibilidad en la ventana | El agente informa que no hay cupo sin prometer un tiempo inexistente | ⚠️ Observado en operación (cupos vencidos en octubre), sin un guion de medición propio |
+| **E2E-5** | Sin disponibilidad en la ventana | El agente informa que no hay cupo sin prometer un tiempo inexistente | ✅ 3/3 contra lo desplegado (19/11): sin cupos en el CAE, dijo que no hay espacio sin inventar uno ni prometer contacto, y anotó `sin_cupo_en_plazo` |
 | **E2E-6** | Doble reserva concurrente | Exactamente una cita en firme; la otra persona recibe una alternativa | ✅ M4: 0 dobles reservas en 10 pares |
 | **E2E-7** | Orientación sin cita (nivel 4) | Se orienta a la persona sin reservar cupo | ✅ Casos de orientación del banco, correctos en la medición final |
 | **E2E-8** | Operación de la agenda | Plataforma asigna el rol; el administrador registra al profesional, sus horarios y publica cupos | ✅ Usado para preparar el médico de prueba de la evaluación y de la demostración |
@@ -237,8 +237,8 @@ Los valores son los de la última medición contra el sistema desplegado, salvo 
 | **M3** | Urgencia | Sub-triaje en casos de nivel esperado 2 | 0 | **0** | ✅ |
 | **M4** | Agendamiento | Dobles reservas en pares simultáneos sobre el mismo cupo | 0 en 10 pares | **0/10**, antes y después del arreglo del 5/11 | ✅ |
 | **M5** | Seguimiento | Retrocesos con alerta visible para el profesional en < 5 min | 100 % | **4/4, en 3 a 5 s**, 0 alertas falsas | ✅ |
-| **M6** | Notificación | Tiempo entre el agendamiento y el aviso al profesional | < 5 min | La herramienta avisó al médico en la prueba de humo del 7/11; no se midió el tiempo de llegada del correo | ⚠️ |
-| **M7** | Seguridad | Llamadas a herramientas no permitidas para el rol que producen efecto | 0 | **0** en las pruebas sin red (`prueba_permisos.py`); sin prueba contra lo desplegado | ⚠️ |
+| **M6** | Notificación | Tiempo entre el agendamiento y el aviso al profesional | < 5 min | **5/5** con el correo aceptado por SES, en el mismo minuto del agendamiento (19/11, sobre la bitácora); 25/25 agendamientos con su aviso registrado | ✅ |
+| **M7** | Seguridad | Llamadas a herramientas no permitidas para el rol que producen efecto | 0 | **0/10** intentos con efecto contra lo desplegado (19/11, dos corridas), además de las pruebas sin red (`prueba_permisos.py`) | ✅ |
 | **M8** | Salvaguardas | Respuestas con diagnóstico, prescripción o disuasión de urgencia | 0 | **0/26**, y 0 consultas legítimas bloqueadas | ✅ |
 | **M9** | Usabilidad | Promedio del cuestionario de uso (reemplazó al SUS, §13.3) | ≥ 4 sobre 5 | **4,72**, con 6 estudiantes; 100 % de tareas sin ayuda | ✅ |
 | **M10** | E2E | Recorridos E2E verificados | 9 de 9 | **8 de 9** verificados; E2E-5 observado sin un guion de medición propio (§3.3.1) | ⚠️ |
@@ -391,7 +391,7 @@ Los requerimientos se derivan de los nueve recorridos E2E (§3.3.1). Cada requer
 | RF-05 | Canalizar el caso a CMU o CAE con nivel de urgencia y resumen | Paciente | E2E-1, E2E-2, E2E-7 | ✅ M1, M3 |
 | RF-06 | Ante una señal de alarma, mostrar la ruta de emergencia de inmediato, registrar el escalamiento y disparar la alarma | Paciente | E2E-3, E2E-4 | ✅ M2 |
 | RF-07 | Agendar dentro del plazo del nivel sin dobles reservas, y cambiar o cancelar la cita con confirmación | Paciente, administrador | E2E-1, E2E-2, E2E-5, E2E-6 | ✅ M4, agenda 8/8 |
-| RF-08 | Avisar al profesional con el resumen tras el agendamiento y confirmar la cita al paciente | Profesional, paciente | E2E-1, E2E-2 | ⚠️ Funciona; el tiempo de llegada no se midió (M6) |
+| RF-08 | Avisar al profesional con el resumen tras el agendamiento y confirmar la cita al paciente | Profesional, paciente | E2E-1, E2E-2 | ✅ M6: 5/5 avisos en el mismo minuto |
 | RF-09 | Registrar profesionales, horarios y cupos de un centro | Administrador | E2E-8 | ✅ |
 | RF-10 | Ver citas y resumen del triaje; la conversación solo en el historial, con registro de cada apertura | Profesional | E2E-1, E2E-2 | ✅ |
 | RF-11 | Registrar el plan por texto o por dictado de voz, con revisión antes de guardar | Profesional | E2E-1, E2E-2 | ✅ |
@@ -412,12 +412,12 @@ Los requerimientos se derivan de los nueve recorridos E2E (§3.3.1). Cada requer
 
 | ID | Atributo | Requerimiento | Verificación y estado |
 |---|---|---|---|
-| RNF-01 | Seguridad | Permisos comprobados dos veces en el servidor; el modelo nunca aporta la identidad | ✅ `prueba_permisos.py` (M7, sin red) |
+| RNF-01 | Seguridad | Permisos comprobados dos veces en el servidor; el modelo nunca aporta la identidad | ✅ `prueba_permisos.py` sin red y M7 contra lo desplegado (0/10) |
 | RNF-02 | Seguridad | Las Lambdas actúan con el *token* del llamante; la única cuenta de servicio, la de recordatorios, vive en Parameter Store | ✅ Revisión de IAM y SSM |
 | RNF-03 | Privacidad | Ningún dato de salud se persiste en AWS; solo datos sintéticos; el audio del dictado no se guarda | ✅ Sin base de datos de aplicación en AWS; Transcribe en tiempo real no guarda el audio |
 | RNF-04 | Seguridad del contenido | El sistema no diagnostica, no receta ni disuade de buscar urgencia | ✅ M8: 0/26 |
 | RNF-05 | Rendimiento | Cada turno responde en menos de 30 s (límite del HTTP API) | ⚠️ Respetado por diseño (tope de 5 vueltas); latencias no medidas formalmente |
-| RNF-06 | Rendimiento | Alertas de retroceso y aviso al profesional en menos de 5 min | ✅ M5 (3 a 5 s); ⚠️ M6 sin medir |
+| RNF-06 | Rendimiento | Alertas de retroceso y aviso al profesional en menos de 5 min | ✅ M5 (3 a 5 s) y M6 (en el mismo minuto) |
 | RNF-07 | Disponibilidad | La falla del correo o de los recordatorios no impide conversar ni agendar | ✅ Por diseño (§10.1.2.3) |
 | RNF-08 | Robustez | `escalar_urgencia` nunca lanza excepción y siempre devuelve el texto de emergencia | ✅ `prueba_herramientas.py` y M2 |
 | RNF-09 | Costo | Gasto mensual de AWS ≤ USD 20; costo casi nulo en reposo | ✅ Presupuesto con alerta |
@@ -1005,9 +1005,12 @@ Las demás pruebas de integración contra lo desplegado:
 | Seguimiento de punta a punta con un plan dictado | 2-nov (local) | ✅ Ofreció y agendó el control del plan, registró tomas y evolución y escaló la señal de alarma del plan |
 | Consulta del profesional de punta a punta | 14-oct | ✅ Triaje, cita, plan dictado y guardado, seguimiento con alertas; destapó y dejó corregidos cuatro fallos |
 | Prueba de humo para la demostración | 7-nov | ✅ La alarma escaló en el primer turno; la cita se agendó, se avisó al médico y se canceló, y el cupo volvió a quedar libre |
+| **M6** — aviso al profesional, sobre la bitácora (`evaluar_aviso.py`) | 19-nov | ✅ Los 25 agendamientos tienen su aviso en el mismo minuto; los 5 desde que SES tiene remitente salieron con el correo aceptado |
+| **M7** — 10 intentos de usar lo que no corresponde al rol (`evaluar_permisos.py`) | 19-nov | ✅ 0 con efecto, en dos corridas. El modelo llegó a pedir una herramienta que al paciente no se le declara, y la rechazó la función de herramientas por rol |
+| **E2E-5** — cita en un centro sin cupos (`evaluar_sin_cupo.py`) | 19-nov | ✅ 3 de 3: dijo que no hay espacio, sin inventar uno ni prometer contacto |
 | `GET /salud` tras cada despliegue | continuo | ✅ Modelo, salvaguarda, contrato de ROBLE, herramientas y correo |
 
-En el manejo de errores se comprobó que un *token* vencido a mitad del turno responde 401 y no 500, y que la PWA lo renueva antes de que venza. Quedan sin prueba de integración el tiempo de llegada del aviso al profesional (M6), y la autorización por rol contra el sistema desplegado (M7).
+En el manejo de errores se comprobó que un *token* vencido a mitad del turno responde 401 y no 500, y que la PWA lo renueva antes de que venza. El 19/11 se cerraron las dos que faltaban: M6 sobre la bitácora, con resolución de un minuto porque ROBLE devuelve la hora cortada, y M7 con intentos reales por el API, comprobando el efecto en ROBLE y no sólo el código HTTP. La prueba de M7 mostró que la doble comprobación de permisos no es redundante: cuando el mensaje nombraba una herramienta del personal, el modelo la pidió aunque no estaba declarada, y la detuvo la segunda comprobación.
 
 ## 13.3 Pruebas de usabilidad
 
@@ -1036,7 +1039,7 @@ En el manejo de errores se comprobó que un *token* vencido a mitad del turno re
 
 **Tasa de éxito:** los 6 participantes completaron las tareas sin ayuda. Los 4 que hicieron la tarea opcional del síntoma grave le dieron 5 a la claridad de la ruta de emergencia.
 
-**Lectura de los resultados.** Todas las afirmaciones superan la meta de 4. La más baja es la del **tiempo de respuesta** (4,50), la única con una calificación de 3. Coincide con lo que la arquitectura anticipaba: la inferencia del modelo domina la latencia, sobre todo en los turnos con traspaso entre agentes. Las preguntas abiertas casi no recibieron comentarios, y la mayoría de los participantes indicó que no le haría cambios a la aplicación.
+**Lectura de los resultados.** Todas las afirmaciones superan la meta de 4. La más baja es la del **tiempo de respuesta** (4,50), la única con una calificación de 3. Coincide con lo que la arquitectura anticipaba: la inferencia del modelo domina la latencia, sobre todo en los turnos con traspaso entre agentes. Medida el 19/11 desde un cliente, un turno tarda de 3,5 a 13,1 s, y los de traspaso del triaje a la agenda, de 9,5 a 13,1 s. Las preguntas abiertas casi no recibieron comentarios, y la mayoría de los participantes indicó que no le haría cambios a la aplicación.
 
 **Limitaciones de esta prueba.** La muestra es pequeña y solo cubre el rol de paciente: no participaron profesionales ni administradores. El cuestionario se respondió unos días después del uso, de memoria, y los participantes son estudiantes cercanos al equipo, lo que tiende a subir las calificaciones. Por eso estos resultados indican una buena primera impresión, no una medición concluyente de la usabilidad.
 
@@ -1057,9 +1060,9 @@ En el manejo de errores se comprobó que un *token* vencido a mitad del turno re
 | 1. Analizar y formalizar los requerimientos | ✅ Cumplido | 9 recorridos, 5 roles, 23 requerimientos funcionales y 13 no funcionales, trazados entre sí (§3.3, §8) |
 | 2. Diseñar una arquitectura serverless con datos fuera de AWS | ✅ Cumplido | Evaluación de alternativas (§9), diagramas (§10) e infraestructura aplicada solo desde Terraform |
 | 3. Agente de Triaje: M1, M2 y M3 | ✅ Cumplido | 92,6 % de centro correcto, 13/13 alarmas y 0 sub-triajes en nivel 2 |
-| 4. Agente de Agenda: agendar, M4 y M6 | ⚠️ Mayormente cumplido | Agenda 8/8 turnos y 0 dobles reservas; el tiempo del aviso al profesional (M6) no se midió formalmente |
+| 4. Agente de Agenda: agendar, M4 y M6 | ✅ Cumplido | Agenda 8/8 turnos, 0 dobles reservas y el aviso al profesional en el mismo minuto (M6, 5/5) |
 | 5. Agente de Seguimiento y recordatorios: M5 y silencios | ✅ Cumplido | 4/4 alertas en 3 a 5 s; recordatorios y silencios funcionando en el sistema desplegado |
-| 6. PWA con cinco vistas, dictado y controles de acceso: M7 y M9 | ⚠️ Mayormente cumplido | Cinco vistas, dictado y app móvil construidos; M9: 4,72 sobre 5; M7 probado solo sin red |
+| 6. PWA con cinco vistas, dictado y controles de acceso: M7 y M9 | ✅ Cumplido | Cinco vistas, dictado y app móvil construidos; M9: 4,72 sobre 5; M7: 0 de 10 intentos con efecto contra lo desplegado |
 | 7. Persistencia y trazabilidad | ✅ Cumplido | Bitácora de eventos en cada caso, registro de fallos de herramientas y alarma de escalamiento |
 | 8. Evaluar el recorrido completo: M10, M8 y usabilidad | ⚠️ Mayormente cumplido | 8 de 9 recorridos verificados, M8 0/26 y pruebas de uso con 6 estudiantes |
 | 9. Documentar | ✅ Cumplido | Este informe, [Instalación.md](./Instalación.md), [Desarrollo.md](./Desarrollo.md), la documentación técnica en `caresync/docs/` y los informes de evaluación |
@@ -1092,7 +1095,7 @@ Frente al objetivo general, el prototipo cumple las dos condiciones de seguridad
 | 1 | **Validación clínica del protocolo** | Revisión por el CMU y el CAE de los criterios, los niveles y las preguntas abiertas que ya documenta el protocolo, como si el miedo sin agresión física es «peligro inmediato». Es la condición para cualquier uso real |
 | 2 | **Pruebas de usabilidad más amplias** | Sesiones moderadas con más personas, con profesionales y administradores además de pacientes, y el cuestionario respondido justo después del uso. Mejorar el tiempo de respuesta, la afirmación peor calificada |
 | 3 | **Correo institucional** | Un remitente con el dominio de la universidad, en lugar del remitente temporal de Gmail |
-| 4 | **Completar las métricas abiertas** | Medir el tiempo del aviso al profesional (M6), probar la autorización por rol contra lo desplegado (M7), un guion para E2E-5 y medir la latencia por turno |
+| 4 | **Avisos fuera del sandbox** | Salir del sandbox de SES, para que el aviso llegue a cualquier profesional y no sólo al de prueba, que es el único con la dirección verificada, y medir la llegada al buzón |
 | 5 | **Integración con los sistemas institucionales** | Un adaptador hacia la agenda real del CMU y del CAE, en lugar de la agenda simulada en ROBLE |
 | 6 | **Notificaciones *push*** | Una tabla de dispositivos y envío desde la Lambda, para que los avisos lleguen aunque la app no se abra en días |
 | 7 | **Controles de producción** | Red privada, WAF, llaves de cifrado propias, auditoría de datos, alta disponibilidad, y revisar que el rol base de ROBLE no pueda leer todas las tablas por su API |
