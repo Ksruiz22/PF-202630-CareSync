@@ -31,7 +31,7 @@ import {
   IconoReloj,
   IconoTendencia,
 } from '../componentes/Iconos';
-import { bandaDeEscala, escalaVisible, fechaHora, hace, soloFecha } from '../formato';
+import { bandaDeEscala, escalaVisible, fechaHora, hace, soloFecha, msDeRoble } from '../formato';
 import { mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
 import {
@@ -441,7 +441,7 @@ function porInicioAscendente(a: { inicio?: unknown }, b: { inicio?: unknown }): 
 }
 
 function yaPaso(cita: Cita): boolean {
-  const inicio = new Date(String(cita.inicio ?? '')).getTime();
+  const inicio = msDeRoble(cita.inicio);
   return Number.isFinite(inicio) && inicio < Date.now();
 }
 

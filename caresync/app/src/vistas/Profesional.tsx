@@ -43,7 +43,7 @@ import {
 } from '../componentes/Progreso';
 import { HistorialDeTriajes } from './HistorialDeTriajes';
 import { SimuladorDeTriaje } from './SimuladorDeTriaje';
-import { fechaHora, hace, soloFecha } from '../formato';
+import { fechaHora, hace, soloFecha, msDeRoble } from '../formato';
 import { mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
 import {
@@ -759,7 +759,7 @@ async function marcarInasistencia(
 }
 
 function yaEmpezo(cita: Cita): boolean {
-  const inicio = new Date(String(cita.inicio ?? '')).getTime();
+  const inicio = msDeRoble(cita.inicio);
   return Number.isFinite(inicio) && inicio <= Date.now();
 }
 
@@ -773,7 +773,7 @@ function repartir(citas: Cita[]): { proximas: Cita[]; pasadas: Cita[] } {
   const pasadas: Cita[] = [];
 
   for (const cita of citas) {
-    const inicio = new Date(String(cita.inicio ?? '')).getTime();
+    const inicio = msDeRoble(cita.inicio);
     const yaFue = Number.isFinite(inicio) && inicio < ahora;
     // Una cita pasada pero sin atender sigue en «por atender»: es justo la que no
     // hay que perder de vista. Una marcada como inasistencia ya se resolvió.

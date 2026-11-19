@@ -19,7 +19,7 @@ import { leerAjustes, numeroDeAjuste } from '../ajustes';
 import { Conversacion } from '../componentes/Conversacion';
 import { Aviso, Cabecera, Cargando, Etiqueta, Nivel, Tarjeta, Vacio } from '../componentes/Piezas';
 import { IconoCalendario } from '../componentes/Iconos';
-import { fechaHora, hace, soloHora } from '../formato';
+import { fechaHora, hace, soloHora, msDeRoble } from '../formato';
 import { mensajeDeError, roble } from '../roble';
 import { useSesion } from '../sesion';
 import { idDe, type Caso, type Centro, type Cita, type Cupo } from '../tipos';
@@ -382,14 +382,14 @@ function organizar(tablero: Tablero) {
   const hoy = tablero.citas
     .filter((cita) => cita.estado !== 'cancelada')
     .filter((cita) => {
-      const inicio = new Date(String(cita.inicio ?? '')).getTime();
+      const inicio = msDeRoble(cita.inicio);
       return Number.isFinite(inicio) && inicio >= ahora - 3600 * 1000 && inicio <= finDelDia;
     })
     .sort((a, b) => String(a.inicio ?? '').localeCompare(String(b.inicio ?? '')));
 
   const libres = tablero.cupos.filter((cupo) => {
     if (cupo.estado !== 'libre') return false;
-    const inicio = new Date(String(cupo.inicio ?? '')).getTime();
+    const inicio = msDeRoble(cupo.inicio);
     return Number.isFinite(inicio) && inicio > ahora;
   });
 
