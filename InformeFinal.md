@@ -3,7 +3,7 @@
 ## CareSync Agentic Network
 
 **Universidad del Norte — Proyecto Final, Campo: Salud**
-**Docente proponente:** Dadier Jabba
+**Docente proponente:** Daladier Jabba
 **Co-asesor:** Augusto Salazar
 **Integrantes:** Alejandro Santiago, Kevin Ruiz y Bernardo Álvarez
 **Fecha:** noviembre de 2026
