@@ -200,7 +200,7 @@ Atención clínica real; datos reales de personas; validación clínica del prot
 
 # 4. Objetivos
 
-Los objetivos se formularon al inicio del proyecto. En la entrega intermedia, atendiendo la retroalimentación del jurado, se reformularon con indicador, umbral y método de medición, y se fijaron como compromiso obligatorio los 9 recorridos E2E, los 5 roles, los bancos de casos sintéticos y las integraciones de la sección 3.3. Desde entonces no cambiaron, salvo el instrumento de usabilidad (al final de la sección 4.3); el grado de cumplimiento de cada uno se discute en la sección 14.
+Los objetivos se formularon al inicio del proyecto. En la entrega intermedia, atendiendo la retroalimentación recibida sobre la primera entrega, se reformularon con indicador, umbral y método de medición, y se fijaron como compromiso obligatorio los 9 recorridos E2E, los 5 roles, los bancos de casos sintéticos y las integraciones de la sección 3.3. Desde entonces no cambiaron, salvo el instrumento de usabilidad (al final de la sección 4.3); el grado de cumplimiento de cada uno se discute en la sección 14.
 
 ## 4.1 Objetivo general
 
@@ -480,7 +480,7 @@ La decisión central fue **dónde ejecutar los agentes y dónde guardar los dato
 | Concurrencia en reservas | Reconciliación con testigo | **Transacción atómica** | **Transacción atómica** |
 | **Valoración para la carga esperada** | **Suficiente** | Superior, pero sobredimensionada | Suficiente |
 
-*Lo medido después:* cada turno respondió entre 3,5 y 13,1 s, con el traspaso a la agenda incluido (RNF-05, muestra corta, sin prueba de carga), y los 10 pares de reservas simultáneas no produjeron ninguna doble reserva (M4). No se midieron por separado el arranque en frío ni el número de turnos por minuto antes del primer rechazo de ROBLE; quedan dentro del trabajo futuro de controles de producción.
+*Lo medido después:* cada turno respondió entre 3,5 y 13,1 s, con el traspaso a la agenda incluido (RNF-05, muestra corta, sin prueba de carga), y los 10 pares de reservas simultáneas no produjeron ninguna doble reserva (M4). No se midieron por separado el arranque en frío ni el número de turnos por minuto antes del primer rechazo de ROBLE.
 
 **¿Qué grado de acoplamiento introduce cada opción?** A1 depende de dos proveedores, ROBLE y AWS, y ROBLE es el riesgo más alto: una plataforma académica con limitaciones verificadas cuya evolución no controla el equipo. A2 concentra todo en AWS, con más infraestructura propia que operar. A3 depende de dos proveedores comerciales y saca los datos de salud de la universidad. A1 mitiga su dependencia con fronteras explícitas: todo acceso a datos desde las Lambdas pasa por un único módulo, toda herramienta se declara en un único catálogo con sus permisos, los tres agentes comparten un solo tiempo de ejecución y el protocolo tiene una sola copia. El acoplamiento más fuerte que queda es deliberado: la PWA lee y escribe directamente en ROBLE en las vistas administrativas, lo que evita un backend intermedio. Sustituir el modelo es un cambio de configuración gracias a la Converse API; sustituir ROBLE exige reescribir los dos módulos de acceso a datos (el de las Lambdas y el de la PWA), pero no los agentes, el orquestador ni las herramientas, y permitiría eliminar la reconciliación y el filtrado en memoria.
 
