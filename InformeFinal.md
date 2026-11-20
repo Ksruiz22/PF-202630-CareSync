@@ -1173,5 +1173,3 @@ Frente al objetivo general, el prototipo cumple sus tres condiciones: el 100 % d
 [32] Expo. (s. f.). *Expo documentation*. https://docs.expo.dev/
 
 [33] Meta Platforms. (s. f.). *React Native documentation*. https://reactnative.dev/docs/getting-started
-
-> **Nota sobre las fuentes.** Las referencias [1]–[13] provienen del primer informe. Las [14]–[19] son las fuentes del fundamento del protocolo de triaje (`caresync/protocolos/triaje-v0.md`). Las [20]–[30] se añadieron en el segundo informe para el marco conceptual, y las [31]–[33], en este informe. La arquitectura, el estado final y las decisiones técnicas se derivan del repositorio del proyecto (`Ksruiz22/PF-202630-CareSync`, commit `7b854a7`), de su documentación interna (`caresync/docs/`, `caresync/CLAUDE.md`, `caresync/movil/README.md`) y de los informes de evaluación (`caresync/evaluacion/informes/`).
