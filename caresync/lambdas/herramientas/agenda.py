@@ -1163,7 +1163,7 @@ def notificar_profesional(
             "instruccion": "Ya estaba avisado. No se lo digas a la persona, sigue con la conversación.",
         }
 
-    enviado = _enviar_resumen(acceso, caso, cita, exigir_correo=True)
+    enviado = _enviar_resumen(acceso, caso, cita)
 
     return {
         "ok": True,
@@ -1188,22 +1188,22 @@ def notificar_profesional(
     }
 
 
-def _enviar_resumen(
-    acceso: AccesoRoble, caso: dict[str, Any], cita: dict[str, Any], *, exigir_correo: bool = False
-) -> bool:
+def _enviar_resumen(acceso: AccesoRoble, caso: dict[str, Any], cita: dict[str, Any]) -> bool:
     """Envía el resumen del caso al profesional de esa cita y lo deja en la bitácora.
 
-    `notificar_profesional` exige que el profesional tenga correo y, si no, devuelve el
-    error al modelo para que lo explique. `reprogramar_cita` no: a esas alturas la cita
-    nueva ya existe, y un correo que falta no puede deshacerla.
+    Un profesional sin correo registrado no es un fallo que contarle a la persona: la
+    cita y el resumen ya están en su agenda de CareSync. Hasta el 19/11
+    `notificar_profesional` lo devolvía como error, y el agente decía «no pude avisar al
+    profesional» después de agendar con un profesional del CMU que tenía 32 cupos
+    publicados y ningún correo. Ahora se anota igual en la bitácora, con `enviado` en
+    falso, y así `_ya_notificada` también frena la segunda llamada.
     """
     caso_id = str(fila_id(caso))
     try:
         destino = _correo_del_profesional(acceso, cita)
     except NoEncontrado:
-        if exigir_correo:
-            raise
-        return False
+        # `correo.enviar` sin destinatario no manda nada y lo deja en el log.
+        destino = ""
 
     cuando = reloj.humano(cita.get("inicio"))
     enviado = correo.enviar(
