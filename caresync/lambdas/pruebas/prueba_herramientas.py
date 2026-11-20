@@ -663,6 +663,25 @@ def probar_plazo_del_nivel() -> None:
 
 
 def probar_cambiar_el_control_desde_seguimiento() -> None:
+    """Con el reloj en las 9:00 de Bogotá.
+
+    Los espacios de esta prueba se ponen a una distancia de ahora (`_franja`) y lo que
+    se comprueba agrupa por día de Bogotá. Después de las 22:00, «dentro de 6 días y 2
+    horas» ya cae en el día 7, y «un espacio por día» falla sin que la agenda haya
+    cambiado: pasó el 19/11 a las 22:30. Con el reloj fijo, cada espacio queda en el día
+    que dice su nombre, corra a la hora que corra (CI incluido).
+    """
+    real = agenda.reloj.ahora
+    utc = real().tzinfo  # `reloj.ahora` devuelve UTC, y el resto del módulo cuenta con eso
+    nueve = real().astimezone(agenda.reloj.BOGOTA).replace(hour=9, minute=0, second=0, microsecond=0)
+    agenda.reloj.ahora = lambda: nueve.astimezone(utc)
+    try:
+        _cambiar_el_control_desde_seguimiento()
+    finally:
+        agenda.reloj.ahora = real
+
+
+def _cambiar_el_control_desde_seguimiento() -> None:
     print("\nCambiar desde seguimiento un control ya agendado (2026-11-19)")
     agenda.correo.config = _sin_correo
     iso_local = agenda.reloj.iso_local
