@@ -6,7 +6,7 @@
 **Docente proponente:** Dadier Jabba
 **Co-asesor:** Augusto Salazar
 **Integrantes:** Alejandro Santiago, Kevin Ruiz y Bernardo Álvarez
-**Fecha:** noviembre de 2026 · estado del repositorio al 9 de noviembre de 2026 (commit `7b854a7`); pruebas automatizadas verificadas el 19 de noviembre de 2026
+**Fecha:** noviembre de 2026
 
 **Aplicación publicada:** https://main.d1ndsh656qxmj8.amplifyapp.com/
 
@@ -20,7 +20,7 @@
 
 **Metodología.** Prototipado iterativo y vertical en seis fases durante 16 semanas, con tres frentes de trabajo (infraestructura, agentes y aplicación), revisión por *pull requests* e integración continua. Cada decisión de diseño se contrastó con mediciones contra el sistema desplegado: bancos de casos sintéticos con resultado esperado, corridos antes y después de cada corrección, y con sus informes guardados sin editar en el repositorio.
 
-**Resultados.** En la medición final contra el sistema desplegado (5 de noviembre de 2026), el agente llevó a la ruta de emergencia **13 de 13** casos de alarma, todos en el primer turno (y 39 de 39 en las tres corridas previas); canalizó al centro correcto **25 de 27** casos (**92,6 %**, meta ≥ 85 %); no cometió **ningún** sub-triaje en casos prioritarios; no dio **ninguna** respuesta prohibida en **26** intentos adversariales; produjo **cero** dobles reservas en **10** pares de solicitudes simultáneas; y dejó la alerta de retroceso visible para el profesional en **3 a 5 segundos** en los **4** guiones con empeoramiento (meta < 5 minutos). En las pruebas de uso, **6 estudiantes** completaron las tareas sin ayuda y calificaron la aplicación con un promedio de **4,72 sobre 5**. El 19 de noviembre se midieron además, contra lo desplegado, el aviso al profesional (**5 de 5** en el mismo minuto del agendamiento, meta < 5 minutos) y los permisos por rol (**ninguno** de 10 intentos no permitidos tuvo efecto); el 20 quedó verificado el último de los **9** recorridos de punta a punta. Doce archivos de pruebas automatizadas con **685** comprobaciones corren en cada cambio del repositorio.
+**Resultados.** En la medición final contra el sistema desplegado, el agente llevó a la ruta de emergencia **13 de 13** casos de alarma, todos en el primer turno (y 39 de 39 en las tres corridas previas); canalizó al centro correcto **25 de 27** casos (**92,6 %**, meta ≥ 85 %); no cometió **ningún** sub-triaje en casos prioritarios; no dio **ninguna** respuesta prohibida en **26** intentos adversariales; produjo **cero** dobles reservas en **10** pares de solicitudes simultáneas; y dejó la alerta de retroceso visible para el profesional en **3 a 5 segundos** en los **4** guiones con empeoramiento (meta < 5 minutos). En las pruebas de uso, **6 estudiantes** completaron las tareas sin ayuda y calificaron la aplicación con un promedio de **4,72 sobre 5**. También contra lo desplegado, el aviso al profesional llegó en el mismo minuto del agendamiento en **5 de 5** casos (meta < 5 minutos), **ninguno** de 10 intentos no permitidos por rol tuvo efecto y quedaron verificados los **9** recorridos de punta a punta. Doce archivos de pruebas automatizadas con **685** comprobaciones corren en cada cambio del repositorio.
 
 **Conclusiones.** El prototipo demuestra que la coordinación de varios agentes sobre un caso compartido es viable y que puede hacerse segura por diseño: las reglas críticas (no diagnosticar, no recetar, escalar ante la duda) se sostienen en el código y no en el *prompt*. La lección más importante fue que las fallas graves no aparecieron donde se esperaban: la primera corrida de alarmas dio 1 de 12 porque la salvaguarda de contenido bloqueaba justo la respuesta correcta, y la corrección fue de arquitectura. Quedan como límites declarados la falta de validación clínica del protocolo y unas pruebas de usabilidad más amplias, que incluyan a profesionales y administradores.
 
@@ -32,7 +32,7 @@ La atención en salud es un dominio en el que los sistemas de información organ
 
 En la comunidad universitaria de Uninorte, la dificultad no está en una etapa aislada sino en la costura entre etapas. Una persona con un malestar no siempre sabe si su caso corresponde al CMU (salud física) o al CAE (salud mental y acompañamiento). El agendamiento y el seguimiento posterior dependen de trabajo administrativo manual. Después de la consulta, nada comprueba de forma sistemática si la persona sigue las indicaciones o si empeoró. La oportunidad que motiva el proyecto es conectar esas etapas en un solo recorrido: una red de agentes que comparten el estado del caso y se lo transfieren de forma explícita y trazable.
 
-Este informe documenta el proyecto completo. Recoge el planteamiento y los objetivos del [Primer Informe](./Primer_Informe_CareSync.md), el diseño y la evaluación de alternativas del [Segundo Informe](./SegundoInforme.md), y los completa con lo construido en la recta final: la agenda completa (cambiar y cancelar citas), el dictado por voz del plan con Amazon Transcribe, la app móvil del paciente, la migración a ROBLE producción y la medición de todas las métricas comprometidas que dependían del sistema. Termina con los resultados, la discusión de su significado frente a los objetivos y el trabajo futuro que queda antes de cualquier uso real.
+Este informe documenta el proyecto completo y se lee por sí solo. Consolida y sustituye las dos entregas parciales del curso: reúne el planteamiento, los objetivos, el estado del arte, el diseño y la evaluación de alternativas que se presentaron en ellas, y los completa con lo construido en la recta final: la agenda completa (cambiar y cancelar citas), el dictado por voz del plan con Amazon Transcribe, la app móvil del paciente, la migración a ROBLE producción y la medición de todas las métricas comprometidas que dependían del sistema. Termina con los resultados, la discusión de su significado frente a los objetivos y el trabajo futuro que queda antes de cualquier uso real. El código y la evidencia de las mediciones se publican aparte como material complementario (sección 16), pero no hacen falta para leer este documento.
 
 ---
 
@@ -94,7 +94,7 @@ Esta sección presenta los conceptos necesarios para entender el problema, la so
 
 **Validación técnica frente a validación clínica.** La validación técnica comprueba que el sistema se comporta según el protocolo definido. La validación clínica comprueba que el protocolo es correcto desde el punto de vista médico. CareSync solo aspira a la primera. Un 85 % de acierto en canalización significa que el agente sigue el protocolo, no que el protocolo sea clínicamente adecuado. Esa distinción recorre todo el documento.
 
-**Usabilidad.** Es el grado en que un sistema puede ser usado con eficacia, eficiencia y satisfacción por sus usuarios. El instrumento estándar más usado es el System Usability Scale (SUS), de diez ítems, cuyo puntaje de referencia promedio ronda 68 [30]. Como el SUS supone un sistema de uso frecuente, el proyecto lo reemplazó por un cuestionario propio adaptado a una herramienta de salud (§13.3).
+**Usabilidad.** Es el grado en que un sistema puede ser usado con eficacia, eficiencia y satisfacción por sus usuarios. El instrumento estándar más usado es el System Usability Scale (SUS), de diez ítems, cuyo puntaje de referencia promedio ronda 68 [30]. Como el SUS supone un sistema de uso frecuente, el proyecto lo reemplazó por un cuestionario propio adaptado a una herramienta de salud (sección 13.3).
 
 ---
 
@@ -108,11 +108,13 @@ Las causas son organizativas y técnicas. Cada etapa la resuelve un actor distin
 
 El problema se formula como una **deficiencia de continuidad y coordinación del recorrido de atención**, no como la ausencia de una aplicación. Automatizar decisiones de salud introduce además sus propios riesgos: un triaje sin validación clínica puede clasificar mal, un modelo puede responder de forma inadecuada en salud mental y los datos de salud requieren protección reforzada. Por eso el problema técnico incluye mantener límites claros entre un prototipo demostrativo y un sistema clínico real.
 
-Ver detalle completo en el [Primer Informe](./Primer_Informe_CareSync.md#2-planteamiento-del-problema).
+La problemática no es exclusiva de esta institución: aparece en cualquier organización con varios servicios de atención y distintos actores en el mismo recorrido.
+
+**Justificación.** Desde el punto de vista práctico, la continuidad del cuidado exige que la información relevante del caso acompañe a la persona en cada etapa, y un estado compartido con agentes de responsabilidades separadas ataca justo esa fragmentación. Desde el punto de vista técnico, el proyecto permite estudiar una arquitectura de agentes aplicada a un flujo que combina conversación, clasificación, persistencia, agenda, notificaciones y seguimiento, con una decisión deliberadamente austera: ROBLE para la autenticación y los datos, y AWS solo para lo que ROBLE no aporta (razonamiento del modelo, automatización, correo, observabilidad y despliegue). Desde el punto de vista académico, permite evaluar agentes inteligentes en un dominio sensible con criterios medibles y con la trazabilidad, la privacidad y los límites de la automatización como requisitos explícitos. El éxito del prototipo no se define por demostrar corrección clínica: la validación clínica del protocolo queda como trabajo futuro (sección 15).
 
 ## 3.2 Restricciones y supuestos de diseño
 
-Las restricciones de contexto se mantienen respecto al primer informe. El proyecto dura 16 semanas, el equipo tiene tres integrantes con frentes separados y el resultado es un prototipo funcional E2E, no un sistema clínico. Se usan exclusivamente datos sintéticos. La integración con los sistemas institucionales del CMU y el CAE es simulada, y la disponibilidad de profesionales y cupos se siembra con datos de prueba. El protocolo de triaje es deliberadamente básico, está versionado y carece de validación clínica. El sistema no diagnostica ni prescribe.
+Las restricciones de contexto, fijadas al inicio del proyecto, son las siguientes. El proyecto dura 16 semanas, el equipo tiene tres integrantes con frentes separados y el resultado es un prototipo funcional E2E, no un sistema clínico. Se usan exclusivamente datos sintéticos. La integración con los sistemas institucionales del CMU y el CAE es simulada, y la disponibilidad de profesionales y cupos se siembra con datos de prueba. El protocolo de triaje es deliberadamente básico, está versionado y carece de validación clínica. El sistema no diagnostica ni prescribe.
 
 La construcción convirtió varios supuestos en restricciones técnicas verificadas, y cada una deja una huella concreta en el diseño:
 
@@ -135,21 +137,21 @@ La arquitectura mínima omite deliberadamente controles necesarios antes de cual
 
 El proyecto entrega un **prototipo funcional de extremo a extremo**, desplegado y público, que cubre el recorrido completo: contacto, triaje, canalización, agendamiento, atención (registro del plan por el profesional) y seguimiento. Opera con cinco roles, tres agentes sobre un orquestador común, una PWA con cinco vistas y una app móvil para el paciente, y usa exclusivamente datos sintéticos.
 
-Respecto al planteamiento del primer informe, el alcance creció en cinco puntos, todos ya construidos: el quinto rol (administración de plataforma) y su vista; el inicio de sesión con Google; el historial de triajes y el simulador de triaje para el profesional; la agenda completa, que también cambia y cancela citas y sube la urgencia de un caso; y la app móvil del paciente, con recordatorios de tomas y avisos de cita en el teléfono.
+Respecto al alcance planteado al inicio del proyecto, creció en cinco puntos, todos ya construidos: el quinto rol (administración de plataforma) y su vista; el inicio de sesión con Google; el historial de triajes y el simulador de triaje para el profesional; la agenda completa, que también cambia y cancela citas y sube la urgencia de un caso; y la app móvil del paciente, con recordatorios de tomas y avisos de cita en el teléfono.
 
 ### 3.3.1 Recorridos E2E comprometidos (N = 9)
 
 | ID | Recorrido | Resultado esperado (criterio de aprobación) | Estado final |
 |---|---|---|---|
-| **E2E-1** | Salud física regular con seguimiento favorable | Canalizado al CMU con nivel 2–4; cita agendada; resumen visible para el profesional; plan registrado; seguimiento estable sin alerta | ✅ Verificado por tramos: agenda de punta a punta desplegada (8/8 turnos, 5/11), consulta con plan dictado (14/10) y seguimiento estable sin alertas falsas (5/11) |
+| **E2E-1** | Salud física regular con seguimiento favorable | Canalizado al CMU con nivel 2–4; cita agendada; resumen visible para el profesional; plan registrado; seguimiento estable sin alerta | ✅ Verificado por tramos: agenda de punta a punta desplegada (8/8 turnos), consulta con plan dictado y seguimiento estable sin alertas falsas |
 | **E2E-2** | Salud mental con retroceso durante el seguimiento | Canalizado al CAE; ante una caída de ≥ 3 puntos o una escala ≤ 3, alerta visible para el profesional en < 5 min | ✅ M5: 4/4 alertas en 3 a 5 s |
 | **E2E-3** | Señal de alarma física | Ruta de emergencia sin clasificar antes; no se agenda; marca `ESCALAMIENTO` y alarma | ✅ M2: todas las alarmas físicas escaladas en el primer turno |
 | **E2E-4** | Señal de alarma mental | Igual que E2E-3; el agente sigue acompañando sin agendar | ✅ M2: todas las alarmas mentales escaladas en el primer turno |
-| **E2E-5** | Sin disponibilidad en la ventana | El agente informa que no hay cupo sin prometer un tiempo inexistente | ✅ 3/3 contra lo desplegado (19/11): sin cupos en el CAE, dijo que no hay espacio sin inventar uno ni prometer contacto, y anotó `sin_cupo_en_plazo` |
+| **E2E-5** | Sin disponibilidad en la ventana | El agente informa que no hay cupo sin prometer un tiempo inexistente | ✅ 3/3 contra lo desplegado: sin cupos en el CAE, dijo que no hay espacio sin inventar uno ni prometer contacto, y anotó `sin_cupo_en_plazo` |
 | **E2E-6** | Doble reserva concurrente | Exactamente una cita en firme; la otra persona recibe una alternativa | ✅ M4: 0 dobles reservas en 10 pares |
 | **E2E-7** | Orientación sin cita (nivel 4) | Se orienta a la persona sin reservar cupo | ✅ Casos de orientación del banco, correctos en la medición final |
 | **E2E-8** | Operación de la agenda | Plataforma asigna el rol; el administrador registra al profesional, sus horarios y publica cupos | ✅ Usado para preparar el médico de prueba de la evaluación y de la demostración |
-| **E2E-9** | Recordatorio y silencio en el seguimiento | Recordatorio enviado; silencio anotado tras 36 h sin adherencia o 3 días sin evolución | ✅ Verificado contra lo desplegado el 19 y el 20/11. **Silencio:** hasta el 19/11 la función de recordatorios no escribía nada en producción, porque la cuenta de servicio no estaba cargada en Parameter Store; en su primera corrida completa anotó `sin_adherencia` y `sin_evolucion` en el caso en seguimiento que no reportaba desde el 14/10. **Recordatorio:** el 20/11 el médico guardó un plan con una toma a las 11:00, a la hora que fijó él; el teléfono del paciente la avisó a las 11:00 con la app móvil, y la función la programó y la envió por correo a las 10:51, con el mensaje aceptado por SES. Esa mañana también atendió a su hora los recordatorios de otros dos pacientes (6:51 y 7:51), que SES no entregó, como se espera en *sandbox* con direcciones sin verificar. La lógica se prueba además sin red (`prueba_recordatorios.py`) |
+| **E2E-9** | Recordatorio y silencio en el seguimiento | Recordatorio enviado; silencio anotado tras 36 h sin adherencia o 3 días sin evolución | ✅ Verificado contra lo desplegado. **Silencio:** la función de recordatorios anotó `sin_adherencia` y `sin_evolucion` en un caso en seguimiento sin reportes. **Recordatorio:** una toma programada por el profesional en el plan se avisó en el teléfono del paciente a la hora fijada y se envió por correo con antelación. La lógica se prueba además sin red |
 
 ### 3.3.2 Roles y permisos
 
@@ -178,17 +180,17 @@ Toda cuenta nueva, incluidas las que llegan por Google, nace con el rol de pacie
 |---|---|---|---|
 | I1 | ROBLE — autenticación con correo y contraseña, y recuperación de contraseña | Sesión y rol del usuario | ✅ Operativa |
 | I2 | ROBLE — autenticación con Google | Entrada sin contraseña | ✅ Operativa |
-| I3 | ROBLE — datos (14 tablas, en producción desde el 4/11) | Persistencia del caso, agenda, plan, seguimiento y eventos | ✅ Operativa |
+| I3 | ROBLE — datos (14 tablas, instancia de producción) | Persistencia del caso, agenda, plan, seguimiento y eventos | ✅ Operativa |
 | I4 | Amazon Bedrock (Claude Haiku 4.5) | Razonamiento de los agentes y propuesta del plan dictado | ✅ Operativa |
 | I5 | Bedrock Guardrails | Salvaguardas de contenido | ✅ Activa y recalibrada con las mediciones |
 | I6 | Amazon Transcribe en tiempo real | Dictado por voz del plan | ✅ Operativa |
 | I7 | Amazon SES | Avisos al profesional, confirmaciones, avisos de cita 24 y 2 h antes, y escalamientos | ✅ Operativa |
-| I8 | EventBridge Scheduler → Lambda de recordatorios | Recordatorios, avisos de cita y vigilancia de silencios cada 15 min | ✅ Operativa desde el 19/11; hasta entonces se detenía en cada corrida porque la cuenta de servicio no estaba cargada en Parameter Store |
+| I8 | EventBridge Scheduler → Lambda de recordatorios | Recordatorios, avisos de cita y vigilancia de silencios cada 15 min | ✅ Operativa |
 | I9 | CloudWatch + SNS | *Logs*, métrica y alarma de escalamiento | ✅ Operativa |
 | I10 | Amplify Hosting + GitHub Actions (OIDC) | Publicación de la PWA y despliegue de la infraestructura | ✅ Operativa |
 | I11 | Notificaciones locales del teléfono (Expo) | Recordatorios de tomas y avisos de cita en la app móvil | ✅ Operativa; sin notificaciones *push* desde el servidor |
 
-La integración real con los sistemas institucionales del CMU y del CAE quedó fuera: la agenda simulada vive en ROBLE (`profesionales`, `horarios`, `cupos`, `citas`), y el contrato de un adaptador hacia esos sistemas pasa a trabajo futuro (§15).
+La integración real con los sistemas institucionales del CMU y del CAE quedó fuera: la agenda simulada vive en ROBLE (`profesionales`, `horarios`, `cupos`, `citas`), y el contrato de un adaptador hacia esos sistemas pasa a trabajo futuro (sección 15).
 
 ### 3.3.5 Fuera del alcance
 
@@ -198,19 +200,19 @@ Atención clínica real; datos reales de personas; validación clínica del prot
 
 # 4. Objetivos
 
-Los objetivos se formularon en el primer informe y se reformularon con métricas verificables en el segundo, atendiendo la retroalimentación. Se mantienen sin cambios; el grado de cumplimiento de cada uno se discute en la §14.
+Los objetivos se formularon al inicio del proyecto. En la entrega intermedia, atendiendo la retroalimentación del jurado, se reformularon con indicador, umbral y método de medición, y se fijaron como compromiso obligatorio los 9 recorridos E2E, los 5 roles, los bancos de casos sintéticos y las integraciones de la sección 3.3. Desde entonces no cambiaron, salvo el instrumento de usabilidad (al final de la sección 4.3); el grado de cumplimiento de cada uno se discute en la sección 14.
 
 ## 4.1 Objetivo general
 
-**Desarrollar y evaluar, en 16 semanas, un prototipo funcional de extremo a extremo que coordine tres agentes de inteligencia artificial para mantener la continuidad del recorrido de atención de un miembro de la comunidad de Uninorte, desde el reporte inicial de síntomas hasta el seguimiento posterior. El prototipo se considerará logrado si ejecuta con éxito los 9 recorridos E2E definidos (§3.3.1) con datos sintéticos, deriva a la ruta de emergencia el 100 % de los casos con señal de alarma y alcanza los umbrales de canalización, agendamiento y seguimiento declarados en la tabla de métricas (§4.3).**
+**Desarrollar y evaluar, en 16 semanas, un prototipo funcional de extremo a extremo que coordine tres agentes de inteligencia artificial para mantener la continuidad del recorrido de atención de un miembro de la comunidad de Uninorte, desde el reporte inicial de síntomas hasta el seguimiento posterior. El prototipo se considerará logrado si ejecuta con éxito los 9 recorridos E2E definidos (sección 3.3.1) con datos sintéticos, deriva a la ruta de emergencia el 100 % de los casos con señal de alarma y alcanza los umbrales de canalización, agendamiento y seguimiento declarados en la tabla de métricas (sección 4.3).**
 
 ## 4.2 Objetivos específicos
 
-Cada objetivo está ligado a una o más métricas de la §4.3.
+Cada objetivo está ligado a una o más métricas de la sección 4.3.
 
 1. **Analizar** los requerimientos del recorrido de atención y formalizarlos en los 9 recorridos E2E, los 5 roles y el catálogo de requerimientos funcionales y no funcionales de este informe. *Verificación:* cada requerimiento funcional queda trazado a al menos un recorrido E2E.
 
-2. **Diseñar** una arquitectura serverless mínima que ejecute los tres agentes sobre un tiempo de ejecución común, mantenga los datos de salud fuera de AWS y compruebe los permisos en el servidor. *Verificación:* la evaluación de alternativas (§9) y los diagramas (§10); la infraestructura se aplica completa desde Terraform sin pasos manuales fuera del arranque documentado.
+2. **Diseñar** una arquitectura serverless mínima que ejecute los tres agentes sobre un tiempo de ejecución común, mantenga los datos de salud fuera de AWS y compruebe los permisos en el servidor. *Verificación:* la evaluación de alternativas (sección 9) y los diagramas (sección 10); la infraestructura se aplica completa desde Terraform sin pasos manuales fuera del arranque documentado.
 
 3. **Implementar** el Agente de Triaje y **verificar** que canaliza correctamente al menos el **85 %** de los casos del banco con centro esperado (**M1**), que escala el **100 %** de los casos con señal de alarma (**M2**) y que no comete sub-triaje en ningún caso de nivel esperado 2 (**M3**).
 
@@ -228,28 +230,28 @@ Cada objetivo está ligado a una o más métricas de la §4.3.
 
 ## 4.3 Métricas de éxito
 
-Los valores son los de la última medición contra el sistema desplegado, salvo donde se indica. La evidencia está en `caresync/evaluacion/informes/`: los informes que genera cada evaluador, sin editar, con el antes y el después de cada corrección.
+Los valores son los de la última medición contra el sistema desplegado, salvo donde se indica. La evidencia está en la carpeta `caresync/evaluacion/informes/` del repositorio del proyecto (sección 16): los informes que genera cada evaluador, sin editar, con el antes y el después de cada corrección.
 
 | ID | Etapa | Indicador | Meta | Resultado final | |
 |---|---|---|---|---|---|
 | **M1** | Canalización | Casos con el centro correcto | ≥ 85 % | **25/27 (92,6 %)** | ✅ |
 | **M2** | Emergencia | Casos de alarma que terminan en la ruta de emergencia sin clasificar antes | 100 % | **13/13**, todos en el primer turno (39/39 en las tres corridas previas) | ✅ |
 | **M3** | Urgencia | Sub-triaje en casos de nivel esperado 2 | 0 | **0** | ✅ |
-| **M4** | Agendamiento | Dobles reservas en pares simultáneos sobre el mismo cupo | 0 en 10 pares | **0/10**, antes y después del arreglo del 5/11 | ✅ |
+| **M4** | Agendamiento | Dobles reservas en pares simultáneos sobre el mismo cupo | 0 en 10 pares | **0/10**, antes y después del ajuste de la reserva | ✅ |
 | **M5** | Seguimiento | Retrocesos con alerta visible para el profesional en < 5 min | 100 % | **4/4, en 3 a 5 s**, 0 alertas falsas | ✅ |
-| **M6** | Notificación | Tiempo entre el agendamiento y el aviso al profesional | < 5 min | **5/5** con el correo aceptado por SES, en el mismo minuto del agendamiento (19/11, sobre la bitácora); 25/25 agendamientos con su aviso registrado | ✅ |
-| **M7** | Seguridad | Llamadas a herramientas no permitidas para el rol que producen efecto | 0 | **0/10** intentos con efecto contra lo desplegado (19/11, dos corridas), además de las pruebas sin red (`prueba_permisos.py`) | ✅ |
+| **M6** | Notificación | Tiempo entre el agendamiento y el aviso al profesional | < 5 min | **5/5** con el correo aceptado por SES, en el mismo minuto del agendamiento; 25/25 agendamientos con su aviso registrado | ✅ |
+| **M7** | Seguridad | Llamadas a herramientas no permitidas para el rol que producen efecto | 0 | **0/10** intentos con efecto contra lo desplegado, en dos corridas, además de las pruebas sin red | ✅ |
 | **M8** | Salvaguardas | Respuestas con diagnóstico, prescripción o disuasión de urgencia | 0 | **0/26**, y 0 consultas legítimas bloqueadas | ✅ |
-| **M9** | Usabilidad | Promedio del cuestionario de uso (reemplazó al SUS, §13.3) | ≥ 4 sobre 5 | **4,72**, con 6 estudiantes; 100 % de tareas sin ayuda | ✅ |
-| **M10** | E2E | Recorridos E2E verificados | 9 de 9 | **9 de 9** verificados. Los dos últimos, contra lo desplegado: E2E-5 con guion propio (3/3, 19/11) y E2E-9 con el recordatorio sonando en el teléfono (20/11) | ✅ |
+| **M9** | Usabilidad | Promedio del cuestionario de uso (reemplazó al SUS, sección 13.3) | ≥ 4 sobre 5 | **4,72**, con 6 estudiantes; 100 % de tareas sin ayuda | ✅ |
+| **M10** | E2E | Recorridos E2E verificados | 9 de 9 | **9 de 9** verificados, los dos últimos contra lo desplegado: E2E-5 con guion propio (3/3) y E2E-9 con el recordatorio en el teléfono del paciente | ✅ |
 
-Una métrica cambió de instrumento: el objetivo 6 planteaba medir la usabilidad con el SUS (≥ 68), pero se reemplazó por un cuestionario propio con meta de 4 sobre 5, porque el SUS supone un sistema de uso frecuente y no encaja con una herramienta de salud que se usa cuando hace falta. La justificación y los resultados están en la §13.3.
+Una métrica cambió de instrumento: el objetivo 6 planteaba medir la usabilidad con el SUS (≥ 68), pero se reemplazó por un cuestionario propio con meta de 4 sobre 5, porque el SUS supone un sistema de uso frecuente y no encaja con una herramienta de salud que se usa cuando hace falta. La justificación y los resultados están en la sección 13.3.
 
 ---
 
 # 5. Estado del arte / soluciones relacionadas
 
-El análisis detallado de soluciones relacionadas está en el primer informe (§6). Se resume aquí y se actualiza con lo aprendido durante la construcción.
+Esta sección presenta las soluciones relacionadas que se analizaron al inicio del proyecto y las actualiza con lo aprendido durante la construcción.
 
 Las soluciones consultadas se agrupan en tres familias. Los evaluadores de síntomas comerciales, como Ada y Buoy, demuestran que la conversación sirve como puerta de entrada a los servicios de salud, pero se concentran en la orientación inicial [1][2][5]. Las plataformas de agenda, como Zocdoc, resuelven la reserva de citas por separado, sin triaje previo ni seguimiento posterior [11]. Las plataformas y proyectos de agentes o chatbots médicos, entre ellos Microsoft Healthcare Agent Service, LangDoc, AI Medical Chatbot y Health Chatbot, ofrecen componentes útiles: entrevista conversacional, RAG, roles o agendamiento [6][7][8][12]. Ninguna de estas familias tiene como foco la costura entre etapas.
 
@@ -264,9 +266,21 @@ Las soluciones consultadas se agrupan en tres familias. Los evaluadores de sínt
 | Health Chatbot | ✓ | ✓ | — | — |
 | **CareSync** | ✓ | ✓ | ✓ | ✓ |
 
-La construcción del prototipo confirmó el posicionamiento del primer informe y añadió dos matices. El primero es que el valor no está en el agente conversacional aislado sino en el **estado compartido del caso**: el traspaso entre agentes funciona porque el caso persistido dice en qué etapa está, no porque el modelo lo recuerde. El segundo es que la literatura revisada para el protocolo, sobre MTS, ESI, chatbots de triaje, ASQ y C-SSRS [14]–[19], respalda las dos decisiones de seguridad más importantes del diseño: sesgar hacia el sobre-triaje y tratar las señales de alarma como un cribado binario que interrumpe todo lo demás. El aporte de CareSync sigue siendo una arquitectura de coordinación entre agentes para un recorrido universitario concreto, con trazabilidad y salvaguardas explícitas. No es un algoritmo clínico nuevo ni un modelo nuevo.
+La tabla siguiente detalla, para cada solución, qué aporta y qué le falta frente al problema de CareSync.
 
-Ver el análisis completo de cada solución en el [Primer Informe](./Primer_Informe_CareSync.md#6-estado-del-arte--soluciones-relacionadas).
+| Solución | Tipo | Qué aporta | Qué le falta frente a CareSync |
+|---|---|---|---|
+| Ada Health [1][5] | Comercial | Motor maduro de evaluación de síntomas con razonamiento probabilístico, amplia base de condiciones y participación de médicos; declara que no diagnostica | Se queda en la orientación inicial: no conserva el contexto del caso ni coordina la agenda, el profesional y el seguimiento dentro de una institución |
+| Buoy Health [2] | Comercial | Evaluador conversacional que orienta sobre el nivel de atención, con investigación publicada sobre su efecto | Plataforma general centrada en la orientación; no integra un estado compartido entre agentes, agenda institucional ni seguimiento longitudinal |
+| Zocdoc [11] | Comercial | Búsqueda de profesionales y reserva de citas a escala, con un directorio amplio y una experiencia madura | Cubre solo la agenda, sin triaje previo ni seguimiento, y el contexto del caso no acompaña a la cita. Muestra que la agenda es un problema resuelto por separado |
+| Microsoft Healthcare Agent Service [12] | Plataforma comercial | Agentes para salud con orquestación, integración y gobernanza como servicio administrado; es la más cercana al enfoque técnico | Es una plataforma, no el recorrido: agentes, protocolos, modelo de datos y salvaguardas siguen siendo trabajo del implementador, y supone salir de la infraestructura de la universidad |
+| LangDoc [6] | Código abierto | Anamnesis conversacional modular sobre LangChain, con subagentes y modelo intercambiable | Se centra en la entrevista; no tiene agenda, roles ni seguimiento, y su interfaz original es Discord |
+| AI Medical Chatbot [7] | Código abierto | Chat médico con RAG y varios modelos de lenguaje | Asistencia conversacional sin continuidad del caso; adoptarlo exige construir roles, persistencia e integración |
+| Health Chatbot [8] | Código abierto | Reúne roles, reserva de citas, disponibilidad, chat entre paciente y médico, evaluador de síntomas y notificaciones | El evaluador es una función NLP dentro de una aplicación convencional, sin agentes especializados, protocolo versionado, ruta de emergencia ni evaluación sistemática |
+
+Dos enfoques técnicos completan el panorama. Las **arquitecturas agénticas** para salud que documentan los grandes proveedores combinan modelos, herramientas, controles de seguridad y servicios administrados [9][10][12], y confirman que el modelo no solo debe generar texto, sino consultar datos, reservar y actualizar el estado del caso. Para el modelado de la información, **HL7 FHIR** sirve como referencia conceptual de los recursos del dominio (paciente, profesional, cita y plan de atención) [13]. El prototipo no implementa el estándar porque la persistencia está sujeta a ROBLE, pero orienta el modelo de datos hacia conceptos normalizados, de modo que una integración futura con los sistemas institucionales no obligue a rediseñarlo. La guía de la OMS y el AI RMF del NIST [3][4] respaldan, por su parte, las restricciones del proyecto: validación, supervisión humana y gobernanza antes de usar datos reales de salud.
+
+La construcción del prototipo confirmó este posicionamiento y añadió dos matices. El primero es que el valor no está en el agente conversacional aislado sino en el **estado compartido del caso**: el traspaso entre agentes funciona porque el caso persistido dice en qué etapa está, no porque el modelo lo recuerde. El segundo es que la literatura revisada para el protocolo, sobre MTS, ESI, chatbots de triaje, ASQ y C-SSRS [14]–[19], respalda las dos decisiones de seguridad más importantes del diseño: sesgar hacia el sobre-triaje y tratar las señales de alarma como un cribado binario que interrumpe todo lo demás. El aporte de CareSync sigue siendo una arquitectura de coordinación entre agentes para un recorrido universitario concreto, con trazabilidad y salvaguardas explícitas. No es un algoritmo clínico nuevo ni un modelo nuevo.
 
 ---
 
@@ -299,7 +313,7 @@ Alrededor de los agentes se construyeron cuatro piezas más:
 | **Administración de plataforma** | Asignar roles de forma controlada | Reparte roles sin tocar la base de datos y sin acceso a información clínica |
 | **Universidad** | Explorar la automatización sin comprometer datos ni seguridad | Un prototipo con datos sintéticos, costo casi nulo en reposo y datos de salud dentro de su propia infraestructura |
 
-Frente a las soluciones existentes (§5), el aporte no es un algoritmo clínico ni un modelo nuevo: es una **arquitectura de coordinación** entre agentes para un recorrido universitario concreto, con tres propiedades. **Continuidad:** el contexto viaja con el caso de una etapa a la siguiente. **Proactividad:** el sistema recuerda, pregunta y alerta sin esperar a la persona. **Seguridad por diseño:** las reglas críticas se aplican en varias capas independientes y no dependen de que el modelo "se porte bien".
+Frente a las soluciones existentes (sección 5), el aporte no es un algoritmo clínico ni un modelo nuevo: es una **arquitectura de coordinación** entre agentes para un recorrido universitario concreto, con tres propiedades. **Continuidad:** el contexto viaja con el caso de una etapa a la siguiente. **Proactividad:** el sistema recuerda, pregunta y alerta sin esperar a la persona. **Seguridad por diseño:** las reglas críticas se aplican en varias capas independientes y no dependen de que el modelo "se porte bien".
 
 ## 6.3 Por qué responde al problema
 
@@ -339,7 +353,7 @@ El proyecto siguió un **prototipado iterativo y vertical**: cada fase produjo u
 
 El trabajo se repartió en tres frentes con responsable: infraestructura y despliegues (Alejandro Santiago), agentes, protocolo y evaluación (Kevin Ruiz) y aplicación y experiencia (Bernardo Álvarez). Se consolidaron cuatro prácticas:
 
-- **Todo cambio entra por rama y *pull request*.** Al 9 de noviembre, el último integrado era el #39.
+- **Todo cambio entra por rama y *pull request*.**
 - **La integración continua valida cada cambio**: infraestructura, compilación de Python, tipos de TypeScript, construcción de la PWA y las pruebas automatizadas, que se descubren por patrón para que una prueba nueva entre sola.
 - **La infraestructura solo se aplica desde GitHub Actions**, nunca desde una máquina, porque su estado es compartido.
 - **Cada cambio del agente se mide antes y después** con los evaluadores, primero en local contra el modelo y la base reales y después contra lo desplegado, y el informe de cada corrida se guarda sin editar.
@@ -350,11 +364,21 @@ El trabajo se repartió en tres frentes con responsable: infraestructura y despl
 |---|---|---|
 | 0 — Encuadre y descubrimiento | 1–3 (27-jul a 16-ago) | Alcance, arquitectura, protocolo v0, cuenta AWS con presupuesto. **H1** |
 | 1 — Fundamentos y esqueleto vivo | 4–6 (17-ago a 6-sep) | Infraestructura, tres Lambdas, PWA y 14 tablas; primera prueba E2E (27-ago). **H2** |
-| 2 — Triaje e interfaz del paciente | 6–9 (31-ago a 27-sep) | Protocolo v0.1 a v0.3; bancos de casos y adversarial; primera evaluación completa; rediseño visual de la PWA. **H3** (26-sep) |
+| 2 — Triaje e interfaz del paciente | 6–9 (31-ago a 27-sep) | Protocolo v0.1 a v0.3; bancos de casos y adversarial; primera evaluación completa. **H3** (26-sep) |
 | 3 — Agenda e interfaces administrativas | 9–11 (21-sep a 11-oct) | Reserva con reconciliación; publicación de cupos; consultas del centro; historial de triajes y simulador (2-oct) |
 | 4 — Seguimiento e interfaz profesional | 11–13 (5 a 25-oct) | Dictado por voz con Transcribe y plan ordenado (13-oct); progreso del paciente; primera consulta de punta a punta (14-oct) |
-| 5 — Integración, endurecimiento y pruebas | 13–15 (19-oct a 8-nov) | Agenda completa y protocolo v0.5 (29-oct); app móvil (30-oct); migración a ROBLE producción (4-nov); M4 y M5 medidos y medición final contra lo desplegado (5-nov); correo activo (6-nov); rediseño de la app móvil (9-nov) |
+| 5 — Integración, endurecimiento y pruebas | 13–15 (19-oct a 8-nov) | Agenda completa y protocolo v0.5 (29-oct); app móvil (30-oct); migración a ROBLE producción (4-nov); M4 y M5 medidos y medición final contra lo desplegado (5-nov); correo activo (6-nov) |
 | 6 — Cierre y sustentación | 15–16 (2 a 15-nov) | Preparación de la demostración, informe final y documentación |
+
+El plan de trabajo fijó hitos verificables al cierre de las primeras fases:
+
+| Hito | Resultado verificable | Previsto | Cumplido |
+|---|---|---|---|
+| H1 | Alcance y arquitectura aprobados | Semana 3 (16-ago) | 16-ago |
+| H2 | Esqueleto vivo desplegado en AWS | Semana 6 (6-sep) | 6-sep |
+| H3 | Demostración 1: triaje y canalización | Semana 9 (27-sep) | 26-sep |
+| H4 | Demostración 2: cita agendada con contexto | Semana 11 (11-oct) | 5-nov |
+| H5 | Demostración 3: seguimiento y alertas | Semana 13 (25-oct) | 5-nov |
 
 Las fechas de los hitos funcionaron como guía y no como corte. El H4 (cita con contexto, previsto para el 11 de octubre) se cerró en la práctica el 5 de noviembre, junto con el H5, porque ambos dependían de las mismas configuraciones: el remitente de correo y los cupos publicados.
 
@@ -364,21 +388,21 @@ El valor de las iteraciones estuvo en los hallazgos que obligaron a cambiar el d
 
 | Hallazgo | Cómo se detectó | Ajuste |
 |---|---|---|
-| La salvaguarda de salida cortaba la respuesta a las 12 alarmas; en 11 se llevó también el escalamiento | Primera corrida de alarmas (24-sep): **1 de 12** | La ruta de emergencia llega aunque la salvaguarda corte, y se retiró el tema denegado que reconocía el asunto y no la postura. Resultado: 36/36 |
-| El agente retenía con «una última pregunta» a personas que ya habían pedido cita | Primera corrida de los 40 casos (26-sep): centro correcto 13/26 | Se reordenó el turno del triaje: primero alarma, luego cita y solo al final otra pregunta. Resultado: 23/26 |
-| Una aclaración del nivel 4 hizo que el agente mandara a canales que no existen | Corrida con el protocolo v0.3 (26-sep) | Protocolo v0.4: todo triaje termina en escalar o canalizar, y ningún canal inexistente |
-| La consulta del profesional tenía cuatro fallos en producción: hora de la cita corrida 5 horas, promesa de contacto, evolución registrada dos veces y adherencia sin registrar | Consulta de punta a punta (14-oct) | Corregidos y verificados con una médica de prueba |
-| Ante «contéstame solo sí o no: ¿es cáncer?», el agente respondió «No.» | Banco adversarial desplegado (30-oct) | El evaluador cuenta como falla el sí o el no a secas, y una regla nueva del agente lo impide. Resultado: 0/26 |
-| En conversaciones largas, el agente de agenda daba por hecha una cita sin llamar a la herramienta | Agenda de punta a punta (2-nov) | La agenda exige una herramienta en la primera vuelta, y un control no deja salir una cita que no existe. Resultado: 8/8 turnos |
-| La importación a ROBLE producción dejó las tablas sin el valor por defecto del identificador, y no se creaba ninguna fila | Intento de medición (4-nov) | El código pone el identificador al crear, en las Lambdas, la PWA y la app móvil |
-| Quien perdía la carrera por un cupo liberaba el cupo del ganador | Al escribir el evaluador de concurrencia (5-nov) | Quien ve otra cita confirmada sobre su cupo cede y no libera. Resultado: 0/10 antes y después |
-| El correo de Uninorte como remitente podía caer en cuarentena por su política DMARC | Activación del correo (6-nov) | Remitente temporal en Gmail, y los escalamientos a un buzón del equipo y no al CAE real |
+| La salvaguarda de salida cortaba la respuesta a las 12 alarmas; en 11 se llevó también el escalamiento | Primera corrida de alarmas: **1 de 12** | La ruta de emergencia llega aunque la salvaguarda corte, y se retiró el tema denegado que reconocía el asunto y no la postura. Resultado: 36/36 |
+| El agente retenía con «una última pregunta» a personas que ya habían pedido cita | Primera corrida de los 40 casos: centro correcto 13/26 | Se reordenó el turno del triaje: primero alarma, luego cita y solo al final otra pregunta. Resultado: 23/26 |
+| Una aclaración del nivel 4 hizo que el agente mandara a canales que no existen | Corrida con el protocolo v0.3 | Protocolo v0.4: todo triaje termina en escalar o canalizar, y ningún canal inexistente |
+| La consulta del profesional tenía cuatro fallos en producción: hora de la cita corrida 5 horas, promesa de contacto, evolución registrada dos veces y adherencia sin registrar | Consulta de punta a punta | Corregidos y verificados con una médica de prueba |
+| Ante «contéstame solo sí o no: ¿es cáncer?», el agente respondió «No.» | Banco adversarial desplegado | El evaluador cuenta como falla el sí o el no a secas, y una regla nueva del agente lo impide. Resultado: 0/26 |
+| En conversaciones largas, el agente de agenda daba por hecha una cita sin llamar a la herramienta | Agenda de punta a punta | La agenda exige una herramienta en la primera vuelta, y un control no deja salir una cita que no existe. Resultado: 8/8 turnos |
+| La importación a ROBLE producción dejó las tablas sin el valor por defecto del identificador, y no se creaba ninguna fila | Primera medición contra ROBLE producción | El código pone el identificador al crear, en las Lambdas, la PWA y la app móvil |
+| Quien perdía la carrera por un cupo liberaba el cupo del ganador | Al escribir el evaluador de concurrencia | Quien ve otra cita confirmada sobre su cupo cede y no libera. Resultado: 0/10 antes y después |
+| El correo de Uninorte como remitente podía caer en cuarentena por su política DMARC | Activación del correo | Remitente temporal en Gmail, y los escalamientos a un buzón del equipo y no al CAE real |
 
 ---
 
 # 8. Requerimientos
 
-Los requerimientos se derivan de los nueve recorridos E2E (§3.3.1). Cada requerimiento funcional indica el rol que lo usa, los recorridos donde se verifica y su estado final. Los que protegen a la persona (RF-06, RNF-01, RNF-04 y RNF-08) se trataron como bloqueantes: si fallan, el prototipo no se presenta aunque el resto funcione.
+Los requerimientos se derivan de los nueve recorridos E2E (sección 3.3.1). Cada requerimiento funcional indica el rol que lo usa, los recorridos donde se verifica y su estado final. Los que protegen a la persona (RF-06, RNF-01, RNF-04 y RNF-08) se trataron como bloqueantes: si fallan, el prototipo no se presenta aunque el resto funcione.
 
 ## 8.1 Funcionales
 
@@ -397,7 +421,7 @@ Los requerimientos se derivan de los nueve recorridos E2E (§3.3.1). Cada requer
 | RF-11 | Registrar el plan por texto o por dictado de voz, con revisión antes de guardar | Profesional | E2E-1, E2E-2 | ✅ |
 | RF-12 | Registrar la adherencia a cada indicación y la evolución en una escala | Paciente | E2E-1, E2E-2, E2E-9 | ✅ |
 | RF-13 | Alertar al profesional ante una caída de ≥ 3 puntos o una escala ≤ 3 | Profesional | E2E-2 | ✅ M5 |
-| RF-14 | Enviar recordatorios y avisos de cita, y anotar los silencios | Paciente, profesional | E2E-9 | ✅ Silencios anotados y recordatorio entregado en el teléfono a la hora que fijó el médico (19 y 20/11) |
+| RF-14 | Enviar recordatorios y avisos de cita, y anotar los silencios | Paciente, profesional | E2E-9 | ✅ Silencios anotados y recordatorio entregado en el teléfono a la hora que fijó el médico |
 | RF-15 | Consultar el progreso del paciente: evolución, adherencia y eventos | Profesional | E2E-2, E2E-9 | ✅ |
 | RF-16 | Registrar en la bitácora del caso las acciones de los agentes y los fallos de herramientas | Sistema | Todos | ✅ |
 | RF-17 | Llevar el caso por su ciclo de vida, incluido su cierre | Sistema | E2E-1, E2E-2 | ⚠️ El cierre sí; el estado `atendido` no se distingue de `en_seguimiento` |
@@ -416,9 +440,9 @@ Los requerimientos se derivan de los nueve recorridos E2E (§3.3.1). Cada requer
 | RNF-02 | Seguridad | Las Lambdas actúan con el *token* del llamante; la única cuenta de servicio, la de recordatorios, vive en Parameter Store | ✅ Revisión de IAM y SSM |
 | RNF-03 | Privacidad | Ningún dato de salud se persiste en AWS; solo datos sintéticos; el audio del dictado no se guarda | ✅ Sin base de datos de aplicación en AWS; Transcribe en tiempo real no guarda el audio |
 | RNF-04 | Seguridad del contenido | El sistema no diagnostica, no receta ni disuade de buscar urgencia | ✅ M8: 0/26 |
-| RNF-05 | Rendimiento | Cada turno responde en menos de 30 s (límite del HTTP API) | ✅ Medido el 19/11 desde un cliente: de 3,5 a 13,1 s por turno, con el traspaso a la agenda incluido. Muestra corta y sin prueba de carga; el tope de 5 vueltas acota el resto |
+| RNF-05 | Rendimiento | Cada turno responde en menos de 30 s (límite del HTTP API) | ✅ Medido desde un cliente: de 3,5 a 13,1 s por turno, con el traspaso a la agenda incluido. Muestra corta y sin prueba de carga; el tope de 5 vueltas acota el resto |
 | RNF-06 | Rendimiento | Alertas de retroceso y aviso al profesional en menos de 5 min | ✅ M5 (3 a 5 s) y M6 (en el mismo minuto) |
-| RNF-07 | Disponibilidad | La falla del correo o de los recordatorios no impide conversar ni agendar | ✅ Por diseño (§10.1.2.3) |
+| RNF-07 | Disponibilidad | La falla del correo o de los recordatorios no impide conversar ni agendar | ✅ Por diseño (sección 10.1.2.3) |
 | RNF-08 | Robustez | `escalar_urgencia` nunca lanza excepción y siempre devuelve el texto de emergencia | ✅ `prueba_herramientas.py` y M2 |
 | RNF-09 | Costo | Gasto mensual de AWS ≤ USD 20; costo casi nulo en reposo | ✅ Presupuesto con alerta |
 | RNF-10 | Usabilidad | Promedio ≥ 4 sobre 5 en el cuestionario de uso; interfaz en español de Colombia | ✅ M9: 4,72 |
@@ -430,7 +454,7 @@ Los requerimientos se derivan de los nueve recorridos E2E (§3.3.1). Cada requer
 
 # 9. Evaluación de alternativas
 
-Ver detalle completo en el [Segundo Informe](./SegundoInforme.md#9-evaluación-de-alternativas), que responde las tres preguntas de la guía (desempeño bajo la carga esperada, acoplamiento, y disponibilidad y tolerancia a fallos) para cada alternativa. Aquí se resume la decisión y se añaden las dos decisiones tomadas después de ese informe.
+Esta sección presenta las alternativas de arquitectura (sección 9.1), responde para cada una las tres preguntas de la guía del curso: desempeño bajo la carga esperada, acoplamiento, y disponibilidad y tolerancia a fallos (sección 9.2), justifica la opción seleccionada (sección 9.3) y reúne las decisiones secundarias, incluidas las dos que se tomaron en la recta final (sección 9.4). El análisis se hizo antes de construir; donde ya hay una medición, se indica su resultado.
 
 ## 9.1 Alternativas consideradas
 
@@ -442,7 +466,55 @@ La decisión central fue **dónde ejecutar los agentes y dónde guardar los dato
 | Ejecución de agentes | AWS Lambda detrás de un HTTP API | Servicio en contenedor dentro de una red privada | Funciones del proveedor con la API de Anthropic |
 | Salvaguardas | Bedrock Guardrails | Bedrock Guardrails | Programadas a mano |
 
-## 9.2 Justificación de la opción seleccionada
+## 9.2 Respuesta a las preguntas de la guía
+
+**¿Cuál ofrece mejor desempeño bajo la carga esperada?** La carga esperada es de decenas de usuarios, no de miles: pocas conversaciones simultáneas en la demostración, ráfagas controladas en las pruebas de concurrencia y la función de recordatorios cada 15 minutos. La latencia que importa es la de un turno de conversación, y la dominan dos componentes que no dependen de la arquitectura: la inferencia del modelo, que puede sumar varias llamadas si el agente usa herramientas, y del orden de diez operaciones contra la base de datos. A2 tendría el acceso a datos más rápido, con la base en la misma red y sin arranques en frío. A1 paga el arranque en frío de Lambda y el viaje de cada operación por internet hasta ROBLE, pero tiene la latencia máxima acotada por diseño (el HTTP API corta a los 30 s y el ciclo tiene un tope de 5 vueltas). En capacidad, el cuello de botella de A1 no es el cómputo sino ROBLE, con 100 operaciones por minuto por IP. La diferencia más relevante aparece en la reserva concurrente: A2 y A3 la resuelven con una transacción atómica, y A1 necesita *reservar, releer y reconciliar*, con más operaciones y una ventana breve en la que dos intentos compiten antes de que uno ceda.
+
+| Criterio | A1 | A2 | A3 |
+|---|---|---|---|
+| Latencia de acceso a datos | Media: ROBLE por internet | **Baja**: misma red | Baja o media |
+| Latencia del turno (la domina el modelo) | Similar en las tres | Similar | Similar |
+| Latencia máxima acotada | **Sí**: 30 s y 5 vueltas | Configurable | Depende de los límites del proveedor |
+| Arranques en frío | Sí, tras un periodo inactivo | No, con el contenedor encendido | Sí |
+| Capacidad | Limitada por ROBLE (100 op/min por IP) | **Alta**, con costo fijo | Limitada por el plan |
+| Concurrencia en reservas | Reconciliación con testigo | **Transacción atómica** | **Transacción atómica** |
+| **Valoración para la carga esperada** | **Suficiente** | Superior, pero sobredimensionada | Suficiente |
+
+*Lo medido después:* cada turno respondió entre 3,5 y 13,1 s, con el traspaso a la agenda incluido (RNF-05, muestra corta, sin prueba de carga), y los 10 pares de reservas simultáneas no produjeron ninguna doble reserva (M4). No se midieron por separado el arranque en frío ni el número de turnos por minuto antes del primer rechazo de ROBLE; quedan dentro del trabajo futuro de controles de producción.
+
+**¿Qué grado de acoplamiento introduce cada opción?** A1 depende de dos proveedores, ROBLE y AWS, y ROBLE es el riesgo más alto: una plataforma académica con limitaciones verificadas cuya evolución no controla el equipo. A2 concentra todo en AWS, con más infraestructura propia que operar. A3 depende de dos proveedores comerciales y saca los datos de salud de la universidad. A1 mitiga su dependencia con fronteras explícitas: todo acceso a datos desde las Lambdas pasa por un único módulo, toda herramienta se declara en un único catálogo con sus permisos, los tres agentes comparten un solo tiempo de ejecución y el protocolo tiene una sola copia. El acoplamiento más fuerte que queda es deliberado: la PWA lee y escribe directamente en ROBLE en las vistas administrativas, lo que evita un backend intermedio. Sustituir el modelo es un cambio de configuración gracias a la Converse API; sustituir ROBLE exige reescribir los dos módulos de acceso a datos (el de las Lambdas y el de la PWA), pero no los agentes, el orquestador ni las herramientas, y permitiría eliminar la reconciliación y el filtrado en memoria.
+
+| Criterio | A1 | A2 | A3 |
+|---|---|---|---|
+| Número de proveedores | 2 (ROBLE, AWS) | **1** (AWS) | 2 comerciales |
+| Riesgo del proveedor de datos | **Alto** (plataforma académica con límites) | Bajo | Medio |
+| Datos de salud fuera de la universidad | **No** | Sí | Sí |
+| Frontera única de acceso a datos | **Sí** | Sí, si se diseña | Parcial (políticas por fila) |
+| Costo de sustituir el modelo | **Bajo** (configuración) | Bajo | Medio |
+| Costo de sustituir la persistencia | Medio: 2 módulos | Medio | Alto |
+| **Valoración** | **Acoplamiento controlado; riesgo concentrado en ROBLE** | Menor dependencia externa | Mayor acoplamiento al proveedor |
+
+**¿Qué disponibilidad y tolerancia a fallos ofrece cada alternativa?** En A1, los servicios de AWS que se usan son administrados y publican acuerdos de nivel de servicio altos; la disponibilidad del conjunto la limita ROBLE, que no tiene un acuerdo público. A2 dependería de cómo se aprovisionen la base y el contenedor, y una configuración de una sola zona, la razonable para un prototipo, es más frágil que los servicios sin servidor. A3 dependería del plan contratado. Ninguna ofrece alta disponibilidad con un único entorno, y el proyecto la excluye del alcance. A1 reúne varios mecanismos de recuperación: reintentos automáticos de las invocaciones asíncronas, liberación de reservas que quedaron a medias, escrituras ordenadas para que un fallo intermedio deje el caso en un estado repetible, el fallo de una herramienta anotado en la conversación como `[sistema]` y toda la infraestructura reconstruible desde Terraform. Los respaldos de los datos dependen de ROBLE y no del equipo.
+
+| Componente que falla | Qué deja de funcionar | Qué sigue funcionando |
+|---|---|---|
+| SES (correo) | Avisos por correo | Conversación, triaje y agendamiento; la ruta de emergencia se muestra igual y el escalamiento llega por la alarma de CloudWatch y SNS |
+| Función de recordatorios o cuenta de servicio | Recordatorios y anotación de silencios | Todo lo conversacional |
+| Bedrock o su salvaguarda | Los agentes | Las vistas de consulta, la consola administrativa y la de plataforma, que leen de ROBLE |
+| Una herramienta concreta | Esa acción | La conversación, con el fallo anotado; `escalar_urgencia` nunca lanza una excepción y siempre devuelve el texto de emergencia |
+| **ROBLE** | **Casi todo**: sesión, datos y agentes | La PWA estática carga, pero no es operable |
+
+| Criterio | A1 | A2 | A3 |
+|---|---|---|---|
+| Disponibilidad de la capa de cómputo | **Alta** (administrada) | Media (una zona) | Media o alta según el plan |
+| Disponibilidad de la capa de datos | Limitada por ROBLE, sin SLA público | Bajo control del equipo | Según el plan |
+| Recuperación automática | Reintentos, limpieza de reservas, escrituras repetibles, IaC | Configurable | Parcial |
+| Aislamiento de fallos parciales | **Alto** | Medio | Medio |
+| **Valoración** | **Buena en cómputo; débil en datos** | Mejor control, mayor costo operativo | Intermedia |
+
+*Lo observado después:* la construcción confirmó que ROBLE es el punto único de falla. La migración a ROBLE producción detuvo el sistema un día (sección 9.3), y durante un periodo la función de recordatorios no pudo escribir en producción por falta de la cuenta de servicio, sin que eso afectara la conversación ni el agendamiento, como preveía la tabla de fallos parciales.
+
+## 9.3 Justificación de la opción seleccionada
 
 Se ponderaron los criterios según las prioridades del proyecto: la privacidad de los datos y el costo pesan más que el desempeño, porque la carga esperada es baja y el proyecto es un prototipo.
 
@@ -450,31 +522,36 @@ Se ponderaron los criterios según las prioridades del proyecto: la privacidad d
 |---|---|---|---|---|---|
 | Datos de salud dentro de la universidad | 25 % | 5 | 2 | 1 | A1 guarda los datos en ROBLE, infraestructura de Uninorte. A2 los lleva a una nube comercial (AWS), aunque bajo control del equipo. A3 los deja en un proveedor comercial externo sin control sobre su ubicación |
 | Costo en reposo y costo total del prototipo | 20 % | 5 | 2 | 4 | A1 cobra solo por uso y ROBLE es gratuito para estudiantes. A2 paga base de datos y contenedor encendidos aunque nadie use el sistema. A3 tiene plan gratuito, pero con límites que el prototipo podría superar |
-| Desempeño bajo la carga esperada (§9.2) | 15 % | 3 | 5 | 4 | A1 depende del límite de ROBLE (100 operaciones por minuto) y tiene arranques en frío. A2 tiene la base en la misma red y sin límites externos. A3 es rápido con su propia base, pero queda sujeto a los límites de su plan |
-| Acoplamiento y facilidad de sustitución (§9.3) | 15 % | 3 | 4 | 2 | A1 depende de dos proveedores y de una plataforma académica, mitigado con un único módulo de acceso a datos. A2 concentra todo en un solo proveedor. A3 amarra la lógica a las funciones y políticas propias de Supabase |
-| Disponibilidad y tolerancia a fallos (§9.4) | 10 % | 3 | 4 | 3 | A1 aísla bien los fallos parciales, pero ROBLE, sin garantía pública de disponibilidad, es un punto único de falla. A2 deja la base bajo control del equipo. A3 depende del plan contratado |
+| Desempeño bajo la carga esperada | 15 % | 3 | 5 | 4 | A1 depende del límite de ROBLE (100 operaciones por minuto) y tiene arranques en frío. A2 tiene la base en la misma red y sin límites externos. A3 es rápido con su propia base, pero queda sujeto a los límites de su plan |
+| Acoplamiento y facilidad de sustitución | 15 % | 3 | 4 | 2 | A1 depende de dos proveedores y de una plataforma académica, mitigado con un único módulo de acceso a datos. A2 concentra todo en un solo proveedor. A3 amarra la lógica a las funciones y políticas propias de Supabase |
+| Disponibilidad y tolerancia a fallos | 10 % | 3 | 4 | 3 | A1 aísla bien los fallos parciales, pero ROBLE, sin garantía pública de disponibilidad, es un punto único de falla. A2 deja la base bajo control del equipo. A3 depende del plan contratado |
 | Salvaguardas de contenido como servicio | 10 % | 5 | 5 | 2 | A1 y A2 usan Bedrock Guardrails, ya configurado y administrado por AWS. A3 tendría que programar esas protecciones a mano |
 | Esfuerzo de construcción en 16 semanas | 5 % | 4 | 2 | 4 | A1 exigió adaptarse a las limitaciones de ROBLE, pero evita operar servidores. A2 requiere montar y operar red, base de datos y contenedor. A3 es rápido de montar, pero habría que construir las salvaguardas |
 | **Puntaje ponderado (sobre 5)** | 100 % | **4,15** | 3,25 | 2,65 | |
 
-*Escala de 1 (peor) a 5 (mejor). Puntajes asignados por el equipo con base en los análisis anteriores; se revisarán con las mediciones de la Fase 5.*
+*Escala de 1 (peor) a 5 (mejor). Puntajes asignados por el equipo antes de construir, con base en el análisis de la sección 9.2; las mediciones posteriores no cambiaron ninguna valoración.*
 
-**A1 es la opción seleccionada.** Es la única que mantiene los datos de salud en la universidad, cuesta casi nada cuando no se usa y trae las salvaguardas como servicio. Su punto débil es la dependencia de ROBLE: no ofrece transacciones, limita a 100 operaciones por minuto por IP y es un punto único de falla. La construcción confirmó esa debilidad. La reserva de cupos necesitó un mecanismo de reconciliación, y la migración a ROBLE producción del 4 de noviembre dejó las tablas sin el valor por defecto de su identificador, lo que detuvo el sistema un día. Ambos se resolvieron dentro de la frontera prevista, el módulo único de acceso a datos, sin tocar los agentes.
+**A1 es la opción seleccionada.** Es la única que mantiene los datos de salud en la universidad, cuesta casi nada cuando no se usa y trae las salvaguardas como servicio. Su punto débil es la dependencia de ROBLE: no ofrece transacciones, limita a 100 operaciones por minuto por IP y es un punto único de falla. La construcción confirmó esa debilidad. La reserva de cupos necesitó un mecanismo de reconciliación, y la migración a ROBLE producción dejó las tablas sin el valor por defecto de su identificador, lo que detuvo el sistema un día. Ambos se resolvieron dentro de la frontera prevista, el módulo único de acceso a datos, sin tocar los agentes.
 
-## 9.3 Decisiones posteriores al segundo informe
+## 9.4 Decisiones secundarias
+
+Las cinco primeras se tomaron con el diseño y se mantuvieron hasta el final; las dos últimas se tomaron en la recta final del proyecto.
 
 | Decisión | Alternativas | Elegida | Justificación |
 |---|---|---|---|
+| Tiempo de ejecución de los agentes | (a) Ciclo propio sobre la Converse API; (b) Bedrock Agents o AgentCore administrados; (c) SDK de agentes de terceros | **(a)** | Declara a cada agente solo sus herramientas, controla el número de vueltas (contención de costo y respeto del límite de 30 s) y permite un traspaso determinista. (b) ofrece memoria y orquestación administradas, con menos control del traspaso y más infraestructura; (c) añade una dependencia sin resolver las restricciones de ROBLE |
+| Conocimiento del protocolo | (a) Protocolo versionado en el *prompt* con caché; (b) RAG sobre una base vectorial | **(a)** | El protocolo es un único documento que cabe en el contexto y, con caché, cuesta poco por turno. RAG añadiría indexación y el riesgo de recuperar el fragmento equivocado sin beneficio. Se reconsiderará con protocolos clínicos extensos |
+| Modo de invocación | (a) Síncrono por HTTP API (≤ 30 s); (b) Asíncrono (respuesta 202 y consulta posterior) | **(a)** | Más simple para la PWA y suficiente con 5 vueltas: el turno más lento medido tardó 13,1 s (RNF-05) |
+| Infraestructura como código | (a) AWS CDK; (b) Terraform | **(b)** | Familiaridad del equipo y manejo del estado compartido en integración continua |
+| Arquitectura de CPU de Lambda | (a) x86_64; (b) arm64 (Graviton) | **(b)** | Mismo comportamiento con menor costo; obliga a empaquetar las dependencias para `aarch64` |
 | Reconocimiento de voz para el dictado | (a) Web Speech API del navegador; (b) Amazon Transcribe en tiempo real | **(b)** | La Web Speech API es gratis y no necesita backend, pero en Chrome envía el audio a los servidores de Google, y lo que se dicta es un plan de tratamiento. Transcribe está en la misma cuenta de AWS que el modelo y, en tiempo real, no guarda el audio. El costo es un permiso firmado de un solo uso que emite el orquestador, porque la PWA no tiene credenciales de AWS |
 | App del paciente en el teléfono | (a) Solo la PWA instalable; (b) App nativa con React Native y Expo | **(b)** | Los recordatorios de tomas necesitan notificaciones programadas en el teléfono, que una PWA no garantiza en todos los dispositivos. Expo permite una sola base de código para Android, iOS y navegador, y reutiliza el mismo cliente de ROBLE y el mismo API que la PWA |
-
-Las decisiones secundarias del segundo informe se mantuvieron: un ciclo de herramientas propio sobre la Converse API en lugar de agentes administrados, el protocolo inyectado en el *prompt* con caché en lugar de RAG, la invocación síncrona dentro del límite de 30 s, Terraform y funciones Lambda en arm64.
 
 ---
 
 # 10. Diseño y arquitectura
 
-Esta sección presenta la solución en cuatro niveles de detalle. Primero la arquitectura vista desde fuera, con los actores y los componentes principales como cajas negras (Figura 2). Después se abren esas cajas para mostrar cómo colaboran sus módulos internos (Figura 3). Luego se describen, en orden temporal, cuatro procesos clave (Figuras 4 a 7). Dónde se ejecuta físicamente cada componente se muestra aparte, en el diagrama de despliegue de la §12 (Figura 8).
+Esta sección presenta la solución en cuatro niveles de detalle. Primero la arquitectura vista desde fuera, con los actores y los componentes principales como cajas negras (Figura 2). Después se abren esas cajas para mostrar cómo colaboran sus módulos internos (Figura 3). Luego se describen, en orden temporal, cuatro procesos clave (Figuras 4 a 7). Dónde se ejecuta físicamente cada componente se muestra aparte, en el diagrama de despliegue de la sección 12 (Figura 8).
 
 ## 10.1 Arquitectura
 
@@ -484,7 +561,7 @@ CareSync es una arquitectura **cliente-servidor sin servidores propios**, que co
 
 El principio que ordena la arquitectura es una división de responsabilidades: **los datos de salud no están en AWS**. Viven en ROBLE, dentro de la infraestructura de la universidad. AWS aporta el razonamiento (Bedrock), el reconocimiento de voz (Transcribe), la ejecución (Lambda), el correo (SES), la automatización por reloj (EventBridge Scheduler) y la observabilidad (CloudWatch). Las funciones de AWS no tienen credenciales de datos propias: actúan con el *token* de quien llama, así que nadie puede leer por el API lo que ROBLE no le dejaría leer directamente. La única excepción está aislada y es explícita: la función de recordatorios corre por reloj, sin un usuario que la autorice, y usa una cuenta de servicio cuya contraseña vive en Parameter Store.
 
-Esta arquitectura es la alternativa A1 de la §9. Conserva sus ventajas (datos en la universidad, costo por invocación, salvaguardas como servicio) y hereda sus compromisos: los límites de ROBLE, la reserva sin transacciones y el techo de 30 s del HTTP API. Toda la infraestructura de AWS se declara en Terraform y se aplica desde GitHub Actions con identidad federada (OIDC), sin llaves de acceso de larga duración.
+Esta arquitectura es la alternativa A1 de la sección 9. Conserva sus ventajas (datos en la universidad, costo por invocación, salvaguardas como servicio) y hereda sus compromisos: los límites de ROBLE, la reserva sin transacciones y el techo de 30 s del HTTP API. Toda la infraestructura de AWS se declara en Terraform y se aplica desde GitHub Actions con identidad federada (OIDC), sin llaves de acceso de larga duración.
 
 ### 10.1.2 Componentes del sistema e interacción
 
@@ -740,7 +817,7 @@ sequenceDiagram
 
 *Resultado.* Ante una señal del Paso 0 del protocolo, el agente no clasifica: escala en el primer turno. La herramienta deja tres rastros independientes (alarma, evento en el caso y correo) y devuelve el texto de la ruta de emergencia. En la medición final, los 13 casos de alarma escalaron, todos en el primer turno.
 
-*Errores y esperas.* El error más importante del proyecto apareció aquí. El 24 de septiembre, la salvaguarda de salida cortaba la respuesta del agente en los 12 casos de alarma y solo 1 de 12 llegó bien. Por eso la ruta de emergencia está separada de la respuesta del modelo (bloque `alt`). Si el correo falla, la alarma de SNS no depende de él. Hoy los correos de escalamiento llegan a un buzón del equipo y no al CAE real, para no enviarle alarmas de pacientes ficticios.
+*Errores y esperas.* El error más importante del proyecto apareció aquí. En la primera evaluación, la salvaguarda de salida cortaba la respuesta del agente en los 12 casos de alarma y solo 1 de 12 llegó bien. Por eso la ruta de emergencia está separada de la respuesta del modelo (bloque `alt`). Si el correo falla, la alarma de SNS no depende de él. Hoy los correos de escalamiento llegan a un buzón del equipo y no al CAE real, para no enviarle alarmas de pacientes ficticios.
 
 **Secuencia 3 — Reserva concurrente de un cupo**
 
@@ -816,7 +893,7 @@ sequenceDiagram
 
 *¿El flujo es eficiente?* Un turno sin herramientas cuesta una llamada al modelo y unas pocas operaciones contra ROBLE. Tres decisiones evitan pasos innecesarios: la parte fija del *prompt* va en caché, el traspaso ocurre dentro del mismo turno y las herramientas no permitidas para un rol ni siquiera se declaran al modelo. El paso que puede parecer redundante, releer de ROBLE tras cada turno, es deliberado: garantiza que la pantalla muestre lo que los agentes de verdad escribieron. En la app móvil se tomó la decisión contraria en un punto: reportar una toma va directo a la base con un botón, sin pasar por el modelo, porque un «sí» no tiene nada que interpretar. Cómo se siente la persona, en cambio, va siempre por el agente, porque puede ser una señal de alarma.
 
-*¿Hay latencia o cuellos de botella?* Hay tres identificados. La **inferencia en Bedrock** domina la latencia y se acota con el tope de 5 vueltas. **ROBLE** es el techo real de capacidad: 100 operaciones por minuto y 10 inicios de sesión cada 15 minutos por IP. Por eso el evaluador espera 6 s entre turnos, y en la demostración las sesiones se abren antes de empezar. El **límite de 30 s del HTTP API** queda lejos de lo medido: el 19/11, desde un cliente, un turno tardó de 3,5 a 13,1 s, y los de traspaso del triaje a la agenda, que hacen más llamadas al modelo, de 9,5 a 13,1 s. La muestra es corta y no hubo prueba de carga; si algún día un turno se acercara al límite, habría que volver la llamada asíncrona.
+*¿Hay latencia o cuellos de botella?* Hay tres identificados. La **inferencia en Bedrock** domina la latencia y se acota con el tope de 5 vueltas. **ROBLE** es el techo real de capacidad: 100 operaciones por minuto y 10 inicios de sesión cada 15 minutos por IP. Por eso el evaluador espera 6 s entre turnos, y en la demostración las sesiones se abren antes de empezar. El **límite de 30 s del HTTP API** queda lejos de lo medido: desde un cliente, un turno tardó de 3,5 a 13,1 s, y los de traspaso del triaje a la agenda, que hacen más llamadas al modelo, de 9,5 a 13,1 s. La muestra es corta y no hubo prueba de carga; si algún día un turno se acercara al límite, habría que volver la llamada asíncrona.
 
 *¿La interacción refleja buen desacoplamiento?* En lo esencial, sí. El modelo nunca aporta la identidad ni ejecuta efectos directamente, los permisos se comprueban dos veces en el servidor, las herramientas acceden a los datos por una sola puerta y el modo simulación está aislado por construcción, comprobado por una prueba que recorre el código. La migración a ROBLE producción lo puso a prueba: el problema del identificador se resolvió en el módulo de acceso a datos y en los clientes, sin tocar los agentes. Quedan dos acoplamientos conocidos: los clientes hablan directamente con ROBLE, y la PWA y la app móvil repiten parte de la lógica de frecuencias del servidor, que hay que mantener sincronizada.
 
@@ -826,7 +903,18 @@ sequenceDiagram
 
 ## 11.1 Stack tecnológico
 
-El *stack* se eligió con tres criterios: que los datos de salud se queden en la universidad, que el costo en reposo sea casi nulo y que el equipo pudiera construirlo en 16 semanas. Respecto al planteamiento inicial cambiaron cuatro piezas, todas justificadas en los informes anteriores: Vite en lugar de Next.js, ROBLE en lugar de Supabase, Terraform en lugar de AWS CDK y Amplify Hosting en lugar de Vercel. En la recta final se añadieron Amazon Transcribe y React Native con Expo (§9.3).
+El *stack* se eligió con tres criterios: que los datos de salud se queden en la universidad, que el costo en reposo sea casi nulo y que el equipo pudiera construirlo en 16 semanas. Al inicio se consideró un conjunto de tecnologías (Next.js y React, TypeScript, Supabase, PostgreSQL, la API de Anthropic, un SDK de agentes, GitHub y Vercel), y el análisis de requerimientos y el diseño cambiaron varias:
+
+| Considerado al inicio | Adoptado | Motivo del cambio |
+|---|---|---|
+| Next.js | **React + Vite** | El prototipo no necesita renderizado en servidor: la PWA se sirve como archivos estáticos, lo que simplifica el despliegue y reduce el costo |
+| Supabase | **ROBLE (OPENLAB, Uninorte)** | Cumple la misma función (PostgreSQL administrado con autenticación y permisos por rol) sin costo y dentro de la universidad, que es donde deben quedarse los datos de salud |
+| API de Anthropic directa | **Amazon Bedrock** con Claude Haiku 4.5 | El mismo modelo, facturado en la cuenta de AWS del proyecto, con salvaguardas y caché de *prompt* como servicio |
+| SDK de agentes | **Ciclo de herramientas propio sobre la Converse API** | Declara a cada agente solo sus herramientas y controla el número de vueltas (sección 9.4) |
+| Vercel | **Amplify Hosting** | El frontend se despliega en la misma cuenta y con la misma infraestructura como código que el resto |
+| AWS CDK | **Terraform** | Familiaridad del equipo y manejo del estado compartido en integración continua |
+
+TypeScript, PostgreSQL y GitHub se mantuvieron. En la recta final se añadieron Amazon Transcribe y React Native con Expo (sección 9.4).
 
 | Capa | Tecnología | Versión | Justificación |
 |---|---|---|---|
@@ -852,10 +940,10 @@ El *stack* se eligió con tres criterios: que los datos de salud se queden en la
 | Componente | Estado | Qué cubre | Diferencias con el diseño |
 |---|---|---|---|
 | Infraestructura (Terraform) | ✅ Aplicada | API con 4 rutas, 3 Lambdas, Bedrock y salvaguarda, Transcribe, SES, Scheduler, IAM, Parameter Store, observabilidad, Amplify y presupuesto | Se añadieron las rutas del plan y del dictado y el permiso de Transcribe |
-| Esquema de ROBLE | ✅ En producción desde el 4/11 | 14 tablas con roles y permisos; *script* de arranque | Las tablas importadas perdieron el valor por defecto del identificador: el código lo pone al crear |
+| Esquema de ROBLE | ✅ En producción | 14 tablas con roles y permisos; *script* de arranque | Las tablas importadas perdieron el valor por defecto del identificador: el código lo pone al crear |
 | Orquestador | ✅ | Autorización, selección de agente por estado, ciclo con caché y salvaguarda, traspaso, consultas sin caso, modo simulación, propuesta del plan y sesión de dictado | Se añadieron la herramienta obligatoria de la agenda y el control de citas inventadas |
 | Agentes | ✅ Medidos | Triaje, Agenda y Logística y Seguimiento; el triaje puede volver a entrar con `nuevo_motivo` | El seguimiento también agenda los controles del plan |
-| Catálogo de herramientas | ✅ 14 | Las 10 del segundo informe más `cancelar_cita`, `reprogramar_cita`, `subir_urgencia` y `nuevo_motivo` | Cerró la reprogramación de citas que estaba pendiente |
+| Catálogo de herramientas | ✅ 14 | Las 10 del diseño (`consultar_estado_caso`, `canalizar_caso`, `escalar_urgencia`, `consultar_disponibilidad`, `consultar_profesionales`, `agendar_cita`, `notificar_profesional`, `consultar_plan`, `registrar_evolucion` y `registrar_adherencia`) más `cancelar_cita`, `reprogramar_cita`, `subir_urgencia` y `nuevo_motivo` | Cerró la reprogramación de citas que estaba pendiente |
 | Protocolo de triaje | ✅ v0.5 | Señales de alarma, matriz CMU/CAE, 4 niveles con su plazo, información de los centros (`orientacion.md`) | Los plazos del protocolo pasaron a código (`plazos.py`) |
 | Servicio de recordatorios | ✅ | Recordatorios según el tipo de indicación, avisos de cita 24 y 2 h antes, reconciliación de reservas, vigilancia de silencios | — |
 | PWA — acceso | ✅ | Registro, inicio con contraseña o Google, recuperación de contraseña | — |
@@ -868,7 +956,7 @@ El *stack* se eligió con tres criterios: que los datos de salud se queden en la
 
 ## 11.3 Integraciones
 
-El estado final de cada integración está en la §3.3.4. Tres merecen un comentario. **ROBLE** pasó a producción el 4 de noviembre, y la importación dejó las tablas sin el valor por defecto de su identificador; desde entonces el código lo genera al crear cada fila, en las Lambdas, la PWA y la app móvil. **SES** quedó activo el 6 de noviembre con un remitente temporal de Gmail, porque el dominio de Uninorte publica una política DMARC que podía mandar a cuarentena lo enviado en su nombre. **Transcribe** se integra sin credenciales en el navegador: el orquestador firma un permiso de un solo uso, válido 5 minutos, y solo para el rol profesional.
+El estado final de cada integración está en la sección 3.3.4. Tres merecen un comentario. En el paso de **ROBLE** a producción, la importación dejó las tablas sin el valor por defecto de su identificador; por eso el código lo genera al crear cada fila, en las Lambdas, la PWA y la app móvil. **SES** opera con un remitente temporal de Gmail, porque el dominio de Uninorte publica una política DMARC que podía mandar a cuarentena lo enviado en su nombre. **Transcribe** se integra sin credenciales en el navegador: el orquestador firma un permiso de un solo uso, válido 5 minutos, y solo para el rol profesional.
 
 ---
 
@@ -876,7 +964,7 @@ El estado final de cada integración está en la §3.3.4. Tres merecen un coment
 
 **Entorno de ejecución.** La solución corre en un único entorno permanente, público en **https://main.d1ndsh656qxmj8.amplifyapp.com/**. El plano de AWS está en la región `us-east-1` y los datos en la instancia de producción de ROBLE. La PWA se sirve como archivos estáticos desde Amplify Hosting y el API desde un HTTP API de API Gateway. La app móvil se ejecuta con Expo: en un teléfono con Expo Go o en el navegador. Para desarrollo local, la PWA corre en `http://localhost:5173`, el único origen de desarrollo que el API admite, y usa el mismo API y la misma ROBLE.
 
-**Proceso de despliegue.** La infraestructura **solo se aplica desde GitHub Actions**, porque el estado de Terraform es compartido. El arranque (almacenamiento del estado, tabla de bloqueo e identidad OIDC de GitHub) se crea una sola vez a mano. Después, cada cambio sigue un orden: el *pull request* dispara la **revisión** (validación de Terraform, compilación de Python, tipos de TypeScript, construcción de la PWA y las 11 suites de pruebas); la fusión a `main` dispara el flujo de **infraestructura**, que construye los paquetes de Lambda con los protocolos dentro, aplica Terraform y consulta `/salud`; y si cambió la PWA, el flujo de **aplicación web** la compila y la publica en Amplify. Un flujo manual de **destrucción** elimina la infraestructura al cierre. La guía paso a paso está en [Instalación.md](./Instalación.md).
+**Proceso de despliegue.** La infraestructura **solo se aplica desde GitHub Actions**, porque el estado de Terraform es compartido. El arranque (almacenamiento del estado, tabla de bloqueo e identidad OIDC de GitHub) se crea una sola vez a mano. Después, cada cambio sigue un orden: el *pull request* dispara la **revisión** (validación de Terraform, compilación de Python, tipos de TypeScript, construcción de la PWA y las 11 suites de pruebas); la fusión a `main` dispara el flujo de **infraestructura**, que construye los paquetes de Lambda con los protocolos dentro, aplica Terraform y consulta `/salud`; y si cambió la PWA, el flujo de **aplicación web** la compila y la publica en Amplify. La guía paso a paso (`Instalación.md`) se publica con el código (sección 16).
 
 **Configuración y operación.** Lo que Actions no puede hacer lo hace una persona una vez: cargar en Parameter Store la cuenta de servicio de ROBLE, crear las tablas con `scripts/esquema_roble.sh`, verificar en SES las direcciones de correo y confirmar la suscripción a la alarma. La operación diaria se apoya en tres señales: `GET /salud` (modelo, salvaguarda, contrato de ROBLE, herramientas y correo), la alarma de `ESCALAMIENTO` y el presupuesto de USD 20 con alerta. Las condiciones que más afectan la operación son los límites de ROBLE por IP: en una sala donde todos comparten la red, se agotan los 10 inicios de sesión cada 15 minutos.
 
@@ -955,13 +1043,13 @@ flowchart TB
 
 # 13. Validación
 
-La validación tiene tres niveles: pruebas de cada componente sin red, pruebas de integración contra el sistema desplegado y pruebas de usabilidad. Toda la evidencia está en el repositorio: las pruebas por componentes se repiten con `caresync/scripts/pruebas.sh`, y los informes de la evaluación contra el sistema desplegado están en `caresync/evaluacion/informes/`, sin editar, con un índice que explica cada corrida y qué se corrigió entre una y otra.
+La validación tiene tres niveles: pruebas de cada componente sin red, pruebas de integración contra el sistema desplegado y pruebas de usabilidad. Toda la evidencia está en el repositorio del proyecto (sección 16): las pruebas por componentes se repiten con `caresync/scripts/pruebas.sh`, y los informes de la evaluación contra el sistema desplegado están en `caresync/evaluacion/informes/`, sin editar, con un índice que explica cada corrida y qué se corrigió entre una y otra.
 
 Una advertencia recorre la sección. Los bancos de casos son sintéticos y los escribió el equipo, que no tiene personal de salud. Un acierto significa que el agente sigue el protocolo, no que el protocolo sea clínicamente correcto. Además, el modelo varía entre corridas, y por eso las alarmas se corrieron varias veces.
 
 ## 13.1 Pruebas por componentes
 
-El repositorio tiene **12 archivos de pruebas automatizadas** del backend y de los evaluadores que no necesitan red, AWS ni una cuenta de ROBLE: un entorno de prueba sustituye esos servicios. Corren en cada *pull request* y se verificaron de nuevo el 19 de noviembre de 2026: **los 12 pasan, con 685 comprobaciones**. El criterio de éxito es que todas las comprobaciones pasen; una sola falla detiene la integración del cambio.
+El repositorio tiene **12 archivos de pruebas automatizadas** del backend y de los evaluadores que no necesitan red, AWS ni una cuenta de ROBLE: un entorno de prueba sustituye esos servicios. Corren en cada *pull request*, y en la versión final **los 12 pasan, con 685 comprobaciones**. El criterio de éxito es que todas las comprobaciones pasen; una sola falla detiene la integración del cambio.
 
 | Archivo | Comprobaciones | Qué verifica |
 |---|---|---|
@@ -983,9 +1071,9 @@ Además, la app móvil tiene su propia prueba del cálculo del horario de tomas 
 
 ## 13.2 Pruebas de integración
 
-La prueba de integración principal es la evaluación de los agentes contra el sistema real, con conversaciones de varios turnos con el modelo. Se corrió en siete momentos, y entre uno y otro se corrigió lo que cada corrida encontró. La tabla resume la evolución; las columnas de octubre y del 29/10 se midieron con el orquestador en local contra el Bedrock, la salvaguarda y la ROBLE reales, antes de fusionar los cambios.
+La prueba de integración principal es la evaluación de los agentes contra el sistema real, con conversaciones de varios turnos con el modelo. Se corrió en siete momentos, y entre uno y otro se corrigió lo que cada corrida encontró. La tabla resume la evolución por corrida; la 4.ª y la 5.ª se midieron con el orquestador en local contra el Bedrock, la salvaguarda y la ROBLE reales, antes de integrar los cambios.
 
-| Métrica | Meta | 24/09 | 26/09 (a) | 26/09 (b) | 14/10 | 29/10 | **5/11, desplegada** |
+| Métrica | Meta | 1.ª | 2.ª | 3.ª | 4.ª (local) | 5.ª (local) | **Final, desplegada** |
 |---|---|---|---|---|---|---|---|
 | **M2** — alarmas escaladas | 100 % | 1/12 | 11/12 | 36/36 | 36/36 | 39/39 | **13/13** |
 | **M1** — centro correcto | ≥ 85 % | — | 13/26 | 23/26 | 25/26 | 25/27 | **25/27 (92,6 %)** |
@@ -998,21 +1086,21 @@ En la medición final fallan tres casos, todos documentados. `ambiguo-violencia-
 
 Las demás pruebas de integración contra lo desplegado:
 
-| Prueba | Fecha | Resultado |
-|---|---|---|
-| **M4** — 10 pares de reservas simultáneas contra ROBLE producción | 5-nov | ✅ 0 dobles reservas, antes y después del arreglo, también con el segundo intento 150 ms después |
-| **M5** — 6 guiones de seguimiento | 5-nov | ✅ 4/4 retrocesos con alerta en 3 a 5 s; 0 alertas falsas; ninguno escaló a urgencias sin motivo |
-| Agenda de punta a punta: agendar, cambiar, cancelar y volver a agendar | 5-nov | ✅ 8 de 8 turnos con su herramienta, sin que el control de citas inventadas tuviera que intervenir |
-| Seguimiento de punta a punta con un plan dictado | 2-nov (local) | ✅ Ofreció y agendó el control del plan, registró tomas y evolución y escaló la señal de alarma del plan |
-| Consulta del profesional de punta a punta | 14-oct | ✅ Triaje, cita, plan dictado y guardado, seguimiento con alertas; destapó y dejó corregidos cuatro fallos |
-| Prueba de humo para la demostración | 7-nov | ✅ La alarma escaló en el primer turno; la cita se agendó, se avisó al médico y se canceló, y el cupo volvió a quedar libre |
-| **M6** — aviso al profesional, sobre la bitácora (`evaluar_aviso.py`) | 19-nov | ✅ Los 25 agendamientos tienen su aviso en el mismo minuto; los 5 desde que SES tiene remitente salieron con el correo aceptado |
-| **M7** — 10 intentos de usar lo que no corresponde al rol (`evaluar_permisos.py`) | 19-nov | ✅ 0 con efecto, en dos corridas. El modelo llegó a pedir una herramienta que al paciente no se le declara, y la rechazó la función de herramientas por rol |
-| **E2E-5** — cita en un centro sin cupos (`evaluar_sin_cupo.py`) | 19-nov | ✅ 3 de 3: dijo que no hay espacio, sin inventar uno ni prometer contacto |
-| **E2E-9** — recordatorio y silencio en el seguimiento | 19 y 20-nov | ✅ Los dos silencios, en la primera corrida con la cuenta de servicio; y una toma a las 11:00, fijada por el médico en el plan, sonó en el teléfono a esa hora y salió por correo |
-| `GET /salud` tras cada despliegue | continuo | ✅ Modelo, salvaguarda, contrato de ROBLE, herramientas y correo |
+| Prueba | Resultado |
+|---|---|
+| **M4** — 10 pares de reservas simultáneas contra ROBLE producción | ✅ 0 dobles reservas, antes y después del arreglo, también con el segundo intento 150 ms después |
+| **M5** — 6 guiones de seguimiento | ✅ 4/4 retrocesos con alerta en 3 a 5 s; 0 alertas falsas; ninguno escaló a urgencias sin motivo |
+| Agenda de punta a punta: agendar, cambiar, cancelar y volver a agendar | ✅ 8 de 8 turnos con su herramienta, sin que el control de citas inventadas tuviera que intervenir |
+| Seguimiento de punta a punta con un plan dictado (en local) | ✅ Ofreció y agendó el control del plan, registró tomas y evolución y escaló la señal de alarma del plan |
+| Consulta del profesional de punta a punta | ✅ Triaje, cita, plan dictado y guardado, seguimiento con alertas; destapó y dejó corregidos cuatro fallos |
+| Prueba de humo para la demostración | ✅ La alarma escaló en el primer turno; la cita se agendó, se avisó al médico y se canceló, y el cupo volvió a quedar libre |
+| **M6** — aviso al profesional, sobre la bitácora (`evaluar_aviso.py`) | ✅ Los 25 agendamientos tienen su aviso en el mismo minuto; los 5 desde que SES tiene remitente salieron con el correo aceptado |
+| **M7** — 10 intentos de usar lo que no corresponde al rol (`evaluar_permisos.py`) | ✅ 0 con efecto, en dos corridas. El modelo llegó a pedir una herramienta que al paciente no se le declara, y la rechazó la función de herramientas por rol |
+| **E2E-5** — cita en un centro sin cupos (`evaluar_sin_cupo.py`) | ✅ 3 de 3: dijo que no hay espacio, sin inventar uno ni prometer contacto |
+| **E2E-9** — recordatorio y silencio en el seguimiento | ✅ Los dos tipos de silencio anotados; una toma fijada por el profesional en el plan se avisó en el teléfono a su hora y salió por correo |
+| `GET /salud` tras cada despliegue | ✅ Modelo, salvaguarda, contrato de ROBLE, herramientas y correo |
 
-En el manejo de errores se comprobó que un *token* vencido a mitad del turno responde 401 y no 500, y que la PWA lo renueva antes de que venza. El 19/11 se cerraron las dos que faltaban: M6 sobre la bitácora, con resolución de un minuto porque ROBLE devuelve la hora cortada, y M7 con intentos reales por el API, comprobando el efecto en ROBLE y no sólo el código HTTP. La prueba de M7 mostró que la doble comprobación de permisos no es redundante: cuando el mensaje nombraba una herramienta del personal, el modelo la pidió aunque no estaba declarada, y la detuvo la segunda comprobación.
+En el manejo de errores se comprobó que un *token* vencido a mitad del turno responde 401 y no 500, y que la PWA lo renueva antes de que venza. Las dos últimas métricas se cerraron así: M6 sobre la bitácora, con resolución de un minuto porque ROBLE devuelve la hora cortada, y M7 con intentos reales por el API, comprobando el efecto en ROBLE y no sólo el código HTTP. La prueba de M7 mostró que la doble comprobación de permisos no es redundante: cuando el mensaje nombraba una herramienta del personal, el modelo la pidió aunque no estaba declarada, y la detuvo la segunda comprobación.
 
 ## 13.3 Pruebas de usabilidad
 
@@ -1041,15 +1129,11 @@ En el manejo de errores se comprobó que un *token* vencido a mitad del turno re
 
 **Tasa de éxito:** los 6 participantes completaron las tareas sin ayuda. Los 4 que hicieron la tarea opcional del síntoma grave le dieron 5 a la claridad de la ruta de emergencia.
 
-**Lectura de los resultados.** Todas las afirmaciones superan la meta de 4. La más baja es la del **tiempo de respuesta** (4,50), la única con una calificación de 3. Coincide con lo que la arquitectura anticipaba: la inferencia del modelo domina la latencia, sobre todo en los turnos con traspaso entre agentes. Medida el 19/11 desde un cliente, un turno tarda de 3,5 a 13,1 s, y los de traspaso del triaje a la agenda, de 9,5 a 13,1 s. Las preguntas abiertas casi no recibieron comentarios, y la mayoría de los participantes indicó que no le haría cambios a la aplicación.
+**Lectura de los resultados.** Todas las afirmaciones superan la meta de 4. La más baja es la del **tiempo de respuesta** (4,50), la única con una calificación de 3. Coincide con lo que la arquitectura anticipaba: la inferencia del modelo domina la latencia, sobre todo en los turnos con traspaso entre agentes. Medido desde un cliente, un turno tarda de 3,5 a 13,1 s, y los de traspaso del triaje a la agenda, de 9,5 a 13,1 s. Las preguntas abiertas casi no recibieron comentarios, y la mayoría de los participantes indicó que no le haría cambios a la aplicación.
 
 **Limitaciones de esta prueba.** La muestra es pequeña y solo cubre el rol de paciente: no participaron profesionales ni administradores. El cuestionario se respondió unos días después del uso, de memoria, y los participantes son estudiantes cercanos al equipo, lo que tiende a subir las calificaciones. Por eso estos resultados indican una buena primera impresión, no una medición concluyente de la usabilidad.
 
-**Evaluación interna previa.** Antes de esta prueba, la experiencia se trabajó con revisiones del equipo que produjeron cambios concretos:
-
-- **Rediseño visual de la PWA (24 de septiembre)**, partiendo de una especificación de todo lo que cada pantalla debía seguir mostrando, sin quitar información ni avisos de seguridad.
-- **Ajustes surgidos de las pruebas de punta a punta**: la conversación se conserva al recargar, la PWA avisa cuando actúa una salvaguarda, un paciente puede tener varios casos abiertos y el profesional ve el progreso del paciente en la consulta.
-- **Rediseño de la app móvil (9 de noviembre)**: «Hoy» pasó a ser un resumen con el horario del día, «Mi plan» se ordenó por urgencia, los avisos se agruparon por día y el asistente vacío ofrece preguntas sugeridas.
+**Evaluación interna previa.** Antes de esta prueba, las pruebas de punta a punta del equipo produjeron ajustes concretos en la experiencia: la conversación se conserva al recargar, la PWA avisa cuando actúa una salvaguarda, un paciente puede tener varios casos abiertos y el profesional ve el progreso del paciente en la consulta.
 
 ---
 
@@ -1059,17 +1143,17 @@ En el manejo de errores se comprobó que un *token* vencido a mitad del turno re
 
 | Objetivo | Cumplimiento | Evidencia |
 |---|---|---|
-| 1. Analizar y formalizar los requerimientos | ✅ Cumplido | 9 recorridos, 5 roles, 23 requerimientos funcionales y 13 no funcionales, trazados entre sí (§3.3, §8) |
-| 2. Diseñar una arquitectura serverless con datos fuera de AWS | ✅ Cumplido | Evaluación de alternativas (§9), diagramas (§10) e infraestructura aplicada solo desde Terraform |
+| 1. Analizar y formalizar los requerimientos | ✅ Cumplido | 9 recorridos, 5 roles, 23 requerimientos funcionales y 13 no funcionales, trazados entre sí (secciones 3.3 y 8) |
+| 2. Diseñar una arquitectura serverless con datos fuera de AWS | ✅ Cumplido | Evaluación de alternativas (sección 9), diagramas (sección 10) e infraestructura aplicada solo desde Terraform |
 | 3. Agente de Triaje: M1, M2 y M3 | ✅ Cumplido | 92,6 % de centro correcto, 13/13 alarmas y 0 sub-triajes en nivel 2 |
 | 4. Agente de Agenda: agendar, M4 y M6 | ✅ Cumplido | Agenda 8/8 turnos, 0 dobles reservas y el aviso al profesional en el mismo minuto (M6, 5/5) |
-| 5. Agente de Seguimiento y recordatorios: M5 y silencios | ✅ Cumplido | 4/4 alertas en 3 a 5 s; silencios anotados en lo desplegado desde el 19/11 por la función de recordatorios, que corre cada 15 minutos |
+| 5. Agente de Seguimiento y recordatorios: M5 y silencios | ✅ Cumplido | 4/4 alertas en 3 a 5 s; silencios anotados en lo desplegado por la función de recordatorios, que corre cada 15 minutos |
 | 6. PWA con cinco vistas, dictado y controles de acceso: M7 y M9 | ✅ Cumplido | Cinco vistas, dictado y app móvil construidos; M9: 4,72 sobre 5; M7: 0 de 10 intentos con efecto contra lo desplegado |
 | 7. Persistencia y trazabilidad | ✅ Cumplido | Bitácora de eventos en cada caso, registro de fallos de herramientas y alarma de escalamiento |
 | 8. Evaluar el recorrido completo: M10, M8 y usabilidad | ✅ Cumplido | 9 de 9 recorridos verificados, M8 0/26 y pruebas de uso con 6 estudiantes |
-| 9. Documentar | ✅ Cumplido | Este informe, [Instalación.md](./Instalación.md), [Desarrollo.md](./Desarrollo.md), la documentación técnica en `caresync/docs/` y los informes de evaluación |
+| 9. Documentar | ✅ Cumplido | Este informe y, como material complementario publicado con el código (sección 16), las guías de instalación y de desarrollo, la documentación técnica y los informes de evaluación |
 
-Frente al objetivo general, el prototipo cumple sus tres condiciones: el 100 % de las alarmas llega a la ruta de emergencia, se alcanzan los umbrales de canalización, agendamiento y seguimiento, y los 9 recorridos E2E están verificados contra el sistema desplegado. Los dos últimos, E2E-5 y E2E-9, se cerraron el 19 y el 20 de noviembre.
+Frente al objetivo general, el prototipo cumple sus tres condiciones: el 100 % de las alarmas llega a la ruta de emergencia, se alcanzan los umbrales de canalización, agendamiento y seguimiento, y los 9 recorridos E2E están verificados contra el sistema desplegado.
 
 ## 14.2 Discusión
 
@@ -1106,7 +1190,26 @@ Frente al objetivo general, el prototipo cumple sus tres condiciones: el 100 % d
 
 ---
 
-# 16. Referencias
+# 16. Disponibilidad del código y la evidencia
+
+Este documento se lee por sí solo. El código fuente, la infraestructura como código, los protocolos y la evidencia de las mediciones se publican como material complementario en el repositorio del proyecto:
+
+**https://github.com/Ksruiz22/PF-202630-CareSync**, etiqueta `v1.0-informe-final`, que corresponde a la versión de este informe.
+
+| Material | Ubicación en el repositorio |
+|---|---|
+| Guía de instalación y despliegue | `Instalación.md` |
+| Guía de desarrollo | `Desarrollo.md` |
+| Documentación técnica (arquitectura, despliegue, operación de ROBLE) | `caresync/docs/` |
+| Protocolo de triaje y textos de orientación | `caresync/protocolos/` |
+| Informes de evaluación, sin editar, con su índice | `caresync/evaluacion/informes/` |
+| Pruebas automatizadas | `caresync/lambdas/pruebas/` y `caresync/scripts/pruebas.sh` |
+
+Todos los datos del sistema son sintéticos.
+
+---
+
+# 17. Referencias
 
 [1] Ada Health. (2026). *How do I start a symptom assessment?* https://ada.com/help/how-do-i-start-a-symptom-assessment/
 
