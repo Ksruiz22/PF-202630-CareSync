@@ -41,6 +41,9 @@ el fallo está en otro, dilo y arréglalo — y señala a quién le toca revisar
 | Probar que las salvaguardas aguantan | `evaluacion/casos_guardarrailes.json` + `evaluacion/evaluar_guardarrailes.py` |
 | Medir las dobles reservas (M4) | `evaluacion/evaluar_concurrencia.py`: dos casos por el mismo cupo contra ROBLE real |
 | Medir las alertas de retroceso del seguimiento (M5) | `evaluacion/casos_seguimiento.json` + `evaluacion/evaluar_seguimiento.py` |
+| Medir el tiempo del aviso al profesional (M6) | `evaluacion/evaluar_aviso.py`: sólo lee la bitácora |
+| Probar los permisos por rol contra lo desplegado (M7) | `evaluacion/evaluar_permisos.py`: tres cuentas, diez intentos |
+| Probar el recorrido sin disponibilidad (E2E-5) | `evaluacion/evaluar_sin_cupo.py`: necesita un centro sin cupos, hoy el CAE |
 | Cualquier lectura o escritura de datos | `lambdas/comun/caresync_comun/roble_acceso.py` (única puerta) |
 | Columnas reales de las 14 tablas | `app/esquema/bootstrap_roble.mjs` (`ESQUEMA`) |
 | La app móvil del paciente (seguimiento y recordatorios) | `movil/README.md`, `movil/src/agenda.ts`, `movil/src/fuenteRoble.ts` |
@@ -293,6 +296,18 @@ python evaluar_concurrencia.py --profesional <prefijo>             # 10 pares, ~
 python evaluar_seguimiento.py --solo caida-01                      # barata primero
 python evaluar_seguimiento.py                                      # los 6 guiones, ~4 min
 python prueba_metricas.py                                          # sin red
+```
+
+M6, M7 y E2E-5 (19/11). M6 no escribe nada; M7 y E2E-5 abren casos con la cuenta del
+`.env` y los cierran al terminar. M7 necesita además otra cuenta de paciente con un
+caso (`CARESYNC_OTRA_*`) y una de `admin_plataforma` (`CARESYNC_PLATAFORMA_*`); sin
+ellas, esos intentos salen «sin cuenta», no superados:
+
+```bash
+python evaluar_aviso.py --desde 2026-11-07   # desde que SES tiene remitente
+python evaluar_permisos.py                   # los 10 intentos, ~2 min
+python evaluar_sin_cupo.py                   # 3 repeticiones, ~3 min; se detiene si el CAE tiene cupos
+python prueba_metricas_de_cierre.py          # sin red
 ```
 
 Cada script inicia sesión una vez, y el cubo de ROBLE es de 10 inicios cada 15
