@@ -20,7 +20,7 @@
 
 **Metodología.** Prototipado iterativo y vertical en seis fases durante 16 semanas, con tres frentes de trabajo (infraestructura, agentes y aplicación), revisión por *pull requests* e integración continua. Cada decisión de diseño se contrastó con mediciones contra el sistema desplegado: bancos de casos sintéticos con resultado esperado, corridos antes y después de cada corrección, y con sus informes guardados sin editar en el repositorio.
 
-**Resultados.** En la medición final contra el sistema desplegado (5 de noviembre de 2026), el agente llevó a la ruta de emergencia **13 de 13** casos de alarma, todos en el primer turno (y 39 de 39 en las tres corridas previas); canalizó al centro correcto **25 de 27** casos (**92,6 %**, meta ≥ 85 %); no cometió **ningún** sub-triaje en casos prioritarios; no dio **ninguna** respuesta prohibida en **26** intentos adversariales; produjo **cero** dobles reservas en **10** pares de solicitudes simultáneas; y dejó la alerta de retroceso visible para el profesional en **3 a 5 segundos** en los **4** guiones con empeoramiento (meta < 5 minutos). En las pruebas de uso, **6 estudiantes** completaron las tareas sin ayuda y calificaron la aplicación con un promedio de **4,72 sobre 5**. Once archivos de pruebas automatizadas con **596** comprobaciones corren en cada cambio del repositorio.
+**Resultados.** En la medición final contra el sistema desplegado (5 de noviembre de 2026), el agente llevó a la ruta de emergencia **13 de 13** casos de alarma, todos en el primer turno (y 39 de 39 en las tres corridas previas); canalizó al centro correcto **25 de 27** casos (**92,6 %**, meta ≥ 85 %); no cometió **ningún** sub-triaje en casos prioritarios; no dio **ninguna** respuesta prohibida en **26** intentos adversariales; produjo **cero** dobles reservas en **10** pares de solicitudes simultáneas; y dejó la alerta de retroceso visible para el profesional en **3 a 5 segundos** en los **4** guiones con empeoramiento (meta < 5 minutos). En las pruebas de uso, **6 estudiantes** completaron las tareas sin ayuda y calificaron la aplicación con un promedio de **4,72 sobre 5**. El 19 de noviembre se midieron además, contra lo desplegado, el aviso al profesional (**5 de 5** en el mismo minuto del agendamiento, meta < 5 minutos) y los permisos por rol (**ninguno** de 10 intentos no permitidos tuvo efecto). Doce archivos de pruebas automatizadas con **685** comprobaciones corren en cada cambio del repositorio.
 
 **Conclusiones.** El prototipo demuestra que la coordinación de varios agentes sobre un caso compartido es viable y que puede hacerse segura por diseño: las reglas críticas (no diagnosticar, no recetar, escalar ante la duda) se sostienen en el código y no en el *prompt*. La lección más importante fue que las fallas graves no aparecieron donde se esperaban: la primera corrida de alarmas dio 1 de 12 porque la salvaguarda de contenido bloqueaba justo la respuesta correcta, y la corrección fue de arquitectura. Quedan como límites declarados la falta de validación clínica del protocolo y unas pruebas de usabilidad más amplias, que incluyan a profesionales y administradores.
 
@@ -149,7 +149,7 @@ Respecto al planteamiento del primer informe, el alcance creció en cinco puntos
 | **E2E-6** | Doble reserva concurrente | Exactamente una cita en firme; la otra persona recibe una alternativa | ✅ M4: 0 dobles reservas en 10 pares |
 | **E2E-7** | Orientación sin cita (nivel 4) | Se orienta a la persona sin reservar cupo | ✅ Casos de orientación del banco, correctos en la medición final |
 | **E2E-8** | Operación de la agenda | Plataforma asigna el rol; el administrador registra al profesional, sus horarios y publica cupos | ✅ Usado para preparar el médico de prueba de la evaluación y de la demostración |
-| **E2E-9** | Recordatorio y silencio en el seguimiento | Recordatorio enviado; silencio anotado tras 36 h sin adherencia o 3 días sin evolución | ✅ Recordatorios y anotación de silencios funcionando en el sistema desplegado; la lógica se prueba además sin red (`prueba_recordatorios.py`) |
+| **E2E-9** | Recordatorio y silencio en el seguimiento | Recordatorio enviado; silencio anotado tras 36 h sin adherencia o 3 días sin evolución | ⚠️ Silencios anotados en lo desplegado desde el 19/11. Hasta ese día la función de recordatorios no escribía nada en producción, porque la cuenta de servicio no estaba cargada en Parameter Store. En su primera corrida completa anotó `sin_adherencia` y `sin_evolucion` en el caso en seguimiento que no reportaba desde el 14/10, y programó 5 recordatorios. Falta comprobar que el recordatorio le llega al paciente: en el teléfono, por la app móvil (I11), porque por correo SES en *sandbox* solo entrega a direcciones verificadas. La lógica se prueba además sin red (`prueba_recordatorios.py`) |
 
 ### 3.3.2 Roles y permisos
 
@@ -183,7 +183,7 @@ Toda cuenta nueva, incluidas las que llegan por Google, nace con el rol de pacie
 | I5 | Bedrock Guardrails | Salvaguardas de contenido | ✅ Activa y recalibrada con las mediciones |
 | I6 | Amazon Transcribe en tiempo real | Dictado por voz del plan | ✅ Operativa |
 | I7 | Amazon SES | Avisos al profesional, confirmaciones, avisos de cita 24 y 2 h antes, y escalamientos | ✅ Operativa |
-| I8 | EventBridge Scheduler → Lambda de recordatorios | Recordatorios, avisos de cita y vigilancia de silencios cada 15 min | ✅ Operativa |
+| I8 | EventBridge Scheduler → Lambda de recordatorios | Recordatorios, avisos de cita y vigilancia de silencios cada 15 min | ✅ Operativa desde el 19/11; hasta entonces se detenía en cada corrida porque la cuenta de servicio no estaba cargada en Parameter Store |
 | I9 | CloudWatch + SNS | *Logs*, métrica y alarma de escalamiento | ✅ Operativa |
 | I10 | Amplify Hosting + GitHub Actions (OIDC) | Publicación de la PWA y despliegue de la infraestructura | ✅ Operativa |
 | I11 | Notificaciones locales del teléfono (Expo) | Recordatorios de tomas y avisos de cita en la app móvil | ✅ Operativa; sin notificaciones *push* desde el servidor |
@@ -241,7 +241,7 @@ Los valores son los de la última medición contra el sistema desplegado, salvo 
 | **M7** | Seguridad | Llamadas a herramientas no permitidas para el rol que producen efecto | 0 | **0/10** intentos con efecto contra lo desplegado (19/11, dos corridas), además de las pruebas sin red (`prueba_permisos.py`) | ✅ |
 | **M8** | Salvaguardas | Respuestas con diagnóstico, prescripción o disuasión de urgencia | 0 | **0/26**, y 0 consultas legítimas bloqueadas | ✅ |
 | **M9** | Usabilidad | Promedio del cuestionario de uso (reemplazó al SUS, §13.3) | ≥ 4 sobre 5 | **4,72**, con 6 estudiantes; 100 % de tareas sin ayuda | ✅ |
-| **M10** | E2E | Recorridos E2E verificados | 9 de 9 | **8 de 9** verificados; E2E-5 observado sin un guion de medición propio (§3.3.1) | ⚠️ |
+| **M10** | E2E | Recorridos E2E verificados | 9 de 9 | **8 de 9** verificados. E2E-5 ya tiene guion propio (3/3, 19/11); falta E2E-9, en el que los silencios ya se anotan en lo desplegado y queda por comprobar la entrega del recordatorio al paciente | ⚠️ |
 
 Una métrica cambió de instrumento: el objetivo 6 planteaba medir la usabilidad con el SUS (≥ 68), pero se reemplazó por un cuestionario propio con meta de 4 sobre 5, porque el SUS supone un sistema de uso frecuente y no encaja con una herramienta de salud que se usa cuando hace falta. La justificación y los resultados están en la §13.3.
 
@@ -397,7 +397,7 @@ Los requerimientos se derivan de los nueve recorridos E2E (§3.3.1). Cada requer
 | RF-11 | Registrar el plan por texto o por dictado de voz, con revisión antes de guardar | Profesional | E2E-1, E2E-2 | ✅ |
 | RF-12 | Registrar la adherencia a cada indicación y la evolución en una escala | Paciente | E2E-1, E2E-2, E2E-9 | ✅ |
 | RF-13 | Alertar al profesional ante una caída de ≥ 3 puntos o una escala ≤ 3 | Profesional | E2E-2 | ✅ M5 |
-| RF-14 | Enviar recordatorios y avisos de cita, y anotar los silencios | Paciente, profesional | E2E-9 | ✅ |
+| RF-14 | Enviar recordatorios y avisos de cita, y anotar los silencios | Paciente, profesional | E2E-9 | ⚠️ Silencios y recordatorios programados en lo desplegado desde el 19/11; la entrega al paciente se comprueba en E2E-9 |
 | RF-15 | Consultar el progreso del paciente: evolución, adherencia y eventos | Profesional | E2E-2, E2E-9 | ✅ |
 | RF-16 | Registrar en la bitácora del caso las acciones de los agentes y los fallos de herramientas | Sistema | Todos | ✅ |
 | RF-17 | Llevar el caso por su ciclo de vida, incluido su cierre | Sistema | E2E-1, E2E-2 | ⚠️ El cierre sí; el estado `atendido` no se distingue de `en_seguimiento` |
@@ -505,7 +505,7 @@ La regla que más condiciona el diseño es que **solo el servicio de herramienta
 | **Servicio de recordatorios** | Lambda disparada cada 15 min | Recordatorios de tomas, avisos de cita 24 y 2 h antes, liberación de reservas vencidas y vigilancia de silencios | RF-14 |
 | **Modelo y salvaguardas** | Amazon Bedrock: Claude Haiku 4.5 + Guardrails | Razonamiento de los agentes; ordenar el plan dictado; filtros de contenido, dos temas denegados e información sensible | RF-05, RF-11; RNF-04 |
 | **Reconocimiento de voz** | Amazon Transcribe en tiempo real | Convertir en texto el plan que dicta el profesional, sin guardar el audio | RF-11; RNF-03 |
-| **Correo** | Amazon SES | Avisos al profesional, confirmaciones, avisos de cita y escalamientos | RF-06, RF-08, RF-14; RNF-06 |
+| **Correo** | Amazon SES, en *sandbox* | Avisos al profesional y escalamientos. Las confirmaciones y los avisos de cita al paciente solo salen si su dirección está verificada, porque en *sandbox* SES no entrega a las demás; al paciente, los recordatorios y los avisos de cita le llegan en el teléfono | RF-06, RF-08, RF-14; RNF-06 |
 | **Alarma de escalamientos** | CloudWatch + SNS | *Logs* estructurados; métrica `ESCALAMIENTO` y alarma que avisa a una persona aunque el correo falle | RF-06; RNF-12 |
 
 La Figura 2 muestra estos componentes y sus relaciones a alto nivel. Lo que el lector debe observar es que cada cliente tiene dos caminos, uno hacia ROBLE para los datos de su rol y otro hacia el API de agentes para conversar, y que **ninguna flecha lleva datos de salud a un almacenamiento de AWS**: todas las escrituras terminan en ROBLE.
@@ -808,7 +808,7 @@ sequenceDiagram
 
 *Leyenda: lo que llega a ROBLE (pasos 13 y 14) lo escribe la PWA con el token del profesional, después de que él confirma. El modelo no escribe nada.*
 
-*Resultado.* El profesional dicta el plan en voz alta, ve el texto mientras habla y recibe una propuesta ordenada en resumen e indicaciones, cada una con su frecuencia y su tipo (medicamento, control, señal de alarma). Lo que se guarda es lo que él revisa y confirma. Desde ese momento, el agente de seguimiento puede explicar el plan y la app móvil arma el horario de tomas.
+*Resultado.* El profesional dicta el plan en voz alta, ve el texto mientras habla y recibe una propuesta ordenada en resumen e indicaciones, cada una con su frecuencia, su tipo (medicamento, control, señal de alarma) y, si las dicta, sus horas. Lo que se guarda es lo que él revisa y confirma. Desde ese momento, el agente de seguimiento puede explicar el plan y la app móvil arma el horario de tomas: a las horas que fijó el profesional o, si no las dijo, entre las 8:00 y las 19:00, para que ningún aviso llegue de madrugada. La función de recordatorios usa la misma regla.
 
 *Errores y esperas.* La espera más larga es la del modelo al ordenar el texto. Si el reconocimiento de voz no entiende por el ruido, el profesional escribe el plan en el editor y el asistente lo ordena igual. Una frecuencia o una dosis que no se dictó con claridad no se inventa: queda vacía y aparece como duda. Esta ruta no usa la salvaguarda de los agentes, que niega la prescripción y bloquearía justo el caso normal, porque aquí quien prescribe es el profesional. A cambio, solo la acepta el rol profesional, el modelo no habla con ningún paciente y nada se guarda sin confirmación.
 
@@ -961,22 +961,23 @@ Una advertencia recorre la sección. Los bancos de casos son sintéticos y los e
 
 ## 13.1 Pruebas por componentes
 
-El repositorio tiene **11 archivos de pruebas automatizadas** del backend y de los evaluadores que no necesitan red, AWS ni una cuenta de ROBLE: un entorno de prueba sustituye esos servicios. Corren en cada *pull request* y se verificaron de nuevo el 19 de noviembre de 2026: **los 11 pasan, con 596 comprobaciones**. El criterio de éxito es que todas las comprobaciones pasen; una sola falla detiene la integración del cambio.
+El repositorio tiene **12 archivos de pruebas automatizadas** del backend y de los evaluadores que no necesitan red, AWS ni una cuenta de ROBLE: un entorno de prueba sustituye esos servicios. Corren en cada *pull request* y se verificaron de nuevo el 19 de noviembre de 2026: **los 12 pasan, con 685 comprobaciones**. El criterio de éxito es que todas las comprobaciones pasen; una sola falla detiene la integración del cambio.
 
 | Archivo | Comprobaciones | Qué verifica |
 |---|---|---|
-| `prueba_orquestador.py` | 142 | Elección del agente por estado o por rol, historial que ve el modelo, caso sobre el que actúa y constancia de los fallos de herramientas |
-| `prueba_herramientas.py` | 126 | Que `escalar_urgencia` nunca lanza y siempre devuelve la ruta de emergencia, que un nivel 1 no se agenda, que la cita respeta el plazo del nivel, que cancelar y cambiar piden confirmación, y la alerta de retroceso |
+| `prueba_orquestador.py` | 173 | Elección del agente por estado o por rol, historial que ve el modelo, caso sobre el que actúa y constancia de los fallos de herramientas |
+| `prueba_herramientas.py` | 152 | Que `escalar_urgencia` nunca lanza y siempre devuelve la ruta de emergencia, que un nivel 1 no se agenda, que la cita respeta el plazo del nivel, que cancelar y cambiar piden confirmación, la alerta de retroceso, y que un correo que no sale no se le cuenta a la persona como un fallo |
 | `prueba_simulacion.py` | 80 | Que el modo simulación no tiene ningún camino hasta un efecto real, comprobado recorriendo el código |
-| `prueba_consulta.py` | 49 | La propuesta del plan dictado y la sesión de dictado: solo el profesional, nada se guarda |
+| `prueba_consulta.py` | 53 | La propuesta del plan dictado y la sesión de dictado: solo el profesional, nada se guarda |
 | `prueba_guardarrailes.py` | 40 | El juicio del evaluador de salvaguardas |
 | `prueba_permisos.py` | 39 | Que el modelo nunca aporta la identidad, que los permisos se comprueban en código y que ninguna herramienta escribe el plan clínico |
-| `prueba_recordatorios.py` | 31 | Frecuencia de los recordatorios y vigilancia de silencios |
+| `prueba_recordatorios.py` | 37 | Frecuencia y horas de los recordatorios (de 8:00 a 19:00, o las que fije el profesional) y vigilancia de silencios |
 | `prueba_evaluar.py` | 31 | La lógica del evaluador del triaje |
 | `prueba_cuenta.py` | 24 | Inicio de sesión, renovación del *token* y cierre de casos del evaluador |
+| `prueba_metricas_de_cierre.py` | 22 | El juicio de los evaluadores de M6, M7 y E2E-5 |
 | `prueba_metricas.py` | 21 | El cálculo de M4 y M5 |
 | `prueba_avisos_de_cita.py` | 13 | Los avisos de cita 24 y 2 horas antes |
-| **Total** | **596** | |
+| **Total** | **685** | |
 
 Además, la app móvil tiene su propia prueba del cálculo del horario de tomas (`npm run prueba`), y la PWA y la app móvil se validan con la verificación de tipos de TypeScript en cada cambio. No hay pruebas automatizadas de las interfaces: se validaron con revisión manual y en la preparación de la demostración.
 
@@ -1061,13 +1062,13 @@ En el manejo de errores se comprobó que un *token* vencido a mitad del turno re
 | 2. Diseñar una arquitectura serverless con datos fuera de AWS | ✅ Cumplido | Evaluación de alternativas (§9), diagramas (§10) e infraestructura aplicada solo desde Terraform |
 | 3. Agente de Triaje: M1, M2 y M3 | ✅ Cumplido | 92,6 % de centro correcto, 13/13 alarmas y 0 sub-triajes en nivel 2 |
 | 4. Agente de Agenda: agendar, M4 y M6 | ✅ Cumplido | Agenda 8/8 turnos, 0 dobles reservas y el aviso al profesional en el mismo minuto (M6, 5/5) |
-| 5. Agente de Seguimiento y recordatorios: M5 y silencios | ✅ Cumplido | 4/4 alertas en 3 a 5 s; recordatorios y silencios funcionando en el sistema desplegado |
+| 5. Agente de Seguimiento y recordatorios: M5 y silencios | ✅ Cumplido | 4/4 alertas en 3 a 5 s; silencios anotados en lo desplegado desde el 19/11 por la función de recordatorios, que corre cada 15 minutos |
 | 6. PWA con cinco vistas, dictado y controles de acceso: M7 y M9 | ✅ Cumplido | Cinco vistas, dictado y app móvil construidos; M9: 4,72 sobre 5; M7: 0 de 10 intentos con efecto contra lo desplegado |
 | 7. Persistencia y trazabilidad | ✅ Cumplido | Bitácora de eventos en cada caso, registro de fallos de herramientas y alarma de escalamiento |
-| 8. Evaluar el recorrido completo: M10, M8 y usabilidad | ⚠️ Mayormente cumplido | 8 de 9 recorridos verificados, M8 0/26 y pruebas de uso con 6 estudiantes |
+| 8. Evaluar el recorrido completo: M10, M8 y usabilidad | ⚠️ Mayormente cumplido | 8 de 9 recorridos verificados (falta la entrega del recordatorio en E2E-9), M8 0/26 y pruebas de uso con 6 estudiantes |
 | 9. Documentar | ✅ Cumplido | Este informe, [Instalación.md](./Instalación.md), [Desarrollo.md](./Desarrollo.md), la documentación técnica en `caresync/docs/` y los informes de evaluación |
 
-Frente al objetivo general, el prototipo cumple las dos condiciones de seguridad y calidad que más pesaban (el 100 % de las alarmas a la ruta de emergencia y los umbrales de canalización, agendamiento y seguimiento), pero no la de los 9 recorridos completos: 8 están verificados y uno se observó sin un guion de medición propio.
+Frente al objetivo general, el prototipo cumple las dos condiciones de seguridad y calidad que más pesaban (el 100 % de las alarmas a la ruta de emergencia y los umbrales de canalización, agendamiento y seguimiento), pero todavía no la de los 9 recorridos completos: 8 están verificados, y en el noveno (E2E-9) falta comprobar que el recordatorio le llega al paciente.
 
 ## 14.2 Discusión
 
