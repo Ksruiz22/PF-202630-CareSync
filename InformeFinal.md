@@ -200,7 +200,7 @@ Atención clínica real; datos reales de personas; validación clínica del prot
 
 # 4. Objetivos
 
-Los objetivos se formularon al inicio del proyecto. En la entrega intermedia, atendiendo la retroalimentación del jurado, se reformularon con indicador, umbral y método de medición, y se fijaron como compromiso obligatorio los 9 recorridos E2E, los 5 roles, los bancos de casos sintéticos y las integraciones de la sección 3.3. Desde entonces no cambiaron, salvo el instrumento de usabilidad (al final de la sección 4.3); el grado de cumplimiento de cada uno se discute en la sección 14.
+Los objetivos se formularon al inicio del proyecto. En la entrega intermedia, atendiendo la retroalimentación recibida sobre la primera entrega, se reformularon con indicador, umbral y método de medición, y se fijaron como compromiso obligatorio los 9 recorridos E2E, los 5 roles, los bancos de casos sintéticos y las integraciones de la sección 3.3. Desde entonces no cambiaron, salvo el instrumento de usabilidad (al final de la sección 4.3); el grado de cumplimiento de cada uno se discute en la sección 14.
 
 ## 4.1 Objetivo general
 
