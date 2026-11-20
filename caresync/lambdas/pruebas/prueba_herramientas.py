@@ -328,6 +328,8 @@ def probar_notificar_sin_correo() -> None:
     comprobar("sin correo, no le pide al agente prometer contacto (invariante 7)",
               salida.get("enviado") is False and "contactará" not in instruccion
               and "no prometas" in instruccion, instruccion)
+    comprobar("ni que le cuente a la persona que el correo no salió",
+              "no salió" not in instruccion and "agenda del profesional" in instruccion, instruccion)
 
 
 def probar_adherencia() -> None:

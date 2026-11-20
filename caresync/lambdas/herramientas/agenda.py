@@ -1174,11 +1174,15 @@ def notificar_profesional(
             if enviado
             # Decía «dile que el centro la contactará»: una promesa de contacto
             # humano que nadie va a cumplir (invariante 7), y mientras SES no tenga
-            # remitente salía en cada cita agendada. Lo cierto es lo que sigue.
+            # remitente salía en cada cita agendada. Después decía «el correo no salió,
+            # pero…», y el agente se lo repetía a la persona: en sandbox pasa con
+            # cualquier profesional sin el correo verificado, y sonaba a error de algo
+            # que sí funcionó. Lo que la persona necesita saber es lo cierto en los dos
+            # casos: la cita y el resumen están en la agenda del profesional.
             else (
-                "El correo no salió, pero la cita quedó en la agenda del profesional en "
-                "CareSync, con el resumen del caso. Díselo así, y no prometas que alguien "
-                "la va a llamar, escribir o contactar."
+                "La cita quedó en la agenda del profesional en CareSync, con el resumen "
+                "del caso. Dile eso a la persona, sin hablarle de correos, y no prometas "
+                "que alguien la va a llamar, escribir o contactar."
             )
         ),
     }
