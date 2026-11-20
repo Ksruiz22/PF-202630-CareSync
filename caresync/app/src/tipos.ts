@@ -144,6 +144,8 @@ export interface Indicacion extends Fila {
   sesiones?: number | null;
   /** Nulo es el centro del caso. */
   centro_destino?: Centro | 'externo' | null;
+  /** «06:00,18:00», las horas que fijó el profesional. Nulo: de 8:00 a 19:00. */
+  horas?: string | null;
 }
 
 /** Cómo se acompaña cada indicación. Nulo es `otro`. Ver `bootstrap_roble.mjs`. */

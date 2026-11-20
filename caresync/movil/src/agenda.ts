@@ -8,9 +8,11 @@
  *
  * Es un módulo sin React ni red, para poder probarlo con `npm run prueba`.
  *
- * **Las horas son una convención de la app, no una pauta clínica.** La indicación se
- * muestra siempre con las palabras del profesional, y lo que aquí se calcula es cuándo
- * preguntar. Ver `HORA_PRIMERA` y `HORA_ULTIMA`.
+ * **Las horas son las mismas que las de los correos.** La regla vive en
+ * `caresync_comun/frecuencia.py` (`momentos_del_dia`) y aquí está su espejo: las horas
+ * que fijó el profesional (`indicaciones.horas`) o, sin ellas, la ventana de 8:00 a
+ * 19:00. La indicación se muestra siempre con las palabras del profesional; lo que aquí
+ * se calcula es cuándo preguntar.
  */
 
 import { esVerdad, idDe, type Adherencia, type Cita, type Indicacion, type Turno } from './tipos';
@@ -21,14 +23,15 @@ const DIA = 24 * HORA;
 /** Bogotá es `-05:00` fijo. El teléfono puede estar en otra zona; el plan no. */
 const DESFASE_BOGOTA = -5 * HORA;
 
-/** La misma primera hora que `HORA_MINIMA` en la Lambda de recordatorios. */
-const HORA_PRIMERA = 7;
 /**
- * La Lambda corta los correos a las 20:00, pero aquí no sirve: «cada 8 horas» desde las
- * 7:00 tiene una tercera toma a las 23:00, y correrla al día siguiente haría parecer que
- * son dos al día. Se pregunta a las 22:00 como máximo, una vez, antes de dormir.
+ * La ventana de los avisos (propuesta de Kevin, 2026-11-02): nada antes de las 8:00 ni
+ * después de las 19:00, para no ser intrusivo. Antes eran las 7:00 y las 22:00 aquí, y
+ * las 7:00 y las 20:00 en los correos: el mismo plan preguntaba a horas distintas en el
+ * teléfono y en el correo. «Cada 8 horas» son ahora las 8:00 y las 16:00; la toma de la
+ * medianoche no suena, salvo que el profesional fije las horas.
  */
-const HORA_ULTIMA = 22;
+const HORA_PRIMERA = 8;
+const HORA_ULTIMA = 19;
 
 /** El mismo piso que `INTERVALO_MINIMO` en `caresync_comun/frecuencia.py`. */
 const INTERVALO_MINIMO = 4 * HORA;
@@ -126,7 +129,7 @@ export function acompanamientoDe(indicacion: Indicacion): Acompanamiento {
     case 'remision':
       return 'hito';
     default:
-      return intervaloDe(indicacion.frecuencia) ? 'toma' : 'abierta';
+      return intervaloDe(indicacion.frecuencia) || horasFijas(indicacion.horas).length ? 'toma' : 'abierta';
   }
 }
 
@@ -154,32 +157,72 @@ export interface Toma {
   reporte?: Adherencia;
 }
 
-/** Los momentos en que se pregunta por esta indicación durante el día de `dia`. */
+/** «6:00, 18:30» es [[6, 0], [18, 30]]: espejo de `horas_fijas` en `frecuencia.py`. */
+export function horasFijas(horas: unknown): Array<[number, number]> {
+  const vistas = new Map<string, [number, number]>();
+  for (const trozo of String(horas ?? '').trim().toLowerCase().split(/[,;y ]+/)) {
+    const encontrada = /^(\d{1,2})(?:[:.h](\d{2}))?$/.exec(trozo.trim());
+    if (!encontrada) continue;
+    const hora = Number(encontrada[1]);
+    const minuto = Number(encontrada[2] ?? 0);
+    if (hora <= 23 && minuto <= 59) vistas.set(`${hora}:${minuto}`, [hora, minuto]);
+  }
+  return [...vistas.values()].sort((a, b) => a[0] * 60 + a[1] - (b[0] * 60 + b[1]));
+}
+
+/** «3 veces al día» es 3: ésas se reparten en la ventana, no cada 8 horas. */
+function vecesAlDia(frecuencia: unknown): number | null {
+  const veces = /(\d+|una|dos|tres|cuatro)\s+ve(?:z|ces)\s+al\s+d[ií]a/.exec(
+    String(frecuencia ?? '').trim().toLowerCase()
+  );
+  if (!veces) return null;
+  const crudo = veces[1] ?? '';
+  const cuantas = /^\d+$/.test(crudo) ? Number(crudo) : (NUMEROS[crudo] ?? 0);
+  return cuantas > 0 ? cuantas : null;
+}
+
+/**
+ * Los momentos en que se pregunta por esta indicación durante el día de `dia`.
+ *
+ * Espejo de `momentos_del_dia` en `caresync_comun/frecuencia.py`:
+ * - con horas del profesional, ésas;
+ * - «N veces al día», repartidas entre las 8:00 y las 19:00;
+ * - «cada N horas», desde las 8:00 y sin pasar de las 19:00;
+ * - cada varios días, a las 8:00 de los días que tocan.
+ */
 export function momentosDelDia(indicacion: Indicacion, dia: Date): Date[] {
   const intervalo = intervaloDe(indicacion.frecuencia);
+  const fijas = horasFijas(indicacion.horas);
   const creada = fecha(indicacion.creado_en);
-  if (!intervalo || !creada) return [];
+  if ((!intervalo && !fijas.length) || !creada) return [];
 
   const inicio = inicioDelDia(dia);
-  if (inicio + DIA <= inicioDelDia(creada)) return [];
-  const primera = inicio + HORA_PRIMERA * HORA;
+  if (inicio < inicioDelDia(creada)) return [];
 
-  // Cada varios días: sólo los días que le tocan, contados desde que se escribió.
-  if (intervalo >= DIA) {
+  let minutos: number[];
+  if (intervalo && intervalo >= DIA) {
+    // Cada varios días: sólo los días que le tocan, contados desde que se escribió.
     const dias = Math.round((inicio - inicioDelDia(creada)) / DIA);
-    const paso = Math.round(intervalo / DIA);
-    if (dias <= 0 || dias % paso !== 0) return dias === 0 && primera > creada.getTime() ? [new Date(primera)] : [];
-    return [new Date(primera)];
+    if (dias % Math.max(1, Math.round(intervalo / DIA)) !== 0) return [];
+    minutos = fijas.length ? fijas.map(([h, m]) => h * 60 + m) : [HORA_PRIMERA * 60];
+  } else if (fijas.length) {
+    minutos = fijas.map(([h, m]) => h * 60 + m);
+  } else if (vecesAlDia(indicacion.frecuencia)) {
+    const cuantas = vecesAlDia(indicacion.frecuencia) ?? 1;
+    const ventana = (HORA_ULTIMA - HORA_PRIMERA) * 60;
+    minutos =
+      cuantas === 1
+        ? [HORA_PRIMERA * 60]
+        : Array.from({ length: cuantas }, (_, k) => HORA_PRIMERA * 60 + Math.round((k * ventana) / (cuantas - 1)));
+  } else {
+    const paso = Math.round((intervalo ?? DIA) / (60 * 1000));
+    minutos = [];
+    for (let m = HORA_PRIMERA * 60; m <= HORA_ULTIMA * 60; m += paso) minutos.push(m);
   }
 
-  const ultima = inicio + HORA_ULTIMA * HORA;
-  const cuantas = Math.round(DIA / intervalo);
-  const momentos = new Set<number>();
-  for (let i = 0; i < cuantas; i += 1) {
-    momentos.add(Math.min(primera + i * intervalo, ultima));
-  }
   // Lo anterior a que existiera la indicación no se le puede reclamar a nadie.
-  return [...momentos]
+  return [...new Set(minutos)]
+    .map((m) => inicio + m * 60 * 1000)
     .filter((instante) => instante > creada.getTime())
     .sort((a, b) => a - b)
     .map((instante) => new Date(instante));

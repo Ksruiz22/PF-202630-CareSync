@@ -143,6 +143,18 @@ def probar_tipos_de_indicacion() -> None:
     comprobar("el esquema del modelo ofrece exactamente los tipos de la base",
               plan_propuesta._ESQUEMA["properties"]["indicaciones"]["items"]["properties"]["tipo"]["enum"]
               == list(plan_propuesta.TIPOS))
+    con_horas = plan_propuesta.depurar({"resumen": "x", "dudas": [], "indicaciones": [
+        {"texto": "Tomar el antibiótico a las 6 y a las 18", "frecuencia": "", "tipo": "medicamento", "horas": "6:00, 18"},
+        {"texto": "Volver a control", "frecuencia": "", "tipo": "control", "horas": "08:00"},
+        {"texto": "Caminar en la mañana", "frecuencia": "diario", "tipo": "autocuidado", "horas": "en la mañana"},
+    ]})["indicaciones"]
+    antibiotico, control_con_horas, caminar = con_horas
+    comprobar("las horas dictadas se guardan en su forma: «06:00,18:00»",
+              antibiotico["horas"] == "06:00,18:00", str(antibiotico))
+    comprobar("y con ellas hay recordatorios aunque no haya frecuencia",
+              antibiotico["programa_recordatorios"] is True)
+    comprobar("un control no lleva horas", control_con_horas["horas"] is None)
+    comprobar("«en la mañana» no es una hora: se usa la ventana del sistema", caminar["horas"] is None)
     espejo = (LAMBDAS.parent / "app" / "src" / "tratamiento.ts").read_text(encoding="utf-8")
     comprobar("la vista conoce los mismos tipos (tratamiento.ts)",
               all(f"'{tipo}'" in espejo for tipo in plan_propuesta.TIPOS))

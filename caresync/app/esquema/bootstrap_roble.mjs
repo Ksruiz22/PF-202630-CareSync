@@ -196,6 +196,10 @@ const ESQUEMA = {
     // CMU | CAE | externo. Dónde ocurre el control, la sesión o la remisión; nulo es
     // el centro del caso.
     ['centro_destino', T.texto, true],
+    // Del 2026-11-04: las horas del día que fijó el profesional, «06:00,18:00» en hora
+    // de Bogotá. Nulo es la ventana del sistema, de 8:00 a 19:00
+    // (`caresync_comun/frecuencia.py`). Las horas mandan sobre la ventana.
+    ['horas', T.texto, true],
   ],
 
   adherencia: [

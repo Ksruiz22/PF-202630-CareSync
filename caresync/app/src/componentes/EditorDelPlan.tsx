@@ -19,7 +19,14 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { proponerPlan } from '../consulta';
 import { dictar, sePuedeDictar, type Dictado, type EstadoDelDictado } from '../dictado';
-import { EJEMPLOS_DE_FRECUENCIA, programaRecordatorios } from '../frecuencia';
+import {
+  EJEMPLOS_DE_FRECUENCIA,
+  HORA_PRIMERA,
+  HORA_ULTIMA,
+  horasEnTexto,
+  horasFijas,
+  programaRecordatorios,
+} from '../frecuencia';
 import { mensajeDeError } from '../roble';
 import {
   CAMPOS_POR_TIPO,
@@ -42,6 +49,7 @@ export interface IndicacionAGuardar {
   plazo_dias: number | null;
   sesiones: number | null;
   centro_destino: CentroDestino | null;
+  horas: string | null;
 }
 
 export interface PlanAGuardar {
@@ -59,6 +67,7 @@ interface Fila {
   plazo_dias: string;
   sesiones: string;
   centro_destino: CentroDestino | '';
+  horas: string;
 }
 
 interface Revision {
@@ -83,6 +92,7 @@ function fila(datos: Partial<Omit<IndicacionAGuardar, 'tipo'>> & { tipo?: string
     plazo_dias: numero(datos.plazo_dias),
     sesiones: numero(datos.sesiones),
     centro_destino: datos.centro_destino ?? '',
+    horas: datos.horas ?? '',
   };
 }
 
@@ -105,6 +115,7 @@ function aGuardar(f: Fila): IndicacionAGuardar {
     plazo_dias: numero('plazo_dias'),
     sesiones: numero('sesiones'),
     centro_destino: campos.includes('centro_destino') && f.centro_destino ? f.centro_destino : null,
+    horas: (campos.includes('horas') && horasEnTexto(f.horas)) || null,
   };
 }
 
@@ -297,7 +308,7 @@ export function EditorDelPlan({
                   posicion={posicion}
                   alCambiar={(cambios) => actualizarFila(f.clave, cambios)}
                 />
-                <AyudaDeFrecuencia frecuencia={f.frecuencia} tipo={f.tipo} />
+                <AyudaDeFrecuencia frecuencia={f.frecuencia} tipo={f.tipo} horas={f.horas} />
               </li>
             ))}
           </ol>
@@ -309,8 +320,9 @@ export function EditorDelPlan({
             <IconoMas width={15} height={15} /> Añadir indicación
           </button>
           <p className="fino">
-            Los recordatorios salen entre las 7:00 y las 20:00, hora de Bogotá. Frecuencias que se
-            entienden: {EJEMPLOS_DE_FRECUENCIA.map((e) => `«${e}»`).join(', ')}.
+            Sin horas fijas, los recordatorios salen entre las {HORA_PRIMERA}:00 y las{' '}
+            {HORA_ULTIMA}:00, hora de Bogotá; con horas en «A las», a esas horas. Frecuencias
+            que se entienden: {EJEMPLOS_DE_FRECUENCIA.map((e) => `«${e}»`).join(', ')}.
           </p>
         </fieldset>
 
@@ -352,7 +364,15 @@ export function EditorDelPlan({
 }
 
 /** Qué va a pasar con esta indicación en el seguimiento, dicho antes de guardar. */
-function AyudaDeFrecuencia({ frecuencia, tipo }: { frecuencia: string; tipo: TipoIndicacion }) {
+function AyudaDeFrecuencia({
+  frecuencia,
+  tipo,
+  horas,
+}: {
+  frecuencia: string;
+  tipo: TipoIndicacion;
+  horas: string;
+}) {
   if (tipo === 'vigilancia') {
     return (
       <p className="fino ayuda-frecuencia">
@@ -367,6 +387,16 @@ function AyudaDeFrecuencia({ frecuencia, tipo }: { frecuencia: string; tipo: Tip
         {tipo === 'control' ? 'este control' : 'estas sesiones'}.
       </p>
     );
+  }
+  if (horas.trim() && !horasFijas(horas).length) {
+    return (
+      <p className="ayuda-frecuencia problema">
+        Esas horas no las entiende el sistema. Escríbelas como «06:00, 18:00» o «7 y 19».
+      </p>
+    );
+  }
+  if (horasFijas(horas).length) {
+    return <p className="fino ayuda-frecuencia">Se recuerda a las {horasEnTexto(horas).split(',').join(', ')}.</p>;
   }
   if (!frecuencia.trim()) {
     return <p className="fino ayuda-frecuencia">Sin frecuencia: se hace una vez y no se recuerda.</p>;
@@ -391,7 +421,7 @@ function DetallesDelTipo({
   alCambiar: (cambios: Partial<Fila>) => void;
 }) {
   const campos = CAMPOS_POR_TIPO[f.tipo];
-  const numero = (campo: Exclude<CampoDeTipo, 'centro_destino'>, maximo: number) => (
+  const numero = (campo: Exclude<CampoDeTipo, 'centro_destino' | 'horas'>, maximo: number) => (
     <label key={campo}>
       {ETIQUETA_DEL_CAMPO[campo]}
       <input
@@ -424,6 +454,20 @@ function DetallesDelTipo({
       {campos.includes('duracion_dias') && numero('duracion_dias', 365)}
       {campos.includes('plazo_dias') && numero('plazo_dias', 365)}
       {campos.includes('sesiones') && numero('sesiones', 100)}
+      {campos.includes('horas') && (
+        <label>
+          {ETIQUETA_DEL_CAMPO.horas}
+          <input
+            type="text"
+            className="horas"
+            value={f.horas}
+            onChange={(e) => alCambiar({ horas: e.target.value })}
+            maxLength={60}
+            placeholder={`${HORA_PRIMERA}:00 a ${HORA_ULTIMA}:00`}
+            aria-label={`Horas, indicación ${posicion + 1}`}
+          />
+        </label>
+      )}
       {campos.includes('centro_destino') && (
         <label>
           {ETIQUETA_DEL_CAMPO.centro_destino}

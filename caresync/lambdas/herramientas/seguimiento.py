@@ -114,6 +114,9 @@ def _indicacion(
         "plazo_dias": indicacion.get("plazo_dias"),
         "sesiones": indicacion.get("sesiones"),
         "centro_destino": indicacion.get("centro_destino"),
+        # Las que fijó el profesional; sin ellas, el sistema avisa entre las 8:00 y las
+        # 19:00. Para que el agente hable de la toma de las 6:00 si es la de las 6:00.
+        "horas": indicacion.get("horas") or None,
         "reportes": len(reportes),
         "ultimo_reporte": reloj.humano(ultimo.get("reportado_en")) if ultimo else None,
         "ultima_cumplida": ultimo.get("cumplida") if ultimo else None,

@@ -328,6 +328,26 @@ def probar_notificar_sin_correo() -> None:
     comprobar("sin correo, no le pide al agente prometer contacto (invariante 7)",
               salida.get("enviado") is False and "contactará" not in instruccion
               and "no prometas" in instruccion, instruccion)
+    comprobar("ni que le cuente a la persona que el correo no salió",
+              "no salió" not in instruccion and "agenda del profesional" in instruccion, instruccion)
+
+    class _SinCorreoRegistrado(_ConCita):
+        def profesional(self, profesional_id: str) -> dict[str, Any]:
+            return {"nombre": "Dr. Sin Correo"}
+
+    sin_correo = _SinCorreoRegistrado(ActorFalso("paciente"))
+    try:
+        salida = agenda.notificar_profesional(sin_correo,
+                                              {"_id": "k", "paciente_nombre": "X", "nivel_urgencia": 2}, {})
+    except Exception as exc:  # noqa: BLE001 - lo que se prueba es que no lance
+        salida = {"error": f"{type(exc).__name__}: {exc}"}
+    instruccion = str(salida.get("instruccion", ""))
+    comprobar("un profesional sin correo registrado no es un fallo de la herramienta",
+              salida.get("ok") is True and salida.get("enviado") is False
+              and "agenda del profesional" in instruccion and "no prometas" in instruccion, str(salida))
+    avisos = [d for que, d in sin_correo.escrito if que == "evento" and d.get("tipo") == "profesional_notificado"]
+    comprobar("y queda en la bitácora con enviado en falso",
+              len(avisos) == 1 and avisos[0]["detalle"]["enviado"] is False, str(avisos))
 
 
 def probar_adherencia() -> None:

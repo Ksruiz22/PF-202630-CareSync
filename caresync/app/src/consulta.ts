@@ -26,6 +26,8 @@ export interface IndicacionPropuesta {
   plazo_dias: number | null;
   sesiones: number | null;
   centro_destino: CentroDestino | null;
+  /** «06:00,18:00» si el profesional dictó horas; si no, nulo. */
+  horas: string | null;
   /** Lo que dirá la función de recordatorios de esta frecuencia, según el backend. */
   programa_recordatorios: boolean;
 }

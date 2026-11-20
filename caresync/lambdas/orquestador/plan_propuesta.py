@@ -37,7 +37,7 @@ from typing import Any
 from botocore.exceptions import ClientError
 
 from caresync_comun.errores import SolicitudInvalida
-from caresync_comun.frecuencia import intervalo
+from caresync_comun.frecuencia import horas_en_texto, intervalo
 from caresync_comun.registro import evento, registro
 
 import bedrock_conversa
@@ -70,16 +70,16 @@ TIPOS = (
     "examen", "remision", "vigilancia", "reposo", "otro",
 )
 CAMPOS_POR_TIPO = {
-    "medicamento": ("duracion_dias",),
-    "autocuidado": ("duracion_dias",),
-    "tarea": ("duracion_dias",),
+    "medicamento": ("duracion_dias", "horas"),
+    "autocuidado": ("duracion_dias", "horas"),
+    "tarea": ("duracion_dias", "horas"),
     "control": ("plazo_dias", "centro_destino"),
     "sesiones": ("sesiones", "centro_destino"),
     "examen": ("plazo_dias",),
     "remision": ("plazo_dias", "centro_destino"),
     "vigilancia": (),
     "reposo": ("duracion_dias",),
-    "otro": ("duracion_dias",),
+    "otro": ("duracion_dias", "horas"),
 }
 CENTROS_DESTINO = ("CMU", "CAE", "externo")
 # Un año de plazo o de duración ya es otra cosa que un plan de consulta; una serie de
@@ -137,6 +137,10 @@ Devuelves siempre una llamada a `proponer_plan` con tres cosas:
    - `centro_destino`: dónde ocurre el control, las sesiones o la remisión:
      `CMU` (el Centro Médico), `CAE` (el Centro de Acompañamiento Estudiantil) o
      `externo`. Vacío si no lo dijo.
+   - `horas`: las horas del día que dijo para hacerla, en 24 horas y separadas por
+     coma: «a las 6 de la mañana y a las 6 de la tarde» es `06:00,18:00`, «antes de
+     dormir, a las 10» es `22:00`. Sin horas dichas, vacío: no se deducen de la
+     frecuencia, porque sin ellas el sistema avisa entre las 8:00 y las 19:00.
    Un número que no se dijo no se deduce: «control» a secas lleva `plazo_dias` en 0.
 
 3. `dudas`: lo que falta o no quedó claro para que el plan se pueda seguir: una
@@ -175,6 +179,7 @@ _ESQUEMA = {
                     "plazo_dias": {"type": "integer", "description": "En cuántos días; 0 si no se dijo."},
                     "sesiones": {"type": "integer", "description": "Cuántas sesiones; 0 si no se dijo."},
                     "centro_destino": {"type": "string", "enum": ["", *CENTROS_DESTINO]},
+                    "horas": {"type": "string", "description": "«06:00,18:00»; vacío si no dijo horas."},
                 },
                 "required": ["texto", "frecuencia", "tipo"],
             },
@@ -276,6 +281,9 @@ def depurar(entrada: dict[str, Any]) -> dict[str, Any]:
             "plazo_dias": _entero(crudo.get("plazo_dias"), MAX_DIAS),
             "sesiones": _entero(crudo.get("sesiones"), MAX_SESIONES),
             "centro_destino": crudo.get("centro_destino") if crudo.get("centro_destino") in CENTROS_DESTINO else None,
+            # La forma en que se guarda, o nada: «a las tantas» sin una hora entendible
+            # no pasa, y la indicación usa la ventana del sistema.
+            "horas": horas_en_texto(crudo.get("horas")) or None,
         }
         indicaciones.append(
             {
@@ -285,7 +293,8 @@ def depurar(entrada: dict[str, Any]) -> dict[str, Any]:
                 # Lo que no corresponde al tipo no viaja: la vista no tendría dónde
                 # mostrarlo, y se guardaría sin que el profesional lo hubiera visto.
                 **{campo: (valor if campo in CAMPOS_POR_TIPO[tipo] else None) for campo, valor in campos.items()},
-                "programa_recordatorios": tipo != "vigilancia" and intervalo(frecuencia) is not None,
+                "programa_recordatorios": tipo != "vigilancia"
+                and (intervalo(frecuencia) is not None or bool(campos["horas"] and "horas" in CAMPOS_POR_TIPO[tipo])),
             }
         )
         if len(indicaciones) == MAX_INDICACIONES:
