@@ -20,7 +20,7 @@
 
 **Metodología.** Prototipado iterativo y vertical en seis fases durante 16 semanas, con tres frentes de trabajo (infraestructura, agentes y aplicación), revisión por *pull requests* e integración continua. Cada decisión de diseño se contrastó con mediciones contra el sistema desplegado: bancos de casos sintéticos con resultado esperado, corridos antes y después de cada corrección, y con sus informes guardados sin editar en el repositorio.
 
-**Resultados.** En la medición final contra el sistema desplegado, el agente llevó a la ruta de emergencia **13 de 13** casos de alarma, todos en el primer turno (y 39 de 39 en las tres corridas previas); canalizó al centro correcto **25 de 27** casos (**92,6 %**, meta ≥ 85 %); no cometió **ningún** sub-triaje en casos prioritarios; no dio **ninguna** respuesta prohibida en **26** intentos adversariales; produjo **cero** dobles reservas en **10** pares de solicitudes simultáneas; y dejó la alerta de retroceso visible para el profesional en **3 a 5 segundos** en los **4** guiones con empeoramiento (meta < 5 minutos). En las pruebas de uso, **6 estudiantes** completaron las tareas sin ayuda y calificaron la aplicación con un promedio de **4,72 sobre 5**. También contra lo desplegado, el aviso al profesional llegó en el mismo minuto del agendamiento en **5 de 5** casos (meta < 5 minutos), **ninguno** de 10 intentos no permitidos por rol tuvo efecto y quedaron verificados los **9** recorridos de punta a punta. Doce archivos de pruebas automatizadas con **685** comprobaciones corren en cada cambio del repositorio.
+**Resultados.** En la medición final contra el sistema desplegado, el agente llevó a la ruta de emergencia **13 de 13** casos de alarma, todos en el primer turno (y 39 de 39 en la corrida anterior, con tres repeticiones); canalizó al centro correcto **25 de 27** casos (**92,6 %**, meta ≥ 85 %); no cometió **ningún** sub-triaje en casos prioritarios; no dio **ninguna** respuesta prohibida en **26** intentos adversariales; produjo **cero** dobles reservas en **10** pares de solicitudes simultáneas; y dejó la alerta de retroceso visible para el profesional en **3 a 5 segundos** en los **4** guiones con empeoramiento (meta < 5 minutos). En las pruebas de uso, **6 estudiantes** completaron las tareas sin ayuda y calificaron la aplicación con un promedio de **4,72 sobre 5**. También contra lo desplegado, el aviso al profesional llegó en el mismo minuto del agendamiento en **5 de 5** casos (meta < 5 minutos), **ninguno** de 10 intentos no permitidos por rol tuvo efecto y quedaron verificados los **9** recorridos de punta a punta. Doce archivos de pruebas automatizadas con **685** comprobaciones corren en cada cambio del repositorio.
 
 **Conclusiones.** El prototipo demuestra que la coordinación de varios agentes sobre un caso compartido es viable y que puede hacerse segura por diseño: las reglas críticas (no diagnosticar, no recetar, escalar ante la duda) se sostienen en el código y no en el *prompt*. La lección más importante fue que las fallas graves no aparecieron donde se esperaban: la primera corrida de alarmas dio 1 de 12 porque la salvaguarda de contenido bloqueaba justo la respuesta correcta, y la corrección fue de arquitectura. Quedan como límites declarados la falta de validación clínica del protocolo y unas pruebas de usabilidad más amplias, que incluyan a profesionales y administradores.
 
@@ -235,7 +235,7 @@ Los valores son los de la última medición contra el sistema desplegado, salvo 
 | ID | Etapa | Indicador | Meta | Resultado final | |
 |---|---|---|---|---|---|
 | **M1** | Canalización | Casos con el centro correcto | ≥ 85 % | **25/27 (92,6 %)** | ✅ |
-| **M2** | Emergencia | Casos de alarma que terminan en la ruta de emergencia sin clasificar antes | 100 % | **13/13**, todos en el primer turno (39/39 en las tres corridas previas) | ✅ |
+| **M2** | Emergencia | Casos de alarma que terminan en la ruta de emergencia sin clasificar antes | 100 % | **13/13**, todos en el primer turno (39/39 en la corrida anterior, con tres repeticiones) | ✅ |
 | **M3** | Urgencia | Sub-triaje en casos de nivel esperado 2 | 0 | **0** | ✅ |
 | **M4** | Agendamiento | Dobles reservas en pares simultáneos sobre el mismo cupo | 0 en 10 pares | **0/10**, antes y después del ajuste de la reserva | ✅ |
 | **M5** | Seguimiento | Retrocesos con alerta visible para el profesional en < 5 min | 100 % | **4/4, en 3 a 5 s**, 0 alertas falsas | ✅ |
@@ -368,7 +368,7 @@ El trabajo se repartió en tres frentes con responsable: infraestructura y despl
 | 3 — Agenda e interfaces administrativas | 9–11 (21-sep a 11-oct) | Reserva con reconciliación; publicación de cupos; consultas del centro; historial de triajes y simulador (2-oct) |
 | 4 — Seguimiento e interfaz profesional | 11–13 (5 a 25-oct) | Dictado por voz con Transcribe y plan ordenado (13-oct); progreso del paciente; primera consulta de punta a punta (14-oct) |
 | 5 — Integración, endurecimiento y pruebas | 13–15 (19-oct a 8-nov) | Agenda completa y protocolo v0.5 (29-oct); app móvil (30-oct); migración a ROBLE producción (4-nov); M4 y M5 medidos y medición final contra lo desplegado (5-nov); correo activo (6-nov) |
-| 6 — Cierre y sustentación | 15–16 (2 a 15-nov) | Preparación de la demostración, informe final y documentación |
+| 6 — Cierre y sustentación | 15–16 (2 a 15-nov) y semana previa a la sustentación (16 a 23-nov) | Función de recordatorios operando en producción (19-nov); M6, M7 y E2E-5 medidos contra lo desplegado (19-nov) y E2E-9 verificado (20-nov); preparación de la demostración, informe final y documentación |
 
 El plan de trabajo fijó hitos verificables al cierre de las primeras fases:
 
@@ -964,7 +964,7 @@ El estado final de cada integración está en la sección 3.3.4. Tres merecen un
 
 **Entorno de ejecución.** La solución corre en un único entorno permanente, público en **https://main.d1ndsh656qxmj8.amplifyapp.com/**. El plano de AWS está en la región `us-east-1` y los datos en la instancia de producción de ROBLE. La PWA se sirve como archivos estáticos desde Amplify Hosting y el API desde un HTTP API de API Gateway. La app móvil se ejecuta con Expo: en un teléfono con Expo Go o en el navegador. Para desarrollo local, la PWA corre en `http://localhost:5173`, el único origen de desarrollo que el API admite, y usa el mismo API y la misma ROBLE.
 
-**Proceso de despliegue.** La infraestructura **solo se aplica desde GitHub Actions**, porque el estado de Terraform es compartido. El arranque (almacenamiento del estado, tabla de bloqueo e identidad OIDC de GitHub) se crea una sola vez a mano. Después, cada cambio sigue un orden: el *pull request* dispara la **revisión** (validación de Terraform, compilación de Python, tipos de TypeScript, construcción de la PWA y las 11 suites de pruebas); la fusión a `main` dispara el flujo de **infraestructura**, que construye los paquetes de Lambda con los protocolos dentro, aplica Terraform y consulta `/salud`; y si cambió la PWA, el flujo de **aplicación web** la compila y la publica en Amplify. La guía paso a paso (`Instalación.md`) se publica con el código (sección 16).
+**Proceso de despliegue.** La infraestructura **solo se aplica desde GitHub Actions**, porque el estado de Terraform es compartido. El arranque (almacenamiento del estado, tabla de bloqueo e identidad OIDC de GitHub) se crea una sola vez a mano. Después, cada cambio sigue un orden: el *pull request* dispara la **revisión** (validación de Terraform, compilación de Python, tipos de TypeScript, construcción de la PWA y los 12 archivos de pruebas); la fusión a `main` dispara el flujo de **infraestructura**, que construye los paquetes de Lambda con los protocolos dentro, aplica Terraform y consulta `/salud`; y si cambió la PWA, el flujo de **aplicación web** la compila y la publica en Amplify. La guía paso a paso (`Instalación.md`) se publica con el código (sección 16).
 
 **Configuración y operación.** Lo que Actions no puede hacer lo hace una persona una vez: cargar en Parameter Store la cuenta de servicio de ROBLE, crear las tablas con `scripts/esquema_roble.sh`, verificar en SES las direcciones de correo y confirmar la suscripción a la alarma. La operación diaria se apoya en tres señales: `GET /salud` (modelo, salvaguarda, contrato de ROBLE, herramientas y correo), la alarma de `ESCALAMIENTO` y el presupuesto de USD 20 con alerta. Las condiciones que más afectan la operación son los límites de ROBLE por IP: en una sala donde todos comparten la red, se agotan los 10 inicios de sesión cada 15 minutos.
 
@@ -1071,7 +1071,7 @@ Además, la app móvil tiene su propia prueba del cálculo del horario de tomas 
 
 ## 13.2 Pruebas de integración
 
-La prueba de integración principal es la evaluación de los agentes contra el sistema real, con conversaciones de varios turnos con el modelo. Se corrió en siete momentos, y entre uno y otro se corrigió lo que cada corrida encontró. La tabla resume la evolución por corrida; la 4.ª y la 5.ª se midieron con el orquestador en local contra el Bedrock, la salvaguarda y la ROBLE reales, antes de integrar los cambios.
+La prueba de integración principal es la evaluación de los agentes contra el sistema real, con conversaciones de varios turnos con el modelo. Se corrió en siete momentos, y entre uno y otro se corrigió lo que cada corrida encontró. La tabla muestra seis de esas corridas (falta la del protocolo v0.3, que dio 12/12 en alarmas y 23/26 en centro correcto); la 4.ª y la 5.ª se midieron con el orquestador en local contra el Bedrock, la salvaguarda y la ROBLE reales, antes de integrar los cambios.
 
 | Métrica | Meta | 1.ª | 2.ª | 3.ª | 4.ª (local) | 5.ª (local) | **Final, desplegada** |
 |---|---|---|---|---|---|---|---|
@@ -1157,7 +1157,7 @@ Frente al objetivo general, el prototipo cumple sus tres condiciones: el 100 % d
 
 ## 14.2 Discusión
 
-**El triaje, la pieza de mayor riesgo, cumple sus metas con margen.** La canalización pasó de 50 % en la primera corrida a 92,6 %, y las alarmas, de 1 de 12 a todas escaladas en cada medición posterior, en el primer turno desde octubre. Esos números no salieron a la primera, y lo valioso es que el proceso de medir, encontrar la causa y corregir quedó documentado paso a paso.
+**El triaje, la pieza de mayor riesgo, cumple sus metas con margen.** La canalización pasó de 50 % en la primera corrida completa a 92,6 %, y las alarmas, de 1 de 12 a 11 de 12 en la segunda corrida y a todas desde la tercera, en el primer turno desde octubre. Esos números no salieron a la primera, y lo valioso es que el proceso de medir, encontrar la causa y corregir quedó documentado paso a paso.
 
 **Las fallas graves no estaban donde se esperaban.** El riesgo previsto era que el modelo no reconociera una emergencia. Lo que ocurrió fue que la salvaguarda, la capa que debía proteger a la persona, cortaba justo la respuesta correcta, porque un tema denegado reconoce el asunto y no la postura. La corrección no fue afinar la salvaguarda sino cambiar la arquitectura para que la ruta de emergencia no dependa de que el modelo pueda responder. Algo parecido pasó con la agenda: el modelo no se equivocaba de cupo, sino que, en conversaciones largas, imitaba el historial y daba citas por hechas sin llamar a la herramienta. Lo resolvió el código, no el *prompt*.
 
@@ -1203,7 +1203,7 @@ Este documento se lee por sí solo. El código fuente, la infraestructura como c
 | Documentación técnica (arquitectura, despliegue, operación de ROBLE) | `caresync/docs/` |
 | Protocolo de triaje y textos de orientación | `caresync/protocolos/` |
 | Informes de evaluación, sin editar, con su índice | `caresync/evaluacion/informes/` |
-| Pruebas automatizadas | `caresync/lambdas/pruebas/` y `caresync/scripts/pruebas.sh` |
+| Pruebas automatizadas | `caresync/lambdas/pruebas/`, `caresync/evaluacion/prueba_*.py` y `caresync/scripts/pruebas.sh` |
 
 Todos los datos del sistema son sintéticos.
 
@@ -1227,23 +1227,23 @@ Todos los datos del sistema son sintéticos.
 
 [8] Nyakuji. (s. f.). *Health Chatbot*. GitHub. https://github.com/Nyakuji/health-chatbot
 
-[9] Amazon Web Services. (2026, 16 de junio). *Building a HIPAA-ready generative AI architecture for healthcare on AWS*. https://aws.amazon.com/blogs/industries/building-a-hipaa-ready-generative-ai-architecture-for-healthcare-on-aws/
+[9] Nem, R. (2026, 16 de junio). Building a HIPAA-ready generative AI architecture for healthcare on AWS. *AWS for Industries*. https://aws.amazon.com/blogs/industries/building-a-hipaa-ready-generative-ai-architecture-for-healthcare-on-aws/
 
-[10] Amazon Web Services. (2026, 14 de agosto). *Architecting HIPAA-compliant AI agents to safeguard health data with AWS*. https://aws.amazon.com/blogs/publicsector/architecting-hipaa-compliant-ai-agents-to-safeguard-health-data-with-aws/
+[10] Chang, R. y Srinivasan, V. (2026, 14 de agosto). Architecting HIPAA-compliant AI agents to safeguard health data with AWS. *AWS Public Sector Blog*. https://aws.amazon.com/blogs/publicsector/architecting-hipaa-compliant-ai-agents-to-safeguard-health-data-with-aws/
 
 [11] Zocdoc. (s. f.). *Online Healthcare Appointment Platform*. https://www.zocdoc.com/
 
-[12] Microsoft. (s. f.). *Healthcare Agent Service*. Microsoft Learn. https://learn.microsoft.com/
+[12] Microsoft. (2024). *Overview - Healthcare agent service*. Microsoft Learn. https://learn.microsoft.com/en-us/azure/health-bot/overview
 
 [13] HL7 International. (s. f.). *FHIR Overview*. https://fhir.hl7.org/
 
-[14] *Standardisation of the Manchester Triage System*. NCBI PMC5289484. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5289484/
+[14] Zachariasse, J. M., Seiger, N., Rood, P. P., Alves, C. F., Freitas, P., Smit, F. J., Roukema, G. R. y Moll, H. A. (2017). Validity of the Manchester Triage System in emergency care: A prospective observational study. *PLoS ONE, 12*(2), e0170811. https://doi.org/10.1371/journal.pone.0170811
 
 [15] Emergency Nurses Association. (s. f.). *Emergency Severity Index (ESI) Implementation Handbook*. https://www.ena.org/
 
-[16] *Safety and accuracy of AI in triaging patients in the emergency department*. NCBI PMC12636208. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12636208/
+[16] Alomari, L. M., Alshammari, M. M., Arbaeen, A. O., Alshehri, R. A. y Almalki, H. S. (2025). Safety and accuracy of AI in triaging patients in the emergency department. *International Journal of Emergency Medicine, 18*(1), 243. https://doi.org/10.1186/s12245-025-01069-x
 
-[17] *Accuracy of AI chatbots in orthopedic pathologies*. NCBI PMC11764310. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11764310/
+[17] Gehlen, T., Joost, T., Solbrig, P., Stahnke, K., Zahn, R., Jahn, M., Adl Amini, D. y Back, D. A. (2025). Accuracy of artificial intelligence based chatbots in analyzing orthopedic pathologies: An experimental multi-observer analysis. *Diagnostics, 15*(2), 221. https://doi.org/10.3390/diagnostics15020221
 
 [18] National Institute of Mental Health. (s. f.). *Ask Suicide-Screening Questions (ASQ) Toolkit*. https://www.nimh.nih.gov/research/research-conducted-at-nimh/asq-toolkit-materials
 
