@@ -12,7 +12,7 @@
 
 ---
 
-## Resumen
+## Resumen / Abstract
 
 En Uninorte, las etapas de la atención en salud ya existen, pero cada una funciona por su lado: la orientación inicial, la canalización hacia el Centro Médico Uninorte (CMU) o el Centro de Acompañamiento Estudiantil (CAE), el agendamiento y el seguimiento. Los problemas aparecen al pasar de una etapa a otra. La persona no siempre sabe a qué centro acudir, lo que contó en el primer contacto no le llega al profesional y, después de la consulta, nadie revisa de forma sistemática cómo sigue.
 
@@ -21,16 +21,6 @@ CareSync Agentic Network es un prototipo funcional que conecta esas etapas por m
 Trabajamos durante 16 semanas en iteraciones cortas y medimos cada cambio contra el sistema desplegado, con bancos de casos sintéticos. En la medición final, el agente llevó a la ruta de emergencia los 13 casos de alarma, acertó el centro en el 92,6 % de los casos (la meta era 85 %), no dio ninguna respuesta prohibida en 26 intentos adversariales y no produjo dobles reservas en 10 pares de solicitudes simultáneas. Seis estudiantes calificaron la aplicación con 4,72 sobre 5, y quedaron verificados los nueve recorridos de punta a punta. La lección principal fue que las reglas críticas, como no diagnosticar y escalar ante la duda, tienen que sostenerse en el código y no en las instrucciones al modelo. Quedan pendientes la validación clínica del protocolo y pruebas de uso con profesionales y administradores.
 
 **Palabras clave:** agentes de inteligencia artificial, sistemas multiagente, triaje, continuidad del cuidado, salud universitaria, arquitectura *serverless*.
-
-## Abstract
-
-At Universidad del Norte (Uninorte), the stages of student health care already exist, but each one works on its own: initial guidance, referral to the medical center (CMU) or the student support center (CAE), scheduling and follow-up. Problems appear when a case moves from one stage to the next. Students do not always know where to go, what they reported at first contact does not reach the clinician, and nobody systematically checks how they are doing after the visit.
-
-CareSync Agentic Network is a working prototype that connects these stages through three AI agents that work on the same case. The Triage Agent assigns one of four urgency levels and refers the case to CMU or CAE without diagnosing; the Scheduling Agent finds a slot within the time limit for that level and books, changes or cancels the appointment; and the Follow-up Agent explains the plan left by the clinician, records doses taken and symptom progress, and alerts the clinician if the patient gets worse. Any red-flag symptom immediately triggers the emergency route. The system also includes a web app with five role-based views, a mobile app for patients and voice dictation of the treatment plan. Health data is stored in ROBLE, the university's data platform, while AWS provides the language model (Claude Haiku 4.5 on Amazon Bedrock), serverless execution, speech recognition and email.
-
-We worked in short iterations over 16 weeks and measured every change against the deployed system using synthetic case banks. In the final evaluation, the agent sent all 13 red-flag cases to the emergency route, chose the correct center in 92.6% of cases (target: 85%), gave no prohibited answer in 26 adversarial attempts and produced no double bookings in 10 pairs of simultaneous requests. Six students rated the application 4.72 out of 5, and all nine end-to-end journeys were verified. The main lesson was that critical rules, such as not diagnosing and escalating when in doubt, must be enforced in code rather than in the model's instructions. Clinical validation of the protocol and usability testing with clinicians and administrators remain as future work.
-
-**Keywords:** AI agents, multi-agent systems, triage, continuity of care, university health services, serverless architecture.
 
 ---
 
