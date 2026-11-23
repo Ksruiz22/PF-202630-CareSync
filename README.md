@@ -8,7 +8,8 @@ La solución son tres agentes que comparten el estado del caso y se lo transfier
 
 El alcance es un prototipo de punta a punta con datos exclusivamente sintéticos y sin validación clínica. Su valor está en mostrar, con evidencia medida, que esta coordinación es viable y segura por diseño: en la medición final contra el sistema desplegado, el agente derivó a emergencias el 100 % de los casos de alarma, acertó el centro en el 92,6 % de los casos, no produjo ninguna doble reserva en solicitudes simultáneas y alertó al profesional de un retroceso en 3 a 5 segundos.
 
-**Aplicación publicada:** https://main.d1ndsh656qxmj8.amplifyapp.com/
+**Aplicación web:** https://main.d1ndsh656qxmj8.amplifyapp.com/
+**Aplicación movil:** https://dfw2m18aewk5s.cloudfront.net/
 
 ## Documentación del repositorio
 
